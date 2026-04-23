@@ -12,6 +12,7 @@ const Dashboard = () => {
   const [chalanItems, setChalanItems] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [isViewOnly, setIsViewOnly] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -23,7 +24,7 @@ const Dashboard = () => {
       // ১. হোল্ড ও ট্রান্সফার পেন্ডিং চালান
       const { data: holdData } = await supabase
         .from('chalans')
-        .select('*, customers(name, phone, address)')
+        .select(`*, customers (name, phone, address)`)
         .eq('status', 'hold')
         .order('created_at', { ascending: false });
       
@@ -39,7 +40,7 @@ const Dashboard = () => {
       today.setHours(0, 0, 0, 0);
       const { data: billsData } = await supabase
         .from('chalans')
-        .select('*, customers(name, phone)')
+        .select(`*, customers (name, phone)`)
         .eq('status', 'paid')
         .gte('created_at', today.toISOString())
         .order('created_at', { ascending: false });
@@ -47,28 +48,29 @@ const Dashboard = () => {
       setHoldChalans(holdData || []);
       setLowStockProducts(stockData || []);
       setRecentBills(billsData || []);
-    } catch (error) { console.error(error); }
+    } catch (error) { console.error("Dashboard Data Error:", error); }
     setLoading(false);
   };
 
-  // চালান সিলেক্ট করলে ডিটেইলস আসবে
-  const handleSelectChalan = async (chalan) => {
+  // পপ-আপ ওপেন করার ফাংশন (পেন্ডিং এবং পেইড বিল উভয়ের জন্য)
+  const handleOpenDetails = async (chalan, viewOnly = false) => {
     setSelectedChalan(chalan);
+    setIsViewOnly(viewOnly);
     setPaymentMethod('');
+    
     const { data } = await supabase
       .from('chalan_items')
-      .select('*, products(name, model, category, stock_quantity)')
+      .select('*, products(name, model, category, stock_quantity, unit_price)')
       .eq('chalan_id', chalan.id);
     setChalanItems(data || []);
   };
 
-  // ইন-হাউজ ট্রান্সফার কনফার্ম করার লজিক
   const handleConfirmTransfer = async () => {
     if (!window.confirm('মাল স্থানান্তর কনফার্ম করবেন?')) return;
     setProcessing(true);
     try {
+      const targetHouse = selectedChalan.transfer_to;
       for (let item of chalanItems) {
-        const targetHouse = selectedChalan.transfer_to;
         const { data: targetProd } = await supabase
           .from('products')
           .select('id, stock_quantity')
@@ -82,19 +84,18 @@ const Dashboard = () => {
         } else {
           await supabase.from('products').insert([{
             name: item.products.name, model: item.products.model, category: item.products.category,
-            stock_quantity: item.quantity, house: targetHouse, unit_price: item.unit_price
+            stock_quantity: item.quantity, house: targetHouse, unit_price: item.unit_price || 0
           }]);
         }
       }
       await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedChalan.id);
-      alert('✅ ট্রান্সফার সফল!');
+      alert('✅ স্থানান্তর সফল হয়েছে!');
       setSelectedChalan(null);
       fetchDashboardData();
     } catch (e) { alert('ত্রুটি হয়েছে!'); }
     setProcessing(false);
   };
 
-  // রেগুলার পেমেন্ট কনফার্ম করার লজিক
   const handleConfirmPayment = async () => {
     if (!paymentMethod) return alert('পেমেন্ট মেথড দিন');
     setProcessing(true);
@@ -118,7 +119,7 @@ const Dashboard = () => {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-8 pb-20 px-4 md:px-0" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* পেন্ডিং চালান কার্ড সেকশন */}
+      {/* ১. পেন্ডিং চালান কার্ড সেকশন */}
       <div className="space-y-4">
         <div className="flex items-center gap-3 border-b border-slate-200 pb-2">
           <div className="h-5 w-1.5 bg-orange-500 rounded-full"></div>
@@ -128,11 +129,7 @@ const Dashboard = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {holdChalans.map(hc => (
-            <div 
-              key={hc.id} 
-              onClick={() => handleSelectChalan(hc)}
-              className="bg-white p-5 rounded-3xl border border-slate-200 cursor-pointer hover:border-orange-500 hover:shadow-xl hover:-translate-y-1 transition-all group relative overflow-hidden"
-            >
+            <div key={hc.id} onClick={() => handleOpenDetails(hc, false)} className="bg-white p-5 rounded-3xl border border-slate-200 cursor-pointer hover:border-orange-500 hover:shadow-xl hover:-translate-y-1 transition-all group">
               <div className="flex justify-between items-start mb-2">
                 <span className={`text-[9px] font-black px-2 py-1 rounded uppercase ${hc.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
                   {hc.is_in_house ? '🏠 Transfer' : '🛒 Sales'}
@@ -140,18 +137,23 @@ const Dashboard = () => {
                 <span className="text-[10px] font-bold text-slate-400">{new Date(hc.created_at).toLocaleDateString()}</span>
               </div>
               <h4 className="font-black text-slate-900 group-hover:text-orange-600 transition-colors">{hc.chalan_no}</h4>
+              
               <p className="text-xs font-bold text-slate-500 mt-1 truncate">
-                {hc.is_in_house ? `${hc.house} ➔ ${hc.transfer_to}` : hc.customers?.name}
+                {hc.customers?.name 
+                  ? hc.customers.name 
+                  : (hc.is_in_house 
+                      ? `${hc.house} ➔ ${hc.transfer_to || (hc.house === 'Head Office' ? 'Showroom' : 'Head Office')}` 
+                      : 'Walk-in Customer')}
               </p>
+              
               <p className="text-lg font-black text-slate-800 mt-3">{hc.total_amount} ৳</p>
             </div>
           ))}
-          {holdChalans.length === 0 && <p className="col-span-full py-10 text-center font-bold text-slate-300 border-2 border-dashed rounded-3xl italic">কোনো পেন্ডিং চালান নেই</p>}
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* লো স্টক অ্যালার্ট */}
+        {/* ২. লো স্টক অ্যালার্ট */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-5 bg-red-50 border-b border-red-100 flex justify-between items-center">
              <h3 className="text-sm font-black text-red-600 uppercase tracking-widest flex items-center gap-2">⚠️ Low Stock Alert</h3>
@@ -167,7 +169,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* আজকের বিল */}
+        {/* ৩. আজকের সেলস (পপ-আপ সহ) */}
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
           <div className="p-5 bg-green-50 border-b border-green-100 flex justify-between items-center">
              <h3 className="text-sm font-black text-green-700 uppercase tracking-widest flex items-center gap-2">✅ Today's Sales</h3>
@@ -175,8 +177,8 @@ const Dashboard = () => {
           </div>
           <div className="max-h-[400px] overflow-y-auto divide-y divide-slate-50">
             {recentBills.map(b => (
-              <div key={b.id} className="p-4 flex justify-between items-center hover:bg-slate-50">
-                <div><p className="font-black text-slate-900">{b.bill_no}</p><p className="text-[10px] font-bold text-slate-400">{b.customers?.name}</p></div>
+              <div key={b.id} onClick={() => handleOpenDetails(b, true)} className="p-4 flex justify-between items-center hover:bg-green-50 cursor-pointer transition-colors group">
+                <div><p className="font-black text-slate-900 group-hover:text-green-700">{b.bill_no}</p><p className="text-[10px] font-bold text-slate-400">{b.customers?.name || 'Walk-in'}</p></div>
                 <div className="text-right"><p className="font-black text-slate-800">{b.total_amount} ৳</p><span className="text-[9px] font-black text-green-600 border border-green-200 px-2 rounded-full uppercase">{b.payment_method}</span></div>
               </div>
             ))}
@@ -184,15 +186,19 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* কুইক অ্যাকশন মডাল (পপ-আপ) */}
+      {/* কুইক অ্যাকশন মডাল */}
       {selectedChalan && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95">
             <div className="p-6 bg-slate-50 border-b flex justify-between items-start">
               <div>
-                <h3 className="font-black text-2xl text-slate-900">{selectedChalan.chalan_no}</h3>
+                <h3 className="font-black text-2xl text-slate-900">{selectedChalan.bill_no || selectedChalan.chalan_no}</h3>
                 <p className="text-sm font-bold text-slate-500">
-                  {selectedChalan.is_in_house ? `🏠 ইন-হাউজ ট্রান্সফার: ${selectedChalan.transfer_to}` : `🛒 কাস্টমার: ${selectedChalan.customers?.name}`}
+                  {selectedChalan.customers?.name 
+                    ? `🛒 কাস্টমার: ${selectedChalan.customers.name}` 
+                    : (selectedChalan.is_in_house 
+                        ? `🏠 স্থানান্তর: ${selectedChalan.house} থেকে ${selectedChalan.transfer_to || 'Showroom'}` 
+                        : '🛒 কাস্টমার: Walk-in')}
                 </p>
               </div>
               <button onClick={() => setSelectedChalan(null)} className="p-2 bg-slate-200 rounded-full hover:bg-red-500 hover:text-white transition-all">✕</button>
@@ -201,18 +207,14 @@ const Dashboard = () => {
             <div className="p-6 overflow-y-auto flex-1">
               <table className="w-full text-left">
                 <thead className="text-[10px] uppercase font-black text-slate-400 border-b pb-2 mb-2 block">
-                  <tr className="flex">
-                    <th className="flex-1">Item Details</th>
-                    <th className="w-20 text-center">Qty</th>
-                    {!selectedChalan.is_in_house && <th className="w-24 text-right">Price</th>}
-                  </tr>
+                  <tr className="flex"><th className="flex-1">Item Details</th><th className="w-20 text-center">Qty</th><th className="w-24 text-right">Price</th></tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 block">
                   {chalanItems.map((item, idx) => (
                     <tr key={idx} className="flex py-3 items-center">
                       <td className="flex-1"><p className="font-bold text-slate-800">{item.products?.name}</p><p className="text-xs text-slate-400">{item.products?.model}</p></td>
                       <td className="w-20 text-center font-black text-lg">{item.quantity}</td>
-                      {!selectedChalan.is_in_house && <td className="w-24 text-right font-bold">{item.total_price} ৳</td>}
+                      <td className="w-24 text-right font-bold">{item.total_price} ৳</td>
                     </tr>
                   ))}
                 </tbody>
@@ -220,38 +222,23 @@ const Dashboard = () => {
             </div>
 
             <div className="p-8 bg-slate-50 border-t flex flex-col gap-6">
-              {!selectedChalan.is_in_house && (
-                <div className="flex flex-col md:flex-row gap-4 items-center">
-                  <select 
-                    value={paymentMethod} 
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full md:w-48 p-4 bg-white border-2 border-orange-200 rounded-2xl font-black outline-none focus:border-orange-500"
-                  >
-                    <option value="">পেমেন্ট মেথড...</option>
-                    <option value="Cash">Cash (নগদ)</option>
-                    <option value="bKash">bKash (বিকাশ)</option>
-                    <option value="Bank">Bank (ব্যাংক)</option>
-                  </select>
-                  <button 
-                    disabled={processing}
-                    onClick={handleConfirmPayment}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 disabled:opacity-50 transition-all"
-                  >
-                    {processing ? 'লোড হচ্ছে...' : 'পেমেন্ট ও বিল কনফার্ম করুন'}
-                  </button>
-                </div>
+              {isViewOnly ? (
+                <div className="p-4 bg-green-100 text-green-700 rounded-xl text-center font-black">✅ এই বিলটি পরিশোধ করা হয়েছে ({selectedChalan.payment_method})</div>
+              ) : (
+                <>
+                  {selectedChalan.customers?.name ? (
+                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                      <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full md:w-48 p-4 bg-white border-2 border-orange-200 rounded-2xl font-black outline-none focus:border-orange-500 shadow-sm">
+                        <option value="">পেমেন্ট মেথড...</option>
+                        <option value="Cash">Cash (নগদ)</option><option value="bKash">bKash (বিকাশ)</option><option value="Bank">Bank (ব্যাংক)</option>
+                      </select>
+                      <button disabled={processing || !paymentMethod} onClick={handleConfirmPayment} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 disabled:opacity-50 transition-all">কনফার্ম পেমেন্ট</button>
+                    </div>
+                  ) : (
+                    <button disabled={processing} onClick={handleConfirmTransfer} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all">ট্রান্সফার কনফার্ম করুন</button>
+                  )}
+                </>
               )}
-
-              {selectedChalan.is_in_house && (
-                <button 
-                  disabled={processing}
-                  onClick={handleConfirmTransfer}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 disabled:opacity-50 transition-all"
-                >
-                  {processing ? 'প্রসেসিং...' : 'ট্রান্সফার কনফার্ম করুন'}
-                </button>
-              )}
-              
               <div className="flex justify-between items-center border-t pt-4">
                 <span className="font-bold text-slate-400 uppercase tracking-widest text-xs">Grand Total</span>
                 <span className="font-black text-3xl text-slate-900">{selectedChalan.total_amount} ৳</span>
