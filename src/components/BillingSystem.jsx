@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
+import { downloadPDF } from '../utils/pdfGenerator';
 
 const BillingSystem = () => {
   const [house, setHouse] = useState('Head Office'); 
@@ -168,7 +169,6 @@ const BillingSystem = () => {
              )}
           </div>
           
-          {/* ✅ প্রোডাক্ট নির্বাচনের বক্সটি এখানে আবার যুক্ত করা হলো */}
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
             <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900">
@@ -217,7 +217,10 @@ const BillingSystem = () => {
                 <h2 className="text-2xl font-black mb-2">চালান তৈরি হয়েছে!</h2>
                 <p className="font-bold text-slate-400 mb-6 uppercase">নং: {generatedData.chalan.chalan_no}</p>
                 <div className="flex flex-col gap-3">
-                  <button onClick={() => printChallan(generatedData.chalan, generatedData.customer, generatedData.items)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest">🖨️ প্রিন্ট চালান</button>
+                  <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => printChallan(generatedData.chalan, generatedData.customer, generatedData.items)} className="bg-slate-900 text-white py-4 rounded-xl font-bold uppercase text-xs">🖨️ প্রিন্ট চালান</button>
+                     <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="bg-blue-600 text-white py-4 rounded-xl font-bold uppercase text-xs">📥 ডাউনলোড PDF</button>
+                  </div>
                   {!isInHouse && <button onClick={() => setQuickBillMode(true)} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg uppercase tracking-widest">💰 সরাসরি বিল তৈরি করুন</button>}
                   <button onClick={() => setShowSuccessModal(false)} className="mt-2 text-slate-400 font-bold">পরে করবো / বন্ধ করুন</button>
                 </div>
@@ -227,15 +230,15 @@ const BillingSystem = () => {
                 <h2 className="text-xl font-black border-b pb-3">বিল কনফার্মেশন</h2>
                 <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">
-                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} />
+                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="accent-orange-500" />
                     <span className="text-xs font-black text-orange-700 uppercase">ম্যানুয়াল বিল নম্বর?</span>
                   </label>
-                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 border rounded-xl font-bold uppercase outline-none" />}
+                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold outline-none" />}
                 </div>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm">
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-green-500">
                   <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
                 </select>
-                <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
+                <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
                 <button onClick={() => setQuickBillMode(false)} className="w-full text-slate-400 font-bold text-center">পিছনে যান</button>
               </div>
             )}
