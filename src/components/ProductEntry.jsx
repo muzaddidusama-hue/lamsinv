@@ -5,6 +5,7 @@ const ProductEntry = () => {
   const [entryMode, setEntryMode] = useState('new'); // 'new' বা 'existing'
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false); // আপলোডিং স্টেট
 
   // ফর্ম স্টেটস
   const [name, setName] = useState('');
@@ -13,7 +14,7 @@ const ProductEntry = () => {
   const [unitPrice, setUnitPrice] = useState('');
   const [availability, setAvailability] = useState('in stock');
   const [imageUrl, setImageUrl] = useState('');
-  const [house, setHouse] = useState('Head Office'); // নতুন হাউজ স্টেট
+  const [house, setHouse] = useState('Head Office');
 
   // সোলার প্যানেলের জন্য স্পেশাল স্টেটস
   const [panelWatt, setPanelWatt] = useState('');
@@ -42,6 +43,39 @@ const ProductEntry = () => {
     }
   }, [panelWatt, perWattPrice, category]);
 
+  // 🔴 ইমেজ আপলোড হ্যান্ডলার (সুপাবেজ স্টোরেজের জন্য)
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      // ফাইলের ইউনিক নাম তৈরি
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // আপনার স্ক্রিনশট অনুযায়ী বাকেটের নাম 'product image'
+      const { data, error: uploadError } = await supabase.storage
+        .from('product image') 
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      // পাবলিক ইউআরএল সংগ্রহ
+      const { data: { publicUrl } } = supabase.storage
+        .from('product image')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl); // প্রিভিউ এবং ফর্মে সেভ
+    } catch (error) {
+      console.error(error);
+      alert('ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || !model || !unitPrice) return alert('দয়া করে সব প্রয়োজনীয় তথ্য দিন');
@@ -58,12 +92,13 @@ const ProductEntry = () => {
         stock_quantity: 0, 
         availability: availability,
         image_url: imageUrl,
-        house: house // হাউজ ডাটা সেভ হচ্ছে
+        house: house 
       }
     ]);
 
     if (!error) {
       alert('✅ প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!');
+      // ফর্ম রিসেট
       setModel('');
       setUnitPrice('');
       setPanelWatt('');
@@ -102,18 +137,15 @@ const ProductEntry = () => {
         </div>
       </div>
 
-      {/* মেইন ফর্ম */}
       <form onSubmit={handleSubmit} className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
-          {/* বাম দিক (ইনপুট ফিল্ডস) */}
           <div className="lg:col-span-7 space-y-6">
-            
             {/* ব্র্যান্ড নেম */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">ব্র্যান্ড / কোম্পানি</label>
               {entryMode === 'new' ? (
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ব্র্যান্ডের নাম লিখুন (যেমন: Sunland)" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-800" />
+                <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="ব্র্যান্ডের নাম লিখুন" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-800" />
               ) : (
                 <select value={name} onChange={(e) => setName(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-800">
                   <option value="">ব্র্যান্ড সিলেক্ট করুন...</option>
@@ -122,7 +154,6 @@ const ProductEntry = () => {
               )}
             </div>
 
-            {/* ক্যাটাগরি এবং হাউজ (এক রো-তে) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">প্রোডাক্ট ক্যাটাগরি</label>
@@ -139,26 +170,24 @@ const ProductEntry = () => {
               </div>
             </div>
 
-            {/* মডেল নম্বর */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">মডেল নম্বর / ক্যাপাসিটি</label>
-              <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="যেমন: 550W Mono, 2000VA" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-800" />
+              <input type="text" value={model} onChange={(e) => setModel(e.target.value)} placeholder="যেমন: 550W Mono" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-slate-900 font-bold text-slate-800" />
             </div>
 
-            {/* ডাইনামিক প্রাইসিং সেকশন */}
             <div className="grid grid-cols-2 gap-4">
               {category === 'Solar Panel' ? (
                 <>
                   <div className="col-span-1">
                     <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2 block">প্যানেল ওয়াট (W)</label>
-                    <input type="number" value={panelWatt} onChange={(e) => setPanelWatt(e.target.value)} placeholder="550" className="w-full p-4 bg-orange-50 border border-orange-100 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-orange-800" />
+                    <input type="number" value={panelWatt} onChange={(e) => setPanelWatt(e.target.value)} placeholder="550" className="w-full p-4 bg-orange-50 border border-orange-100 rounded-2xl outline-none font-bold text-orange-800" />
                   </div>
                   <div className="col-span-1">
                     <label className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-2 block">প্রতি ওয়াট (৳)</label>
-                    <input type="number" value={perWattPrice} onChange={(e) => setPerWattPrice(e.target.value)} placeholder="65" className="w-full p-4 bg-orange-50 border border-orange-100 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-orange-800" />
+                    <input type="number" value={perWattPrice} onChange={(e) => setPerWattPrice(e.target.value)} placeholder="65" className="w-full p-4 bg-orange-50 border border-orange-100 rounded-2xl outline-none font-bold text-orange-800" />
                   </div>
                   <div className="col-span-2 bg-orange-100/50 p-4 rounded-2xl flex justify-between items-center border border-orange-100">
-                    <span className="text-xs font-black text-orange-600 uppercase tracking-widest">সর্বমোট পিস প্রতি দাম:</span>
+                    <span className="text-xs font-black text-orange-600 uppercase tracking-widest">সর্বমোট দাম:</span>
                     <span className="text-xl font-black text-orange-700">{unitPrice || '0'} ৳</span>
                   </div>
                 </>
@@ -169,7 +198,6 @@ const ProductEntry = () => {
                 </div>
               )}
 
-              {/* স্ট্যাটাস */}
               <div className={category === 'Solar Panel' ? 'col-span-2' : 'col-span-1'}>
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">অ্যাভেইল্যাবিলিটি</label>
                 <select value={availability} onChange={(e) => setAvailability(e.target.value)} className="w-full p-4 border border-slate-200 bg-slate-50 rounded-2xl outline-none font-bold">
@@ -180,24 +208,37 @@ const ProductEntry = () => {
             </div>
           </div>
 
-          {/* ডান দিক (ইমেজ আপলোড প্রিভিউ) */}
+          {/* 🔴 আপডেট করা ইমেজ আপলোড সেকশন */}
           <div className="lg:col-span-5 flex flex-col gap-4">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block text-center">প্রোডাক্ট ইমেজ</label>
-            <div className="flex-1 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50 flex flex-col items-center justify-center p-6 min-h-[250px] relative overflow-hidden group">
+            
+            <div className="flex-1 border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50 flex flex-col items-center justify-center p-6 min-h-[280px] relative overflow-hidden group">
               {imageUrl ? (
-                <img src={imageUrl} alt="Preview" className="h-full w-full object-contain mix-blend-multiply group-hover:scale-105 transition-transform" />
+                <>
+                  <img src={imageUrl} alt="Preview" className="h-full w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
+                  <button type="button" onClick={() => setImageUrl('')} className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600">✕</button>
+                </>
               ) : (
-                <div className="text-center">
-                  <div className="text-4xl mb-2 opacity-20">📸</div>
-                  <span className="text-slate-400 font-bold text-sm">ইমেজ প্রিভিউ</span>
+                <label className="cursor-pointer text-center w-full h-full flex flex-col items-center justify-center hover:bg-slate-100 transition-colors rounded-[2rem]">
+                  <div className="text-5xl mb-3 opacity-20">{uploading ? '⏳' : '📤'}</div>
+                  <span className="text-slate-500 font-black text-sm uppercase tracking-widest">
+                    {uploading ? 'আপলোড হচ্ছে...' : 'ক্লিক করে ছবি আপলোড দিন'}
+                  </span>
+                  <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploading} />
+                </label>
+              )}
+              {uploading && (
+                <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
                 </div>
               )}
             </div>
 
-            <input type="text" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="ইমেজ লিংক (Direct URL)" className="w-full p-4 bg-orange-50 border border-orange-100 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 text-sm font-medium text-slate-700" />
+            {/* ইউআরএল বক্সটি এখন রিড-অনলি করা হয়েছে */}
+            <input type="text" value={imageUrl} readOnly placeholder="লিংক এখানে অটোমেটিক আসবে" className="w-full p-3 bg-orange-50 border border-orange-100 rounded-2xl outline-none text-[10px] font-medium text-slate-500" />
 
-            <button type="submit" disabled={loading} className="w-full mt-2 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-xl active:scale-95">
-              {loading ? 'লোড হচ্ছে...' : 'পাবলিশ করুন'}
+            <button type="submit" disabled={loading || uploading || !imageUrl} className="w-full mt-2 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-xl active:scale-95 disabled:bg-slate-300">
+              {loading ? 'পাবলিশ হচ্ছে...' : 'পাবলিশ করুন'}
             </button>
           </div>
 

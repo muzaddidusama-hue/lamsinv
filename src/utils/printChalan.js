@@ -24,7 +24,7 @@ export const printChallan = (chalan, customer, items) => {
             position: relative;
             width: 210mm; 
             height: 297mm; 
-            background-image: url('https://i.postimg.cc/rpxSKm5t/Challan-Blank.jpg');
+            background-image: url('https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Challan-Blank-Pad.jpg');
             background-size: 100% 100%;
             background-repeat: no-repeat;
             margin: 0 auto;

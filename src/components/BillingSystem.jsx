@@ -57,7 +57,15 @@ const BillingSystem = () => {
     if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
     if (parseInt(qty) > product.stock_quantity) return alert(`স্টকে মাত্র ${product.stock_quantity} পিস আছে!`);
-    setCart([...cart, { product_id: product.id, name: product.name, model: product.model, category: product.category, unit_price: product.unit_price, qty: parseInt(qty), total: product.unit_price * parseInt(qty) }]);
+    setCart([...cart, { 
+        product_id: product.id, 
+        name: product.name, 
+        model: product.model, 
+        category: product.category, 
+        unit_price: product.unit_price, 
+        qty: parseInt(qty), 
+        total: product.unit_price * parseInt(qty) 
+    }]);
     setSelectedProduct(''); setQty('');
   };
 
@@ -81,7 +89,7 @@ const BillingSystem = () => {
           customerId = newCust.id;
         }
       } else {
-        customerData = { name: `Internal Transfer to ${transferTo}`, phone: '-', address: '-' };
+        customerData = { name: `Transfer: ${house} to ${transferTo}`, phone: '-', address: '-' };
       }
 
       const chalanNo = isManualChalan ? manualChalanNo : `CHL-${Date.now().toString().slice(-6)}`;
@@ -115,7 +123,10 @@ const BillingSystem = () => {
       const { error } = await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: billNo }).eq('id', generatedData.chalan.id);
       if (error) throw error;
       alert(`✅ বিল তৈরি হয়েছে! নং: ${billNo}`);
-      printBill({ ...generatedData.chalan, bill_no: billNo, payment_method: paymentMethod }, generatedData.customer, generatedData.items);
+      
+      const billToPrint = { ...generatedData.chalan, bill_no: billNo, payment_method: paymentMethod };
+      printBill(billToPrint, generatedData.customer, generatedData.items);
+      
       setShowSuccessModal(false);
       setQuickBillMode(false);
     } catch (e) { alert("সমস্যা হয়েছে!"); }
@@ -165,6 +176,7 @@ const BillingSystem = () => {
                   </div>
                   <input type="text" placeholder="মোবাইল" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
                   <input type="text" placeholder="নাম" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
+                  <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
                 </div>
              )}
           </div>
@@ -230,15 +242,20 @@ const BillingSystem = () => {
                 <h2 className="text-xl font-black border-b pb-3">বিল কনফার্মেশন</h2>
                 <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">
-                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="accent-orange-500" />
+                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} />
                     <span className="text-xs font-black text-orange-700 uppercase">ম্যানুয়াল বিল নম্বর?</span>
                   </label>
-                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold outline-none" />}
+                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold uppercase outline-none" />}
                 </div>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-green-500">
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm">
                   <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
                 </select>
-                <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
+                <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
+                
+                <div className="flex justify-center">
+                    <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="text-blue-600 font-bold text-sm underline">📥 আপাতত চালানটি PDF ডাউনলোড করুন</button>
+                </div>
+
                 <button onClick={() => setQuickBillMode(false)} className="w-full text-slate-400 font-bold text-center">পিছনে যান</button>
               </div>
             )}

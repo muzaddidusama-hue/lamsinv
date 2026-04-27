@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-// আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট
+// আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট
 import Dashboard from './Dashboard';
 import BillingSystem from './BillingSystem';
 import ChalanManager from './ChalanManager';
@@ -9,7 +9,8 @@ import FalseBilling from './FalseBilling';
 import Reports from './Reports';
 import ProductEntry from './ProductEntry';
 import StockManagement from './StockManagement';
-import FrontEndCustom from './FrontEndCustom'; // PublicPageEdit এর আসল নাম
+import FrontEndCustom from './FrontEndCustom';
+import SmartUpload from "./SmartUpload";
 
 const AdminPanel = ({ onLogout }) => {
   const [view, setView] = useState('dashboard');
@@ -17,6 +18,7 @@ const AdminPanel = ({ onLogout }) => {
 
   const menuItems = [
     { id: 'dashboard', icon: '📊', label: 'ড্যাশবোর্ড (Dashboard)' },
+    { id: 'smart_scan', icon: '📸', label: 'স্মার্ট স্ক্যানার (AI)' }, // 🔴 নতুন বাটন অ্যাড করা হলো
     { id: 'product_entry', icon: '📦', label: 'প্রোডাক্ট এন্ট্রি' },
     { id: 'billing', icon: '🛒', label: 'চালান ও বিলিং' },
     { id: 'chalans', icon: '📝', label: 'পেমেন্ট ও চালান' },
@@ -83,6 +85,7 @@ const AdminPanel = ({ onLogout }) => {
         {/* সিলেক্ট করা কম্পোনেন্টগুলো এখানে লোড হবে */}
         <div className="p-4 md:p-8 pb-28 md:pb-8">
           {view === 'dashboard' && <Dashboard />}
+          {view === 'smart_scan' && <SmartUpload />} {/* 🔴 নতুন পেজ রেন্ডার করা হলো */}
           {view === 'product_entry' && <ProductEntry />}
           {view === 'billing' && <BillingSystem />}
           {view === 'chalans' && <ChalanManager />}

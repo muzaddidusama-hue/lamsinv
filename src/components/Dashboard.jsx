@@ -24,13 +24,11 @@ const Dashboard = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayISO = today.toISOString();
-
     try {
       const { data: hold } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'hold').order('created_at', { ascending: false });
       const { data: tChalans } = await supabase.from('chalans').select('*, customers(*)').gte('created_at', todayISO).order('created_at', { ascending: false });
       const { data: tBills } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', todayISO).order('created_at', { ascending: false });
       const { data: stock } = await supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true });
-
       setHoldChalans(hold || []);
       setTodayChalans(tChalans || []);
       setTodayBills(tBills || []);
@@ -40,9 +38,7 @@ const Dashboard = () => {
   };
 
   const handleViewDetails = async (item, type) => {
-    setSelectedItem(item);
-    setModalType(type);
-    setPaymentMethod('');
+    setSelectedItem(item); setModalType(type); setPaymentMethod('');
     if (type !== 'product') {
         const { data } = await supabase.from('chalan_items').select('*, products(*)').eq('chalan_id', item.id);
         setModalItems(data || []);
@@ -70,7 +66,7 @@ const Dashboard = () => {
   };
 
   const handlePrint = () => {
-    const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price }));
+    const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
     if (selectedItem.status === 'paid') printBill(selectedItem, selectedItem.customers || { name: 'Walk-in' }, printItems);
     else printChallan(selectedItem, selectedItem.customers || { name: selectedItem.is_in_house ? 'Transfer' : 'Walk-in' }, printItems);
   };
@@ -84,7 +80,6 @@ const Dashboard = () => {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 font-['Inter'] pb-20">
-      
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Pending Action', val: holdChalans.length, color: 'bg-orange-500', icon: '⏳' },
@@ -94,26 +89,19 @@ const Dashboard = () => {
         ].map((s, i) => (
           <div key={i} className="bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between overflow-hidden relative group">
             <div className="absolute -right-2 -bottom-2 text-6xl opacity-5">{s.icon}</div>
-            <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
-              <h3 className="text-3xl font-black text-slate-800 mt-1">{s.val}</h3>
-            </div>
+            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p><h3 className="text-3xl font-black text-slate-800 mt-1">{s.val}</h3></div>
             <div className={`w-3 h-3 rounded-full ${s.color}`}></div>
           </div>
         ))}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        
         <div className="xl:col-span-3 space-y-4">
           <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Pending Action</h2>
           <div className="space-y-3">
             {holdChalans.map(c => (
               <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover:border-orange-400 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex justify-between items-start mb-3">
-                  <span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${c.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{c.is_in_house ? 'Transfer' : 'Sales'}</span>
-                  <span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                </div>
+                <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${c.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{c.is_in_house ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                 <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
                 <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customers?.name || (c.is_in_house ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
                 <div className="mt-4 flex justify-between items-center"><span className="text-lg font-black text-slate-700">{c.total_amount} ৳</span><div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-colors">→</div></div>
@@ -136,7 +124,6 @@ const Dashboard = () => {
                ))}
             </div>
           </div>
-
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
             <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Bills</h2>
             <div className="space-y-2 overflow-y-auto pr-2">
@@ -150,7 +137,6 @@ const Dashboard = () => {
                ))}
             </div>
           </div>
-
           <div className="bg-red-50/40 p-6 rounded-[2.5rem] border border-red-100 flex flex-col h-[600px]">
             <h2 className="text-xs font-black text-red-500 uppercase tracking-widest mb-6 px-2">Critical Stock</h2>
             <div className="space-y-2 overflow-y-auto pr-2">
@@ -179,14 +165,13 @@ const Dashboard = () => {
               <div className="flex gap-2">
                 {modalType !== 'product' && (
                   <>
-                    <button onClick={handlePrint} title="প্রিন্ট" className="w-10 h-10 bg-white border border-slate-200 rounded-full hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center">🖨️</button>
-                    <button onClick={handleDownload} title="ডাউনলোড" className="w-10 h-10 bg-white border border-slate-200 rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center">📥</button>
+                    <button onClick={handlePrint} className="w-10 h-10 bg-white border rounded-full hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center">🖨️</button>
+                    <button onClick={handleDownload} className="w-10 h-10 bg-white border rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center">📥</button>
                   </>
                 )}
-                <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border border-slate-200 rounded-full hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
+                <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border rounded-full hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
               </div>
             </div>
-
             <div className="p-8 max-h-[45vh] overflow-y-auto">
               {modalType === 'product' ? (
                 <div className="grid grid-cols-2 gap-6 text-center">
@@ -204,21 +189,20 @@ const Dashboard = () => {
                 </table>
               )}
             </div>
-
             <div className="p-8 bg-slate-50 border-t">
                {selectedItem.status === 'hold' ? (
                  <div className="space-y-4">
                     {selectedItem.is_in_house ? (
-                      <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-lg transition-all active:scale-95 uppercase tracking-widest">{processing ? 'Processing...' : 'Confirm Transfer'}</button>
+                      <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 uppercase tracking-widest">{processing ? 'Processing...' : 'Confirm Transfer'}</button>
                     ) : (
                       <div className="flex gap-3">
                         <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="flex-1 p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm"><option value="">Method...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option></select>
-                        <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="bg-green-600 hover:bg-green-700 text-white px-10 py-4 rounded-2xl font-black text-lg transition-all shadow-md">{processing ? '...' : 'Receive Payment'}</button>
+                        <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="bg-green-600 hover:bg-green-700 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-md">{processing ? '...' : 'Receive Payment'}</button>
                       </div>
                     )}
                  </div>
                ) : (
-                 <div className="mt-4 flex justify-between items-center bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                 <div className="mt-4 flex justify-between items-center bg-white p-6 rounded-3xl border shadow-sm">
                     <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction Status</p><p className="text-xl font-black text-slate-800 mt-1 uppercase">{selectedItem.status} via {selectedItem.payment_method || 'System'}</p></div>
                     <p className="text-3xl font-black text-green-600">{selectedItem.total_amount} ৳</p>
                  </div>
@@ -230,5 +214,4 @@ const Dashboard = () => {
     </div>
   );
 };
-
 export default Dashboard;

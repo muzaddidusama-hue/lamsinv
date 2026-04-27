@@ -26,6 +26,25 @@ const StockManagement = () => {
     setLoading(false);
   };
 
+  // 🔴 নতুন টগল ফাংশন: পাবলিক অ্যাভেইল্যাবিলিটি পরিবর্তন করার জন্য
+  const toggleAvailability = async (product) => {
+    const newStatus = product.availability === 'in stock' ? 'out of stock' : 'in stock';
+    
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ availability: newStatus })
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      // লোকাল স্টেট আপডেট যাতে সাথে সাথে বাটনের রঙ পরিবর্তন হয়
+      setProducts(products.map(p => p.id === product.id ? { ...p, availability: newStatus } : p));
+    } catch (error) {
+      alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে!');
+    }
+  };
+
   const handleDataSave = async () => {
     if (!selectedProduct || !newValue || newValue < 0) return alert('সঠিক তথ্য দিন!');
     
@@ -111,13 +130,14 @@ const StockManagement = () => {
                 <th className="p-5">প্রোডাক্ট ইনফো</th>
                 <th className="p-5 text-right">দাম</th>
                 <th className="p-5 text-center">স্টক ({activeHouse})</th>
+                <th className="p-5 text-center">পাবলিক পেজ স্ট্যাটাস</th> {/* 🔴 নতুন কলাম */}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan="3" className="p-20 text-center font-bold text-slate-300 italic">লোড হচ্ছে...</td></tr>
+                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">লোড হচ্ছে...</td></tr>
               ) : filteredProducts.length === 0 ? (
-                <tr><td colSpan="3" className="p-20 text-center font-bold text-slate-300 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</td></tr>
+                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</td></tr>
               ) : filteredProducts.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50/50">
                   <td className="p-5">
@@ -130,6 +150,22 @@ const StockManagement = () => {
                       {p.stock_quantity} PCS
                     </span>
                   </td>
+                  {/* 🔴 পাবলিক স্ট্যাটাস টগল সুইচ */}
+                  <td className="p-5 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <button 
+                        onClick={() => toggleAvailability(p)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${p.availability === 'in stock' ? 'bg-green-500' : 'bg-red-500'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${p.availability === 'in stock' ? 'translate-x-6' : 'translate-x-1'}`}
+                        />
+                      </button>
+                      <span className={`text-[8px] font-black uppercase ${p.availability === 'in stock' ? 'text-green-600' : 'text-red-500'}`}>
+                        {p.availability === 'in stock' ? 'Public: In Stock' : 'Public: Out Stock'}
+                      </span>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -137,13 +173,13 @@ const StockManagement = () => {
         </div>
       </div>
 
-      {/* মডাল কোড (যা আপনার কোডে মিসিং ছিল) */}
+      {/* মডাল কোড */}
       {updateModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="mb-6">
-               <h3 className="text-2xl font-black text-slate-900">{modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : '💰 প্রাইস আপডেট'}</h3>
-               <p className="text-sm font-bold text-slate-400">প্রোডাক্ট সিলেক্ট করে নতুন ডাটা দিন</p>
+                <h3 className="text-2xl font-black text-slate-900">{modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : '💰 প্রাইস আপডেট'}</h3>
+                <p className="text-sm font-bold text-slate-400">প্রোডাক্ট সিলেক্ট করে নতুন ডাটা দিন</p>
             </div>
             
             <div className="space-y-6">
@@ -154,7 +190,6 @@ const StockManagement = () => {
                   onChange={(e) => setSelectedProduct(products.find(p => p.id === parseInt(e.target.value)))}
                 >
                   <option value="">সিলেক্ট করুন...</option>
-                  {/* শুধুমাত্র একটিভ হাউজের প্রোডাক্টগুলো ড্রপডাউনে দেখাবে */}
                   {products.filter(p => p.house === activeHouse).map(p => (
                     <option key={p.id} value={p.id}>{p.name} - {p.model} (বর্তমান: {modalType === 'stock' ? p.stock_quantity : p.unit_price})</option>
                   ))}

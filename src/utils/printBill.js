@@ -30,7 +30,7 @@ export const printBill = (chalan, customer, items) => {
           body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: #fff; }
           .page {
             position: relative; width: 210mm; height: 297mm; 
-            background-image: url('https://i.postimg.cc/rpxSKm5t/Challan-Blank.jpg');
+            background-image: url('https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Bill-Blank-Pad.jpg');
             background-size: 100% 100%; background-repeat: no-repeat; margin: 0 auto;
             padding: 270px 60px 90px 60px; box-sizing: border-box;
           }
