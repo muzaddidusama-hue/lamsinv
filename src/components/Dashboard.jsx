@@ -65,15 +65,30 @@ const Dashboard = () => {
     setProcessing(false);
   };
 
+  const getCustomerData = (item) => {
+    return {
+      name: item.customer_name || item.customers?.name || (item.is_in_house ? 'Transfer' : 'Walk-in'),
+      phone: item.phone || item.customers?.phone || '',
+      address: item.address || item.customers?.address || ''
+    };
+  };
+
   const handlePrint = () => {
     const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    if (selectedItem.status === 'paid') printBill(selectedItem, selectedItem.customers || { name: 'Walk-in' }, printItems);
-    else printChallan(selectedItem, selectedItem.customers || { name: selectedItem.is_in_house ? 'Transfer' : 'Walk-in' }, printItems);
+    const customerData = getCustomerData(selectedItem); 
+    
+    if (modalType === 'bill') {
+      printBill(selectedItem, customerData, printItems);
+    } else {
+      printChallan(selectedItem, customerData, printItems);
+    }
   };
 
   const handleDownload = () => {
     const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    downloadPDF(selectedItem, selectedItem.customers || { name: 'Walk-in' }, printItems, selectedItem.status === 'paid' ? 'Bill' : 'Challan');
+    const customerData = getCustomerData(selectedItem); 
+    
+    downloadPDF(selectedItem, customerData, printItems, modalType === 'bill' ? 'Bill' : 'Challan');
   };
 
   if (loading) return <div className="flex justify-center items-center h-screen text-slate-400 font-black animate-pulse uppercase tracking-widest text-xs">Loading LAMS System...</div>;
@@ -103,7 +118,7 @@ const Dashboard = () => {
               <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover:border-orange-400 hover:shadow-xl transition-all cursor-pointer group">
                 <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${c.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{c.is_in_house ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                 <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
-                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customers?.name || (c.is_in_house ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
+                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (c.is_in_house ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
                 <div className="mt-4 flex justify-between items-center"><span className="text-lg font-black text-slate-700">{c.total_amount} ৳</span><div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-colors">→</div></div>
               </div>
             ))}
@@ -115,9 +130,9 @@ const Dashboard = () => {
             <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Chalans</h2>
             <div className="space-y-2 overflow-y-auto pr-2">
                {todayChalans.map(tc => (
-                 <div key={tc.id} onClick={() => handleViewDetails(tc, 'bill')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-blue-50 cursor-pointer transition-all">
+                 <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-blue-50 cursor-pointer transition-all">
                     <div className="flex justify-between items-start">
-                      <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customers?.name || (tc.is_in_house ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
+                      <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (tc.is_in_house ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>
                     </div>
                  </div>
@@ -130,7 +145,7 @@ const Dashboard = () => {
                {todayBills.map(tb => (
                  <div key={tb.id} onClick={() => handleViewDetails(tb, 'bill')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-green-50 cursor-pointer transition-all">
                     <div className="flex justify-between items-start">
-                      <div><p className="font-black text-slate-800 text-sm">#{tb.bill_no || 'N/A'}</p><p className="text-[10px] font-bold text-slate-400 mt-1">{tb.customers?.name || 'Walk-in'}</p></div>
+                      <div><p className="font-black text-slate-800 text-sm">#{tb.bill_no || 'N/A'}</p><p className="text-[10px] font-bold text-slate-400 mt-1">{tb.customer_name || tb.customers?.name || 'Walk-in'}</p></div>
                       <span className="text-[8px] font-black bg-green-600 text-white px-2 py-0.5 rounded-full uppercase">{tb.payment_method}</span>
                     </div>
                  </div>
@@ -159,7 +174,7 @@ const Dashboard = () => {
                 <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
                 <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
                 <p className="text-sm font-bold text-slate-400 mt-2">
-                  {modalType === 'product' ? `Model: ${selectedItem.model}` : (selectedItem.is_in_house ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customers?.name || 'Walk-in'}`)}
+                  {modalType === 'product' ? `Model: ${selectedItem.model}` : (selectedItem.is_in_house ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
                 </p>
               </div>
               <div className="flex gap-2">
