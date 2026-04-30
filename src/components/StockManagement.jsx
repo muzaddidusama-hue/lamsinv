@@ -26,7 +26,6 @@ const StockManagement = () => {
     setLoading(false);
   };
 
-  // 🔴 নতুন টগল ফাংশন: পাবলিক অ্যাভেইল্যাবিলিটি পরিবর্তন করার জন্য
   const toggleAvailability = async (product) => {
     const newStatus = product.availability === 'in stock' ? 'out of stock' : 'in stock';
     
@@ -38,7 +37,6 @@ const StockManagement = () => {
 
       if (error) throw error;
 
-      // লোকাল স্টেট আপডেট যাতে সাথে সাথে বাটনের রঙ পরিবর্তন হয়
       setProducts(products.map(p => p.id === product.id ? { ...p, availability: newStatus } : p));
     } catch (error) {
       alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে!');
@@ -46,11 +44,17 @@ const StockManagement = () => {
   };
 
   const handleDataSave = async () => {
-    if (!selectedProduct || !newValue || newValue < 0) return alert('সঠিক তথ্য দিন!');
+    if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
     
     let updateData = {};
+    
+    // 🔴 আপডেট লজিক: স্টক যোগ, স্টক বিয়োগ এবং প্রাইস আপডেট
     if (modalType === 'stock') {
       updateData = { stock_quantity: selectedProduct.stock_quantity + parseInt(newValue) };
+    } else if (modalType === 'reduce_stock') {
+      const reducedStock = selectedProduct.stock_quantity - parseInt(newValue);
+      if (reducedStock < 0) return alert('বর্তমান স্টকের চেয়ে বেশি কমানো যাবে না!');
+      updateData = { stock_quantity: reducedStock };
     } else {
       updateData = { unit_price: parseFloat(newValue) };
     }
@@ -59,7 +63,7 @@ const StockManagement = () => {
       const { error } = await supabase.from('products').update(updateData).eq('id', selectedProduct.id);
       if (error) throw error;
 
-      alert(`✅ ${modalType === 'stock' ? 'স্টক' : 'দাম'} সফলভাবে আপডেট হয়েছে!`);
+      alert(`✅ ${modalType === 'price' ? 'দাম' : 'স্টক'} সফলভাবে আপডেট হয়েছে!`);
       setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, ...updateData } : p));
       closeModal();
     } catch (error) {
@@ -114,8 +118,10 @@ const StockManagement = () => {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" 
           />
-          <div className="flex gap-2">
+          {/* 🔴 নতুন বাটন সেকশন */}
+          <div className="flex flex-wrap gap-2">
              <button onClick={() => { setModalType('price'); setUpdateModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">💰 আপডেট প্রাইস</button>
+             <button onClick={() => { setModalType('reduce_stock'); setUpdateModal(true); }} className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➖ স্টক কমানো</button>
              <button onClick={() => { setModalType('stock'); setUpdateModal(true); }} className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➕ নতুন স্টক</button>
           </div>
         </div>
@@ -130,7 +136,7 @@ const StockManagement = () => {
                 <th className="p-5">প্রোডাক্ট ইনফো</th>
                 <th className="p-5 text-right">দাম</th>
                 <th className="p-5 text-center">স্টক ({activeHouse})</th>
-                <th className="p-5 text-center">পাবলিক পেজ স্ট্যাটাস</th> {/* 🔴 নতুন কলাম */}
+                <th className="p-5 text-center">পাবলিক পেজ স্ট্যাটাস</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -150,7 +156,6 @@ const StockManagement = () => {
                       {p.stock_quantity} PCS
                     </span>
                   </td>
-                  {/* 🔴 পাবলিক স্ট্যাটাস টগল সুইচ */}
                   <td className="p-5 text-center">
                     <div className="flex flex-col items-center gap-1">
                       <button 
@@ -178,7 +183,10 @@ const StockManagement = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="mb-6">
-                <h3 className="text-2xl font-black text-slate-900">{modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : '💰 প্রাইস আপডেট'}</h3>
+                <h3 className="text-2xl font-black text-slate-900">
+                  {/* 🔴 ডায়নামিক টাইটেল */}
+                  {modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : modalType === 'reduce_stock' ? '➖ স্টক কমানো' : '💰 প্রাইস আপডেট'}
+                </h3>
                 <p className="text-sm font-bold text-slate-400">প্রোডাক্ট সিলেক্ট করে নতুন ডাটা দিন</p>
             </div>
             
@@ -191,11 +199,14 @@ const StockManagement = () => {
                 >
                   <option value="">সিলেক্ট করুন...</option>
                   {products.filter(p => p.house === activeHouse).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} - {p.model} (বর্তমান: {modalType === 'stock' ? p.stock_quantity : p.unit_price})</option>
+                    <option key={p.id} value={p.id}>
+                      {p.name} - {p.model} (বর্তমান: {modalType === 'price' ? `${p.unit_price}৳` : `${p.stock_quantity} pcs`})
+                    </option>
                   ))}
                 </select>
               </div>
 
+              {/* সোর্স শুধু স্টক যোগ করার সময় দেখাবে */}
               {modalType === 'stock' && (
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">মাল আসার সোর্স (Source)</label>
@@ -209,7 +220,8 @@ const StockManagement = () => {
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                  {modalType === 'stock' ? 'কত পিস নতুন যোগ হবে? (Qty)' : 'নতুন ইউনিট প্রাইস কত হবে? (৳)'}
+                  {/* 🔴 ডায়নামিক ইনপুট লেবেল */}
+                  {modalType === 'stock' ? 'কত পিস নতুন যোগ হবে? (Qty)' : modalType === 'reduce_stock' ? 'কত পিস স্টক থেকে কমানো হবে? (Qty)' : 'নতুন ইউনিট প্রাইস কত হবে? (৳)'}
                 </label>
                 <input 
                   type="number" 
