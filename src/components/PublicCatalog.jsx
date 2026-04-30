@@ -1,6 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
+// 🔴 স্পেশাল সর্টিং ফাংশন: VA এবং kW ক্যালকুলেট করে ছোট থেকে বড় সাজাবে
+const sortModelsByCapacity = (modelsArray) => {
+  const parseCapacity = (modelName) => {
+    // মডেলের নাম থেকে নাম্বার এবং ইউনিট (VA, W, KW) বের করার রেজেক্স
+    const match = modelName.match(/([\d.]+)\s*(va|w|kw)/i);
+    if (!match) return Infinity; // যদি ক্যাপাসিটি না থাকে, তবে লিস্টের শেষে পাঠাবে
+
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+
+    // 1000 VA = 1 kW হিসাব করে সবগুলোকে কমন ইউনিটে (VA/W) কনভার্ট করা হচ্ছে
+    if (unit === 'kw') {
+      return value * 1000;
+    }
+    return value;
+  };
+
+  return modelsArray.sort((a, b) => {
+    const capA = parseCapacity(a);
+    const capB = parseCapacity(b);
+
+    if (capA !== capB) {
+      return capA - capB; // ছোট থেকে বড়
+    }
+    return a.localeCompare(b); // ক্যাপাসিটি সেম হলে বা না থাকলে নামের অক্ষর অনুযায়ী সাজাবে
+  });
+};
+
 const PublicCatalog = ({ onAdminClick }) => {
   const [products, setProducts] = useState([]);
   const [siteSettings, setSiteSettings] = useState({}); 
@@ -23,18 +51,47 @@ const PublicCatalog = ({ onAdminClick }) => {
   
   const getGroupedProducts = (catProds) => {
     const groups = {};
+
     catProds.forEach(p => {
       if (!groups[p.name]) {
-        groups[p.name] = { name: p.name, image_url: p.image_url, inStock: [], outOfStock: [], upcoming: [] };
+        groups[p.name] = { name: p.name, image_url: p.image_url, modelsData: {} };
       }
-      let status = p.availability; 
-      if (p.stock_quantity <= 0) status = 'out of stock';
-      
-      if (status === 'out of stock') groups[p.name].outOfStock.push(p.model);
-      else if (status === 'upcoming') groups[p.name].upcoming.push(p.model);
-      else groups[p.name].inStock.push(p.model);
+
+      if (!groups[p.name].modelsData[p.model]) {
+        groups[p.name].modelsData[p.model] = { stock_quantity: 0, availability: p.availability };
+      }
+
+      groups[p.name].modelsData[p.model].stock_quantity += (p.stock_quantity || 0);
+
+      if (p.availability === 'upcoming') {
+        groups[p.name].modelsData[p.model].availability = 'upcoming';
+      }
     });
-    return Object.values(groups);
+
+    return Object.values(groups).map(group => {
+      const inStock = [];
+      const outOfStock = [];
+      const upcoming = [];
+
+      Object.entries(group.modelsData).forEach(([modelName, data]) => {
+        if (data.stock_quantity > 0) {
+          inStock.push(modelName); 
+        } else if (data.availability === 'upcoming') {
+          upcoming.push(modelName); 
+        } else {
+          outOfStock.push(modelName); 
+        }
+      });
+
+      // 🔴 এখানে সর্টিং ফাংশনটি কল করা হয়েছে
+      return {
+        name: group.name,
+        image_url: group.image_url,
+        inStock: sortModelsByCapacity(inStock),
+        outOfStock: sortModelsByCapacity(outOfStock),
+        upcoming: sortModelsByCapacity(upcoming)
+      };
+    });
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">লোড হচ্ছে...</div>;
