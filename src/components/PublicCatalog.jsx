@@ -56,16 +56,22 @@ const PublicCatalog = ({ onAdminClick }) => {
       }
 
       if (!groups[p.name].modelsData[p.model]) {
-        groups[p.name].modelsData[p.model] = { stock_quantity: 0, isUpcoming: false };
+        groups[p.name].modelsData[p.model] = { 
+            stock_quantity: 0, 
+            hasInStockToggle: false, 
+            isUpcoming: false 
+        };
       }
 
-      // ১. সব হাউজের স্টক একসাথে যোগ করা
-      groups[p.name].modelsData[p.model].stock_quantity += (p.stock_quantity || 0);
+      // ১. শুধুমাত্র লিগ্যাল নাম্বার যোগ করবে (যাতে ডাটাবেজের কোনো গার্বেজ স্ট্রিং না আসে)
+      groups[p.name].modelsData[p.model].stock_quantity += (Number(p.stock_quantity) || 0);
 
-      // ২. 🔴 ফিক্স: আপকামিং চেক (ছোট/বড় হাত বা এক্সট্রা স্পেস থাকলেও কাজ করবে)
+      // ২. টগল স্ট্যাটাস চেক
       const avail = p.availability ? p.availability.trim().toLowerCase() : '';
-      if (avail === 'upcoming') {
-        groups[p.name].modelsData[p.model].isUpcoming = true;
+      if (avail === 'in stock') {
+          groups[p.name].modelsData[p.model].hasInStockToggle = true;
+      } else if (avail === 'upcoming') {
+          groups[p.name].modelsData[p.model].isUpcoming = true;
       }
     });
 
@@ -75,17 +81,13 @@ const PublicCatalog = ({ onAdminClick }) => {
       const upcoming = [];
 
       Object.entries(group.modelsData).forEach(([modelName, data]) => {
-        // লজিক: 
-        // - যদি ডাটাবেজে explicitly 'upcoming' করা থাকে, তবে সেটা Coming Soon-এ যাবে।
-        // - তবে খেয়াল রাখবেন, যদি ভুল করে কোনো আপকামিং প্রোডাক্টের স্টক > 0 দিয়ে ফেলেন, 
-        //   তবুও এই লজিকের কারণে সেটা Upcoming হিসেবেই দেখাবে (যেহেতু আপনি এভেইলেবিলিটি সেটাই সিলেক্ট করেছেন)।
-        if (data.isUpcoming) {
-          upcoming.push(modelName);
-        } 
-        else if (data.stock_quantity > 0) {
+        // 🔴 মেইন ফিক্স: ইন-স্টক দেখাতে হলে অবশ্যই অ্যাডমিন টগল 'In Stock' থাকতে হবে এবং পরিমাণ ০ এর বেশি হতে হবে
+        if (data.hasInStockToggle && data.stock_quantity > 0) {
           inStock.push(modelName);
-        } 
-        else {
+        } else if (data.isUpcoming) {
+          upcoming.push(modelName);
+        } else {
+          // যদি টগল অফ থাকে অথবা স্টক ০ হয়ে যায়, অটোমেটিক Out of Stock এ চলে যাবে
           outOfStock.push(modelName);
         }
       });
@@ -119,7 +121,13 @@ const PublicCatalog = ({ onAdminClick }) => {
           
           <main className="flex-1 order-1 lg:order-2">
             {categories.map(cat => {
-              const catProds = products.filter(p => p.category === cat && !p.is_hidden);
+              // 🔴 ফিক্স: শুধুমাত্র Head Office এবং Showroom এর ডাটাই ক্যালকুলেট করবে, ডাটাবেজের অন্য কোনো গার্বেজ ডাটা নয়
+              const catProds = products.filter(p => 
+                  p.category === cat && 
+                  !p.is_hidden && 
+                  (p.house === 'Head Office' || p.house === 'Showroom')
+              );
+
               const grouped = getGroupedProducts(catProds);
               if (grouped.length === 0) return null;
 
