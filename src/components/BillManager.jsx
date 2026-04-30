@@ -26,13 +26,23 @@ const BillManager = () => {
       const { data: itemData } = await supabase.from('chalan_items').select(`*, products (*)`).eq('chalan_id', billData.id);
       setItems(itemData || []);
       setSearchNo(billData.bill_no); 
-    } catch (error) { alert("বিল খুঁজে পাওয়া যায়নি!"); }
+    } catch (error) { alert("বিল খুঁজে পাওয়া যায়নি!"); }
     setLoading(false);
+  };
+
+  // 🔴 কালপ্রিট ফিক্স: সঠিক কাস্টমার ডাটা বের করার ফাংশন
+  const getCustomerData = (record) => {
+    if (!record) return { name: 'Walk-in', phone: '', address: '' };
+    return {
+      name: record.customer_name || record.customers?.name || (record.is_in_house ? 'Transfer' : 'Walk-in'),
+      phone: record.phone || record.customers?.phone || '',
+      address: record.address || record.customers?.address || ''
+    };
   };
 
   const handleDownload = () => {
     const printItems = items.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    downloadPDF(bill, bill.customers, printItems, 'Bill');
+    downloadPDF(bill, getCustomerData(bill), printItems, 'Bill');
   };
 
   return (
@@ -50,7 +60,8 @@ const BillManager = () => {
             <div key={pb.id} onClick={() => loadBillDetails(pb.bill_no)} className="bg-white p-6 rounded-3xl border cursor-pointer hover:border-green-500 transition-all shadow-sm">
               <div className="flex justify-between items-start mb-4"><span className="text-[10px] font-black px-2.5 py-1 rounded bg-green-50 text-green-600 uppercase">PAID</span><span className="text-[10px] font-bold text-slate-400">{new Date(pb.created_at).toLocaleDateString()}</span></div>
               <h4 className="font-black text-slate-900 text-xl">{pb.bill_no}</h4>
-              <p className="text-sm font-bold text-slate-500 mt-1">{pb.customers?.name || 'Walk-in'}</p>
+              {/* 🔴 ফিক্স: কার্ডে সঠিক নাম দেখানো */}
+              <p className="text-sm font-bold text-slate-500 mt-1">{getCustomerData(pb).name}</p>
               <div className="mt-6 pt-4 border-t flex justify-between items-center"><span className="text-[10px] font-bold text-slate-400 uppercase">Total</span><span className="font-black text-slate-800 text-lg">{pb.total_amount} ৳</span></div>
             </div>
           ))}
@@ -60,12 +71,17 @@ const BillManager = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-6 mb-6 gap-4">
             <div><h2 className="text-2xl font-black text-slate-900 uppercase">BILL NO: {bill.bill_no}</h2><p className="text-sm font-bold text-slate-400">Ref Challan: {bill.chalan_no}</p></div>
             <div className="flex gap-3 w-full md:w-auto">
-              <button onClick={() => printBill(bill, bill.customers, items.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price})))} className="flex-1 md:flex-none bg-slate-900 text-white px-8 py-4 rounded-xl font-bold shadow-lg">🖨️ প্রিন্ট বিল</button>
+              <button onClick={() => printBill(bill, getCustomerData(bill), items.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price})))} className="flex-1 md:flex-none bg-slate-900 text-white px-8 py-4 rounded-xl font-bold shadow-lg">🖨️ প্রিন্ট বিল</button>
               <button onClick={handleDownload} className="flex-1 md:flex-none bg-green-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg">📥 ডাউনলোড PDF</button>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Customer Info</p><p className="font-bold text-slate-800 text-lg">{bill.customers?.name || 'Walk-in'}</p><p className="text-sm text-slate-400 italic">📍 {bill.customers?.address || 'No Address'}</p></div>
+            <div>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Customer Info</p>
+              {/* 🔴 ফিক্স: ডিটেইলসে সঠিক নাম ও ঠিকানা দেখানো */}
+              <p className="font-bold text-slate-800 text-lg">{getCustomerData(bill).name}</p>
+              <p className="text-sm text-slate-400 italic">📍 {getCustomerData(bill).address || 'No Address'}</p>
+            </div>
             <div className="md:text-right"><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Paid Via</p><p className="font-bold text-slate-800 text-lg">{bill.payment_method}</p><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-3 mb-1">Date</p><p className="font-bold text-slate-600">{new Date(bill.created_at).toLocaleDateString()}</p></div>
           </div>
           <table className="w-full text-left mb-6">
