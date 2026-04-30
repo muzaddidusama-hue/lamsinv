@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-// 🔴 স্পেশাল সর্টিং ফাংশন: VA এবং kW ক্যালকুলেট করে ছোট থেকে বড় সাজাবে
+// স্পেশাল সর্টিং ফাংশন: VA এবং kW ক্যালকুলেট করে ছোট থেকে বড় সাজাবে
 const sortModelsByCapacity = (modelsArray) => {
   const parseCapacity = (modelName) => {
-    // মডেলের নাম থেকে নাম্বার এবং ইউনিট (VA, W, KW) বের করার রেজেক্স
     const match = modelName.match(/([\d.]+)\s*(va|w|kw)/i);
-    if (!match) return Infinity; // যদি ক্যাপাসিটি না থাকে, তবে লিস্টের শেষে পাঠাবে
+    if (!match) return Infinity; 
 
     const value = parseFloat(match[1]);
     const unit = match[2].toLowerCase();
 
-    // 1000 VA = 1 kW হিসাব করে সবগুলোকে কমন ইউনিটে (VA/W) কনভার্ট করা হচ্ছে
     if (unit === 'kw') {
       return value * 1000;
     }
@@ -23,9 +21,9 @@ const sortModelsByCapacity = (modelsArray) => {
     const capB = parseCapacity(b);
 
     if (capA !== capB) {
-      return capA - capB; // ছোট থেকে বড়
+      return capA - capB; 
     }
-    return a.localeCompare(b); // ক্যাপাসিটি সেম হলে বা না থাকলে নামের অক্ষর অনুযায়ী সাজাবে
+    return a.localeCompare(b); 
   });
 };
 
@@ -58,13 +56,16 @@ const PublicCatalog = ({ onAdminClick }) => {
       }
 
       if (!groups[p.name].modelsData[p.model]) {
-        groups[p.name].modelsData[p.model] = { stock_quantity: 0, availability: p.availability };
+        groups[p.name].modelsData[p.model] = { stock_quantity: 0, isUpcoming: false };
       }
 
+      // ১. সব হাউজের স্টক একসাথে যোগ করা
       groups[p.name].modelsData[p.model].stock_quantity += (p.stock_quantity || 0);
 
-      if (p.availability === 'upcoming') {
-        groups[p.name].modelsData[p.model].availability = 'upcoming';
+      // ২. 🔴 ফিক্স: আপকামিং চেক (ছোট/বড় হাত বা এক্সট্রা স্পেস থাকলেও কাজ করবে)
+      const avail = p.availability ? p.availability.trim().toLowerCase() : '';
+      if (avail === 'upcoming') {
+        groups[p.name].modelsData[p.model].isUpcoming = true;
       }
     });
 
@@ -74,16 +75,21 @@ const PublicCatalog = ({ onAdminClick }) => {
       const upcoming = [];
 
       Object.entries(group.modelsData).forEach(([modelName, data]) => {
-        if (data.stock_quantity > 0) {
-          inStock.push(modelName); 
-        } else if (data.availability === 'upcoming') {
-          upcoming.push(modelName); 
-        } else {
-          outOfStock.push(modelName); 
+        // লজিক: 
+        // - যদি ডাটাবেজে explicitly 'upcoming' করা থাকে, তবে সেটা Coming Soon-এ যাবে।
+        // - তবে খেয়াল রাখবেন, যদি ভুল করে কোনো আপকামিং প্রোডাক্টের স্টক > 0 দিয়ে ফেলেন, 
+        //   তবুও এই লজিকের কারণে সেটা Upcoming হিসেবেই দেখাবে (যেহেতু আপনি এভেইলেবিলিটি সেটাই সিলেক্ট করেছেন)।
+        if (data.isUpcoming) {
+          upcoming.push(modelName);
+        } 
+        else if (data.stock_quantity > 0) {
+          inStock.push(modelName);
+        } 
+        else {
+          outOfStock.push(modelName);
         }
       });
 
-      // 🔴 এখানে সর্টিং ফাংশনটি কল করা হয়েছে
       return {
         name: group.name,
         image_url: group.image_url,
