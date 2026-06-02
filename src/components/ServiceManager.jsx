@@ -7,7 +7,7 @@ const ServiceManager = () => {
   const [inverterItem, setInverterItem] = useState(null); 
   const [serialNumbers, setSerialNumbers] = useState([]); // চালানের আন্ডারে সিরিয়াল তালিকা
 
-  // 🔍 সেকশন ২-এর জন্য সিরিয়াল সার্চ ও ফর্ম স্টেট
+  // সেকশন ২-এর জন্য সিরিয়াল সার্চ ও ফর্ম স্টেট
   const [globalSerialSearch, setGlobalSerialSearch] = useState(''); 
   const [loading, setLoading] = useState(false);
   const [serviceLoading, setServiceLoading] = useState(false);
@@ -15,8 +15,9 @@ const ServiceManager = () => {
 
   // এডিট মোড ট্র্যাক করার স্টেট
   const [isEditing, setIsEditing] = useState(false);
+  const [isNewRecord, setIsNewRecord] = useState(true); // ডাটাবেজে রো-টি একদম নতুন কি না ট্র্যাক করার জন্য
 
-  // ডাটাবেজের ৪টি সার্ভিসের কলাম স্ট্রাকচার অনুযায়ী স্টেট (কলামের নাম হুবহু ডাটাবেজের মতো)
+  // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট (সব ডাটা টেক্সট হিসেবে হ্যান্ডেল হবে)
   const [dbRowData, setDbRowData] = useState({
     bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
@@ -25,8 +26,8 @@ const ServiceManager = () => {
     serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
   });
 
-  // 🛠️ সিঙ্গেল ইনপুট বক্সের জন্য ডেডিকেটেড স্টেট
-  const [selectedServiceSlot, setSelectedServiceSlot] = useState('1'); // ড্রপডাউন: 1, 2, 3, 4
+  // সিঙ্গেল ইনপুট বক্সের জন্য স্টেট
+  const [selectedServiceSlot, setSelectedServiceSlot] = useState('1'); 
   const [singleInput, setSingleInput] = useState({
     date: '',
     problem: '',
@@ -112,7 +113,7 @@ const ServiceManager = () => {
     fetchSerialData(globalSerialSearch.trim().toUpperCase());
   };
 
-  // ডাটাবেজ থেকে সিরিয়ালের মূল রো তুলে আনা এবং টেবিল সিঙ্ক করা
+  // ডাটাবেজ থেকে সিরিয়ালের ডাটা তুলে আনা (ফিক্সড সেভ/আপডেট মেকানিজম)
   const fetchSerialData = async (serialNo) => {
     setServiceLoading(true);
     resetServiceForm();
@@ -127,8 +128,10 @@ const ServiceManager = () => {
 
       if (data) {
         setDbRowData(data);
+        setIsNewRecord(false); // রেকর্ড আগে থেকে আছে, তাই পরবর্তীতে update কোয়েরি হবে
         determineNextAvailableSlot(data);
       } else {
+        // নতুন রেকর্ড হলে মেটাডাটা সহ স্ট্রাকচার রেডি করা
         const freshRow = {
           bill_no: record?.bill_no || '',
           chalan_no: record?.chalan_no || '',
@@ -140,6 +143,7 @@ const ServiceManager = () => {
           serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
         };
         setDbRowData(freshRow);
+        setIsNewRecord(true); // রেকর্ডটি একদম নতুন, তাই প্রথমবার insert কোয়েরি হবে
         setSelectedServiceSlot('1');
       }
     } catch (error) {
@@ -164,52 +168,83 @@ const ServiceManager = () => {
     setIsEditing(false);
   };
 
-  // 📝 টেবিল থেকে কোনো রো এডিট করতে চাইলে তা ফর্মে পুশ করা (ফিক্সড)
+  // টেবিল থেকে কোনো রো এডিট করতে চাইলে তা ফর্মে পুশ করা
   const handleEditClick = (slotNum) => {
+    const slotStr = slotNum.toString();
     setIsEditing(true);
-    setSelectedServiceSlot(slotNum.toString());
+    setSelectedServiceSlot(slotStr);
     
-    // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী সঠিক প্রোপার্টি রিড করা হচ্ছে
     setSingleInput({
-      date: dbRowData[`serv_${slotNum}_date`] || '',
-      problem: dbRowData[`serv_${slotNum}_problem`] || '', // কলামের নাম ফিক্সড: serv_1_problem, serv_2_problem ইত্যাদি
-      amount: dbRowData[`serv_${slotNum}_amount`] || '',
-      remarks: dbRowData[`remarks${slotNum}`] || '',
+      date: dbRowData[`serv_${slotStr}_date`] || '',
+      problem: dbRowData[`serv_${slotStr}_problem`] || '',
+      amount: dbRowData[`serv_${slotStr}_amount`] || '', // আপনার ডাটাবেজ অনুযায়ী এটি সরাসরি টেক্সট
+      remarks: dbRowData[`remarks${slotStr}`] || '',
     });
   };
 
-  // সিঙ্গল ইনপুট ফিল্ড চেঞ্জ হ্যান্ডলার
+  // সিঙ্গল ইনপুট ফিল্ড চেঞ্চ হ্যান্ডলার
   const handleSingleInputChange = (e) => {
-    setSingleInput({ ...singleInput, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setSingleInput(prev => ({ ...prev, [name]: value }));
   };
 
-  // 💾 ডাটাবেজে ডাটা সংরক্ষণ ও আপসার্ট লজিক
+  // স্লট ড্রপডাউন ম্যানুয়ালি পরিবর্তন করলে স্টেট সিঙ্ক করা
+  const handleSlotChange = (e) => {
+    const slotStr = e.target.value;
+    setSelectedServiceSlot(slotStr);
+    
+    if (dbRowData[`serv_${slotStr}_date`]) {
+      setSingleInput({
+        date: dbRowData[`serv_${slotStr}_date`] || '',
+        problem: dbRowData[`serv_${slotStr}_problem`] || '',
+        amount: dbRowData[`serv_${slotStr}_amount`] || '',
+        remarks: dbRowData[`remarks${slotStr}`] || '',
+      });
+    } else {
+      setSingleInput({ date: '', problem: '', amount: '', remarks: '' });
+    }
+  };
+
+  // 💾 ডাটাবেজে ডাটা সংরক্ষণ লজিক (অন-কনফ্লিক্ট এরর ফিক্সড মেথড)
   const handleSaveService = async (e) => {
     e.preventDefault();
-    if (!dbRowData.sl_no) return alert("প্রথমে একটি সিরিয়াল নম্বর সার্চ বা লোড করুন!");
+    if (!dbRowData.sl_no?.trim()) return alert("প্রথমে একটি সিরিয়াল নম্বর সার্চ বা লোড করুন!");
     if (!singleInput.date || !singleInput.problem) return alert("তারিখ এবং সমস্যার বিবরণ আবশ্যিক!");
 
     setSubmitting(true);
     const slot = selectedServiceSlot;
 
+    // নতুন অবজেক্ট স্টেট প্রিপেয়ার করা (সব ডাটা টেক্সট হিসেবে যাবে)
+    const updatedDbRow = {
+      ...dbRowData,
+      sl_no: dbRowData.sl_no.trim().toUpperCase(),
+      [`serv_${slot}_date`]: singleInput.date,
+      [`serv_${slot}_problem`]: singleInput.problem,
+      [`serv_${slot}_amount`]: singleInput.amount || '', // টেক্সট ফরম্যাট বহাল রাখা হলো
+      [`remarks${slot}`]: singleInput.remarks,
+    };
+
     try {
-      // ডাইনামিক অবজেক্ট কী ম্যাপিং একদম সোজা ও ফিক্সড কলামে করা হয়েছে
-      const updatedDbRow = {
-        ...dbRowData,
-        [`serv_${slot}_date`]: singleInput.date,
-        [`serv_${slot}_problem`]: singleInput.problem,
-        [`serv_${slot}_amount`]: singleInput.amount ? parseInt(singleInput.amount) : null,
-        [`remarks${slot}`]: singleInput.remarks,
-      };
+      if (isNewRecord) {
+        // ১. রেকর্ড একদম নতুন হলে ডাটাবেজে প্রথমবার Insert হবে
+        const { error: insertErr } = await supabase
+          .from('inv_sl')
+          .insert([updatedDbRow]);
 
-      const { error } = await supabase
-        .from('inv_sl')
-        .upsert(updatedDbRow, { onConflict: 'sl_no' });
+        if (insertErr) throw insertErr;
+        setIsNewRecord(false); // সফলভাবে ইনসার্ট হওয়ার পর এটি পুরাতন রেকর্ড হয়ে গেল
+      } else {
+        // ২. রেকর্ড আগে থেকে থাকলে অন-কনফ্লিক্ট ছাড়া নির্দিষ্ট sl_no ধরে সরাসরি Update হবে (যা আপনার এরর দূর করবে)
+        const { error: updateErr } = await supabase
+          .from('inv_sl')
+          .update(updatedDbRow)
+          .eq('sl_no', updatedDbRow.sl_no);
 
-      if (error) throw error;
+        if (updateErr) throw updateErr;
+      }
 
       alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে ডাটাবেজে সংরক্ষণ করা হয়েছে!`);
-      setDbRowData(updatedDbRow); // টেবিল রি-রেন্ডার হবে লাইভ ডাটা সহ
+      setDbRowData(updatedDbRow); // টেবিল লাইভ রি-রেন্ডার হবে
       resetServiceForm();
       determineNextAvailableSlot(updatedDbRow);
 
@@ -259,7 +294,7 @@ const ServiceManager = () => {
               inverterItem ? (
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
-                    <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার মডেল</p>
+                    <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টারモデル</p>
                     <p className="text-base font-black">{inverterItem.products?.name}</p>
                     <p className="text-xs font-medium text-blue-600">Model: {inverterItem.products?.model}</p>
                   </div>
@@ -348,7 +383,7 @@ const ServiceManager = () => {
               </form>
             </div>
 
-            {/* 🛠️ একক (Single) সার্ভিস ইনপুট ফর্ম সেগমেন্ট */}
+            {/* একক (Single) সার্ভিস ইনপুট ফর্ম সেগমেন্ট */}
             {dbRowData.sl_no && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-200 pb-2">
@@ -364,7 +399,7 @@ const ServiceManager = () => {
                     <label className="text-xs font-bold text-slate-500">রেকর্ড স্লট:</label>
                     <select
                       value={selectedServiceSlot}
-                      onChange={(e) => setSelectedServiceSlot(e.target.value)}
+                      onChange={handleSlotChange}
                       disabled={isEditing} 
                       className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none"
                     >
@@ -385,21 +420,50 @@ const ServiceManager = () => {
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                       <div className="md:col-span-4 space-y-1">
                         <label className="text-[10px] font-black text-slate-400 block uppercase">তারিখ (Date)</label>
-                        <input type="text" name="date" placeholder="DD-MM-YYYY" value={singleInput.date} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" required />
+                        <input 
+                          type="text" 
+                          name="date" 
+                          placeholder="DD-MM-YYYY" 
+                          value={singleInput.date} 
+                          onChange={handleSingleInputChange} 
+                          className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                          required 
+                        />
                       </div>
                       <div className="md:col-span-4 space-y-1">
                         <label className="text-[10px] font-black text-slate-400 block uppercase">বিল অ্যামাউন্ট (৳)</label>
-                        <input type="number" name="amount" placeholder="টাকা" value={singleInput.amount} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" />
+                        <input 
+                          type="text"  // টেক্সট ডাটা টাইপ সিঙ্ক করার জন্য টেক্সট ইনপুট রাখা হলো
+                          name="amount" 
+                          placeholder="টাকা" 
+                          value={singleInput.amount} 
+                          onChange={handleSingleInputChange} 
+                          className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                        />
                       </div>
                       <div className="md:col-span-4 space-y-1">
                         <label className="text-[10px] font-black text-slate-400 block uppercase">মন্তব্য (Remarks)</label>
-                        <input type="text" name="remarks" placeholder="নোট" value={singleInput.remarks} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" />
+                        <input 
+                          type="text" 
+                          name="remarks" 
+                          placeholder="নোট" 
+                          value={singleInput.remarks} 
+                          onChange={handleSingleInputChange} 
+                          className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                        />
                       </div>
                     </div>
                     
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 block uppercase">সমস্যা (Problem)</label>
-                      <textarea name="problem" placeholder="কী সমস্যা হয়েছিল বিস্তারিত এখানে লিখুন..." value={singleInput.problem} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none min-h-[50px] max-h-[80px]" required />
+                      <textarea 
+                        name="problem" 
+                        placeholder="কী সমস্যা হয়েছিল বিস্তারিত এখানে লিখুন..." 
+                        value={singleInput.problem} 
+                        onChange={handleSingleInputChange} 
+                        className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none min-h-[50px] max-h-[80px]" 
+                        required 
+                      />
                     </div>
 
                     <div className="flex gap-2 justify-end">
@@ -415,7 +479,7 @@ const ServiceManager = () => {
               </div>
             )}
 
-            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ (ফিক্সড অবজেক্ট কী ম্যাপিং) */}
+            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ */}
             {dbRowData.sl_no && (
               <div className="space-y-3">
                 <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider px-1">📊 সার্ভিসের ইতিহাস তালিকা (inv_sl)</h4>
@@ -433,9 +497,8 @@ const ServiceManager = () => {
                     </thead>
                     <tbody className="text-xs divide-y font-medium text-slate-700">
                       {[1, 2, 3, 4].map((num) => {
-                        // ডাটাবেজের কলামের সাথে হুবহু নাম ম্যাচ করা হলো
                         const date = dbRowData[`serv_${num}_date`];
-                        const problem = dbRowData[`serv_${num}_problem`]; // ফিক্সড: serv_1_problem, serv_2_problem ইত্যাদি
+                        const problem = dbRowData[`serv_${num}_problem`]; 
                         const amount = dbRowData[`serv_${num}_amount`];
                         const remarks = dbRowData[`remarks${num}`];
 
@@ -444,13 +507,13 @@ const ServiceManager = () => {
                             <td className="p-3 text-center font-black">০{num}</td>
                             <td className="p-3 font-bold">{date || '—'}</td>
                             <td className="p-3 max-w-xs truncate">{problem || 'কোনো রেকর্ড নেই'}</td>
-                            <td className="p-3 text-right font-black">{amount !== null && amount !== undefined ? `${amount} ৳` : '—'}</td>
+                            <td className="p-3 text-right font-black">{amount || '—'}</td>
                             <td className="p-3 max-w-[120px] truncate">{remarks || '—'}</td>
                             <td className="p-3 text-center">
                               {date ? (
                                 <button 
                                   type="button" 
-                                  onClick={() => handleEditClick(num.toString())}
+                                  onClick={() => handleEditClick(num)}
                                   className="px-3 py-1 bg-slate-900 text-white rounded-lg font-bold text-[10px] hover:bg-orange-600 transition-colors"
                                 >
                                   📝 এডিট
