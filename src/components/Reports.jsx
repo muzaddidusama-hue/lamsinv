@@ -12,18 +12,20 @@ const Reports = () => {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   
+  // কাস্টোমার সার্চ ও ড্রপডাউনের জন্য স্টেটস
   const [allCustomers, setAllCustomers] = useState([]);
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // কাস্টোমারের বিল ডিটেইলস মডাল দেখানোর জন্য
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     generateReport();
-  }, [reportType]);
+  }, [reportType, startDate, endDate]); // ডেট চেঞ্জ হলেও যেন অটো জেনারেট হয়
 
   useEffect(() => {
     fetchAllCustomers(); 
@@ -65,7 +67,7 @@ const Reports = () => {
       houseStats: { 'Head Office': { bills: 0, amount: 0, products: {} }, 'Showroom': { bills: 0, amount: 0, products: {} } },
       customerStats: {},
       productStats: {},
-      combinedProductStats: {} // 📊 সার্বিক প্রোডাক্ট লজিক (HO + Showroom Combined)
+      combinedProductStats: {} 
     };
 
     chalans.forEach(ch => {
@@ -107,21 +109,18 @@ const Reports = () => {
           const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
           const pKey = `${pName}_${house}`; 
 
-          // ১. ট্যাব ৩-এর জন্য সাধারণ স্টক প্রোডাক্ট অবজেক্ট
           if (!data.productStats[pKey]) {
             data.productStats[pKey] = { name: pName, house: house, qty: 0, total: 0 };
           }
           data.productStats[pKey].qty += item.quantity;
           data.productStats[pKey].total += item.total_price;
 
-          // ২. সার্বিক হিসাব ট্যাব (HO + Showroom combined product breakdown)
           if (!data.combinedProductStats[pName]) {
             data.combinedProductStats[pName] = { name: pName, qty: 0, total: 0 };
           }
           data.combinedProductStats[pName].qty += item.quantity;
           data.combinedProductStats[pName].total += item.total_price;
 
-          // ৩. হাউজ রিপোর্ট ট্যাব (আইটেম ওয়াইজ ব্রেকডাউন)
           if (!data.houseStats[house].products[pName]) {
             data.houseStats[house].products[pName] = { name: pName, qty: 0, total: 0 };
           }
@@ -136,6 +135,7 @@ const Reports = () => {
 
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
+    customerSearch(val);
     setCustomerSearch(val);
     
     if (val.length >= 2) {
@@ -161,7 +161,6 @@ const Reports = () => {
     setCustomerSearch(e.target.value);
   };
 
-  // 📥 এ৪ পোর্ট্রেট ফরমাল মডিউল জেনারেটর (মার্জিন ফিক্সড)
   const downloadReportPDF = () => {
     const element = document.getElementById('formal-corporate-portrait-pdf');
     if (!element) return;
@@ -170,8 +169,8 @@ const Reports = () => {
 
     const executeDownload = () => {
       const opt = {
-        margin: 0, // মার্জিন সিএসএস দিয়ে হ্যান্ডেলড, তাই ইঞ্জিনে ০ থাকবে
-        filename: `Lams_Power_Sales_Report_${startDate}.pdf`,
+        margin: 0, 
+        filename: `LAMS_POWER_Sales_Report_${startDate}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -214,6 +213,8 @@ const Reports = () => {
   };
 
   const totals = calculateTotals();
+
+  // 🔍 ফিল্টারিং লজিক: কাস্টোমার সার্চ ফিল্ড ফাঁকা থাকলে সব কাস্টোমার দেখাবে, টাইপ/সিলেক্ট করলে শুধু নির্দিষ্ট কাস্টোমার দেখাবে
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
@@ -245,7 +246,7 @@ const Reports = () => {
             { id: 'summary', label: 'সার্বিক হিসাব (Summary)' },
             { id: 'house', label: 'হাউজ রিপোর্ট (HO vs Showroom)' },
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
-            { id: 'customer', label: 'কাস্টমার রিপোর্ট' }
+            { id: 'customer', label: 'কাস্টোমার রিপোর্ট' } // ফিক্সড নাম
           ].map(tab => (
             <button 
               key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); }}
@@ -269,7 +270,7 @@ const Reports = () => {
       {reportData && !loading && (
         <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm">
           
-          {/* ১. সার্বিক হিসাব ট্যাব (উইথ কমপ্লিট প্রোডাক্টস কাউন্ট) */}
+          {/* ১. সার্বিক হিসাব ট্যাব */}
           {reportType === 'summary' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -283,7 +284,6 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* প্রোডাক্ট সেলস ওভারভিউ */}
               <div className="border rounded-xl overflow-hidden mt-4">
                 <div className="bg-slate-50 p-4 border-b font-black text-xs text-slate-600 uppercase">Head Office + Showroom প্রোডাক্ট সেলস ব্রেকডাউন</div>
                 <table className="w-full text-left text-xs">
@@ -300,7 +300,7 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ২. হাউজ রিপোর্ট ট্যাব (সুনির্দিষ্ট প্রোডাক্ট ব্রেকডাউন সহ) */}
+          {/* ২. হাউজ রিপোর্ট ট্যাব */}
           {reportType === 'house' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {Object.keys(reportData.houseStats).map((house, idx) => (
@@ -311,7 +311,6 @@ const Reports = () => {
                       <span className="bg-blue-100 text-blue-700 font-black px-2 py-0.5 rounded text-[10px] uppercase">{reportData.houseStats[house].bills} Bills</span>
                     </div>
                     
-                    {/* হাউজ ভিত্তিক স্পেসিফিক প্রোডাক্ট চার্ট */}
                     <div className="bg-white border rounded-xl overflow-hidden mb-4">
                       <table className="w-full text-left text-[11px] divide-y divide-slate-100">
                         <thead>
@@ -332,7 +331,6 @@ const Reports = () => {
                       </table>
                     </div>
                   </div>
-
                   <p className="text-sm font-black text-slate-800 flex justify-between border-t pt-2 mt-2"><span>মোট রেভিনিউ:</span> <span className="text-blue-600 text-base">{reportData.houseStats[house].amount} ৳</span></p>
                 </div>
               ))}
@@ -385,13 +383,13 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ৪. কাস্টমার রিপোর্ট (স্মার্ট সার্চ ও ড্রপডাউন সিলেক্টর) */}
+          {/* 👥 ৪. কাস্টোমার রিপোর্ট (স্মার্ট ফিল্টারিং এবং অটো-লিস্ট ডিসপ্লে) */}
           {reportType === 'customer' && (
-            <div className="space-y-6">
+            <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 সার্চ বক্স</label>
-                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="কাস্টমারের নাম বা মোবাইল নাম্বার টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none" />
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 কাস্টোমার সার্চ (নাম/মোবাইল)</label>
+                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} onValueChange={(val) => setCustomerSearch(val)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showSuggestions && customerSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
                       {customerSuggestions.map(c => (<div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer">{c.name} — {c.phone}</div>))}
@@ -399,22 +397,49 @@ const Reports = () => {
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টমার ড্রপডাউন মেনু</label>
-                  <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer">
-                    <option value="">লিস্ট থেকে সিলেক্ট করুন...</option>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টোমার ড্রপডাউন সিলেকশন</label>
+                  <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
+                    <option value="">লিস্টের সকল কাস্টোমার (All Active)</option>
                     {allCustomers.map(c => (<option key={c.id} value={c.name}>{c.name} — {c.phone}</option>))}
                   </select>
                 </div>
               </div>
 
-              {/* লিস্ট ডিসপ্লে */}
-              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
-                {filteredCustomers.map((cust, i) => (
-                  <div key={i} onClick={() => setSelectedCustomerBills(cust)} className="border p-4 rounded-xl bg-white hover:border-blue-500 transition-all shadow-sm cursor-pointer flex justify-between items-center text-xs font-bold">
-                    <div><p className="text-slate-900 text-sm font-black">{cust.name}</p><p className="text-slate-400 font-medium mt-0.5">{cust.phone}</p></div>
-                    <span className="bg-green-50 text-green-700 px-3 py-1.5 rounded-lg font-black">Total: {cust.amount} ৳</span>
-                  </div>
-                ))}
+              {/* কাস্টোমার ডেট-রেঞ্জ পারচেজ লিস্ট */}
+              <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5">
+                  নির্ধারিত তারিখের কেনাকাটার তালিকা ({startDate} থেকে {endDate})
+                </div>
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
+                        <th className="p-4">কাস্টোমারের নাম</th>
+                        <th className="p-4">মোবাইল নাম্বার</th>
+                        <th className="p-4 text-right">মোট পারচেজ ভলিউম</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-bold text-slate-700">
+                      {filteredCustomers.map((cust, i) => (
+                        <tr 
+                          key={i} 
+                          onClick={() => setSelectedCustomerBills(cust)} // নামের উপর ক্লিকে বিল ইনভয়েস ব্রেকডাউন পপ-আপ চালু হবে
+                          className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
+                        >
+                          <td className="p-4 text-slate-900 font-black group-hover:text-blue-600 transition-colors flex items-center gap-2">
+                            <span>👤 {cust.name}</span>
+                            <span className="text-[9px] font-black uppercase text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity ml-1">Detail ➔</span>
+                          </td>
+                          <td className="p-4 text-slate-500 font-mono">{cust.phone || '—'}</td>
+                          <td className="p-4 text-right text-emerald-600 font-black text-sm">{cust.amount} ৳</td>
+                        </tr>
+                      ))}
+                      {filteredCustomers.length === 0 && (
+                        <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ ও ফিল্টারে কোনো কেনাকাটার ইতিহাস নেই</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -430,7 +455,7 @@ const Reports = () => {
         className="hidden bg-white text-slate-900 mx-auto" 
         style={{ 
           width: '210mm',         
-          padding: '20mm 15mm 20mm 15mm', // ট্রিপল মার্জিন সেফ জোন
+          padding: '20mm 15mm 20mm 15mm', 
           boxSizing: 'border-box',
           fontFamily: "Times New Roman, 'Inter', serif", 
           lineHeight: '1.4' 
@@ -459,7 +484,7 @@ const Reports = () => {
           <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span className="text-slate-900 text-xs font-black">+{totals.totalSurplus} ৳</span></div>
         </div>
 
-        {/* ডাইনামিক ডাটা টেবিল (ক্লিন ও কম্প্যাক্ট ফরমাল স্টাইল) */}
+        {/* ডাইনামিক ডাটা টেবিল */}
         <div className="mt-6">
           <table className="w-full text-left text-[10px] border-collapse">
             <thead>
@@ -492,7 +517,6 @@ const Reports = () => {
                 );
               })}
               
-              {/* যদি ইউজার সামারি ট্যাবে থাকে, তবে পিডিএফেও সামারি প্রোডাক্ট লিস্ট প্রিন্ট হবে */}
               {reportType === 'summary' && reportData && Object.values(reportData.combinedProductStats).map((prod, idx) => (
                 <tr key={idx}>
                   <td className="py-2 font-semibold text-slate-900" colSpan="2">{prod.name}</td>
@@ -516,7 +540,7 @@ const Reports = () => {
           </table>
         </div>
 
-        {/* সিগনেচার এটেস্টেশন বার */}
+        {/* সিগনেচার বার */}
         <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[8px] uppercase tracking-wider text-slate-400 font-bold">
           <div><div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By (Accounts)</div></div>
           <div><div className="border-t border-slate-300 pt-1.5 mx-4">Verified By (Auditor)</div></div>
@@ -525,7 +549,72 @@ const Reports = () => {
 
       </div>
 
-      {/* কাস্টমার বিল ডিটেইলস মডাল উইন্ডো কোড অপরিবর্তিত */}
+      {/* 🔴 কাস্টোমার স্পেসিফিক বিল ও আইটেম হিস্ট্রি পপ-আপ মডাল উইন্ডো */}
+      {selectedCustomerBills && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+              <div>
+                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">কাস্টোমার অর্ডার হিস্ট্রি</p>
+                <h3 className="text-2xl font-black text-slate-800">👤 {selectedCustomerBills.name}</h3>
+                <p className="text-sm font-bold text-slate-500 mt-1">📞 {selectedCustomerBills.phone}</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button onClick={() => setSelectedCustomerBills(null)} className="w-10 h-10 bg-slate-100 rounded-full hover:bg-red-500 hover:text-white font-bold transition-all flex items-center justify-center">✕</button>
+                <span className="text-xs font-black text-green-600 bg-green-50 px-3 py-1 rounded-md">Total Paid: {selectedCustomerBills.amount} ৳</span>
+              </div>
+            </div>
+
+            {/* Bills List */}
+            <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-6">
+              {selectedCustomerBills.bills.map((bill, i) => (
+                <div key={i} className="bg-slate-50 border border-slate-200 p-5 md:p-6 rounded-3xl">
+                  
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-green-600 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-full">Paid</span>
+                        <p className="font-black text-slate-900 text-lg">#{bill.bill_no || 'N/A'}</p>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Ref Chalan: {bill.chalan_no}</p>
+                    </div>
+                    <div className="md:text-right">
+                      <p className="font-black text-slate-800 text-xl">{bill.total_amount} ৳</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(bill.created_at).toLocaleDateString()} • via {bill.payment_method}</p>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-left text-xs bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                    <thead className="bg-slate-100/50 text-[10px] uppercase font-black text-slate-400">
+                      <tr>
+                        <th className="p-3">Item Details</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 font-bold">
+                      {bill.chalan_items.map((item, j) => (
+                        <tr key={j}>
+                          <td className="p-3 text-slate-700">
+                            {item.products?.name} 
+                            <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model} ({item.products?.category})</span>
+                          </td>
+                          <td className="p-3 text-center text-blue-600">{item.quantity} pcs</td>
+                          <td className="p-3 text-right text-slate-900">{item.total_price} ৳</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                </div>
+              ))}
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };
