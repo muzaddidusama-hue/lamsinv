@@ -11,19 +11,20 @@ import ProductEntry from './ProductEntry';
 import StockManagement from './StockManagement';
 import FrontEndCustom from './FrontEndCustom';
 import SmartUpload from "./SmartUpload";
-import ServiceManager from "./ServiceManager"; // 🛠️ ভুল সংশোধন ও নতুন ইম্পোর্ট
-import UserManagement from "./UserManagement";
+import ServiceManager from "./ServiceManager"; 
+import UserManagement from "./UserManagement"; // 👥 ইম্পোর্ট বহাল রাখা হলো
 
-const AdminPanel = ({ onLogout }) => {
+// App.jsx থেকে পাঠানো লগইন ইউজারের রোল এবং নাম রিসিভ করা হলো
+const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const [view, setView] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
   // সাব-মেনু টগল করার জন্য স্টেট
   const [openSubMenu, setOpenSubMenu] = useState('');
 
-  // মেনু স্ট্রাকচার আপডেট করা হয়েছে (সার্ভিস সেকশন যোগ করে)
+  // মেনু স্ট্রাকচার আপডেট করা হয়েছে
   const menuItems = [
-    { id: 'dashboard', icon: '📊', label: 'ড্যাশবোর্ড (Dashboard)' },
+    { id: 'dashboard', icon: '📊', label: 'ড্যাসবোর্ড (Dashboard)' },
     { id: 'smart_scan', icon: '📸', label: 'স্মার্ট স্ক্যানার (AI)' },
     {
       id: 'product_section', 
@@ -47,17 +48,20 @@ const AdminPanel = ({ onLogout }) => {
         { id: 'false_billing', label: 'ফলস বিল/চালান' },
       ]
     },
-    { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, // 🛠️ নতুন মেনু যোগ করা হলো
+    { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, 
     { id: 'reports', icon: '📋', label: 'রিপোর্ট (Reports)' },
     { id: 'frontend_custom', icon: '⚙️', label: 'পাবলিক পেজ এডিট' },
+    
+    // 👑 স্মার্ট কন্ডিশনাল মেনু: শুধুমাত্র Admin বা CEO লগইন করলে এই ইউজার কন্ট্রোল অপশনটি মেনুতে যুক্ত হবে
+    ...((currentUserRole === 'Admin' || currentUserRole === 'CEO') ? [
+      { id: 'user_management', icon: '👥', label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
+    ] : [])
   ];
 
   const handleMenuClick = (item) => {
     if (item.isDropdown) {
-      // যদি ড্রপডাউন হয়, তবে টগল করবে
       setOpenSubMenu(openSubMenu === item.id ? '' : item.id);
     } else {
-      // সাধারণ মেনু হলে ভিউ চেঞ্জ করবে
       setView(item.id);
       setIsMobileMenuOpen(false);
     }
@@ -76,7 +80,7 @@ const AdminPanel = ({ onLogout }) => {
         <div className="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-900 z-10">
           <div>
             <h1 className="text-3xl font-black text-orange-500 tracking-tighter">LAMS <span className="text-white">POWER</span></h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Admin Panel</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">ERP Dashboard</p>
           </div>
         </div>
         
@@ -96,7 +100,6 @@ const AdminPanel = ({ onLogout }) => {
                   <span className="text-xl">{item.icon}</span>
                   <span>{item.label}</span>
                 </div>
-                {/* ড্রপডাউন আইকন */}
                 {item.isDropdown && (
                   <span className={`text-xs transition-transform duration-300 ${openSubMenu === item.id ? 'rotate-180' : ''}`}>▼</span>
                 )}
@@ -143,7 +146,7 @@ const AdminPanel = ({ onLogout }) => {
           <button onClick={onLogout} className="bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs font-bold">Logout</button>
         </div>
 
-        {/* সিলেক্ট করা কম্পোনেন্টগুলো এখানে লোড হবে */}
+        {/* সিলেক্ট করা কম্পোনেন্টগুলো এখানে ডায়নামিকালি লোড হবে */}
         <div className="p-4 md:p-8 pb-28 md:pb-8">
           {view === 'dashboard' && <Dashboard />}
           {view === 'smart_scan' && <SmartUpload />} 
@@ -152,10 +155,13 @@ const AdminPanel = ({ onLogout }) => {
           {view === 'chalans' && <ChalanManager />}
           {view === 'bills' && <BillManager />}
           {view === 'stock_management' && <StockManagement />}
-          {view === 'service_manager' && <ServiceManager />} {/* 🛠️ নতুন কম্পোনেন্ট এখানে কানেক্ট হলো */}
+          {view === 'service_manager' && <ServiceManager />} 
           {view === 'reports' && <Reports />}
           {view === 'false_billing' && <FalseBilling />}
           {view === 'frontend_custom' && <FrontEndCustom />}
+          
+          {/* 👥 ফিক্সড কন্টেন্ট ভিউ: ভিউ স্টেট ম্যাচ করলে ইউজার ম্যানেজমেন্ট কম্পোনেন্ট লোড হবে */}
+          {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
         </div>
       </main>
 
