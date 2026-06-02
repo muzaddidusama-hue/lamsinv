@@ -18,8 +18,6 @@ const Reports = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
-
-  // প্রোডাক্ট অনুযায়ী ম্যানুয়াল MRP ট্র্যাক করার অবজেক্ট
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -122,23 +120,22 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // 📥 কর্পোরেট লেটারহেড ফরমাল PDF জেনারেটর
+  // 📥 কাস্টম মিনিমাল এ৪ পোর্ট্রেট PDF জেনারেটর ইঞ্জিন
   const downloadReportPDF = () => {
-    const element = document.getElementById('formal-corporate-pdf-template');
+    const element = document.getElementById('formal-corporate-portrait-pdf');
     if (!element) return;
 
     setPdfLoading(true);
 
     const executeDownload = () => {
       const opt = {
-        margin: [15, 15, 15, 15],
-        filename: `Lams_Power_Sales_Report_${startDate}_to_${endDate}.pdf`,
+        margin: [15, 12, 15, 12],
+        filename: `LAMS_POWER_Sales_Report_${startDate}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } // 💡 পোর্ট্রেট (লম্বালম্বি) মোড সেট করা হয়েছে
       };
 
-      // হিডেন ফরমাল টেমপ্লেটটি সাময়িকভাবে প্রিন্টের জন্য ভিজিবল করা
       element.classList.remove('hidden');
 
       window.html2pdf().from(element).set(opt).save().then(() => {
@@ -161,9 +158,8 @@ const Reports = () => {
     }
   };
 
-  // টোটাল সামারি ক্যালকুলেটর হেল্পার
   const calculateTotals = () => {
-    let q = 0, m = 0, s = 0, su = 0;
+    let q = 0, m = 0, s = 0;
     if (reportData && reportData.productStats) {
       Object.values(reportData.productStats).forEach(stat => {
         const pKey = `${stat.name}_${stat.house}`;
@@ -172,13 +168,11 @@ const Reports = () => {
         m += (currentMrp * stat.qty);
         s += stat.total;
       });
-      su = s - m;
     }
-    return { totalQty: q, totalMinAllowed: m, totalActualSold: s, totalSurplus: su };
+    return { totalQty: q, totalMinAllowed: m, totalActualSold: s, totalSurplus: s - m };
   };
 
   const totals = calculateTotals();
-
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
@@ -221,37 +215,32 @@ const Reports = () => {
           ))}
         </div>
         
-        {reportData && !loading && (
-          <button 
-            onClick={downloadReportPDF}
-            disabled={pdfLoading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 whitespace-nowrap"
-          >
-            {pdfLoading ? 'রিপোর্ট জেনারেট হচ্ছে...' : '📥 Download Formal PDF'}
-          </button>
-        )}
+        <button 
+          onClick={downloadReportPDF}
+          disabled={pdfLoading}
+          className="bg-slate-900 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 whitespace-nowrap"
+        >
+          {pdfLoading ? 'প্রিন্ট ফাইল রেডি হচ্ছে...' : '📥 Download Formal PDF'}
+        </button>
       </div>
 
-      {/* 🖥️ ব্রাউজারে দেখার জন্য সাধারণ UI এরিয়া */}
+      {/* 🖥️ ব্রাউজার ভিউ উইন্ডো */}
       {reportData && !loading && (
         <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          
           {reportType === 'summary' && (
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-green-50 border border-green-100 p-6 rounded-2xl">
-                  <p className="text-green-600 font-black uppercase tracking-widest text-xs mb-2">Total Bills (Paid)</p>
-                  <div className="flex items-end justify-between">
-                    <p className="text-4xl font-black text-slate-900">{reportData.totalBills} <span className="text-lg text-slate-500">টি বিল</span></p>
-                    <p className="text-2xl font-black text-green-700">{reportData.totalBillAmount} ৳</p>
-                  </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-green-50 border p-6 rounded-2xl">
+                <p className="text-green-600 font-black tracking-widest text-xs mb-2 uppercase">Total Bills (Paid)</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-3xl font-black text-slate-900">{reportData.totalBills} টি</p>
+                  <p className="text-xl font-black text-green-700">{reportData.totalBillAmount} ৳</p>
                 </div>
-                <div className="bg-orange-50 border border-orange-100 p-6 rounded-2xl">
-                  <p className="text-orange-600 font-black uppercase tracking-widest text-xs mb-2">Total Pending Chalans (Hold)</p>
-                  <div className="flex items-end justify-between">
-                    <p className="text-4xl font-black text-slate-900">{reportData.totalChalans} <span className="text-lg text-slate-500">টি চালান</span></p>
-                    <p className="text-2xl font-black text-orange-700">{reportData.totalChalanAmount} ৳</p>
-                  </div>
+              </div>
+              <div className="bg-orange-50 border p-6 rounded-2xl">
+                <p className="text-orange-600 font-black tracking-widest text-xs mb-2 uppercase">Total Hold Chalans</p>
+                <div className="flex items-end justify-between">
+                  <p className="text-3xl font-black text-slate-900">{reportData.totalChalans} টি</p>
+                  <p className="text-xl font-black text-orange-700">{reportData.totalChalanAmount} ৳</p>
                 </div>
               </div>
             </div>
@@ -260,197 +249,172 @@ const Reports = () => {
           {reportType === 'house' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {Object.keys(reportData.houseStats).map((house, idx) => (
-                <div key={idx} className="border border-slate-200 p-6 rounded-2xl bg-slate-50">
-                  <h3 className="text-xl font-black text-slate-800 mb-4 pb-2 border-b border-slate-200">{house}</h3>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-500">মোট ক্লিয়ার বিল:</span>
-                    <span className="font-black text-slate-900 text-lg">{reportData.houseStats[house].bills} টি</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-500">মোট বিক্রয়:</span>
-                    <span className="font-black text-blue-600 text-xl">{reportData.houseStats[house].amount} ৳</span>
-                  </div>
+                <div key={idx} className="border p-6 rounded-2xl bg-slate-50">
+                  <h3 className="text-lg font-black text-slate-800 mb-3 pb-1 border-b">{house}</h3>
+                  <p className="text-sm font-medium text-slate-600 flex justify-between"><span>মোট বিল:</span> <span className="font-bold">{reportData.houseStats[house].bills} টি</span></p>
+                  <p className="text-sm font-medium text-slate-600 flex justify-between mt-1"><span>মোট রেভিনিউ:</span> <span className="font-black text-blue-600">{reportData.houseStats[house].amount} ৳</span></p>
                 </div>
               ))}
             </div>
           )}
 
-          {/* 📦 প্রোডাক্ট সেলস রিপোর্ট ভিউ উইন্ডো (Grand Totals সহ) */}
           {reportType === 'product' && (
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left border-collapse">
+            <div className="overflow-x-auto border rounded-xl">
+              <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] uppercase font-black text-slate-500 border-b">
+                  <tr className="bg-slate-50 uppercase font-black text-slate-500 border-b">
                     <th className="p-4">Product Description</th>
                     <th className="p-4 text-center">House</th>
-                    <th className="p-4 text-center">Total Qty Sold</th>
-                    <th className="p-4 text-center w-36">MRP (Per Unit)</th>
-                    <th className="p-4 text-right">Min Allowed Value</th>
-                    <th className="p-4 text-right">Actual Sold Value</th>
-                    <th className="p-4 text-right">Surplus Above MRP</th>
+                    <th className="p-4 text-center">Qty Sold</th>
+                    <th className="p-4 text-center w-32">MRP (Unit)</th>
+                    <th className="p-4 text-right">Min Value</th>
+                    <th className="p-4 text-right">Actual Sold</th>
+                    <th className="p-4 text-right">Surplus</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y">
                   {Object.values(reportData.productStats).map((stat, idx) => {
                     const pKey = `${stat.name}_${stat.house}`;
                     const currentMrp = parseFloat(mrps[pKey]) || 0;
-                    const minAllowedTotal = currentMrp * stat.qty;
-                    const surplusAmount = stat.total - minAllowedTotal;
+                    const minVal = currentMrp * stat.qty;
+                    const surplus = stat.total - minVal;
 
                     return (
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="p-4 font-bold text-slate-800">{stat.name}</td>
-                        <td className="p-4 text-center">
-                          <span className="px-2 py-1 rounded text-[10px] font-bold bg-slate-100 text-slate-700 uppercase">{stat.house}</span>
-                        </td>
+                        <td className="p-4 text-center"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 uppercase">{stat.house}</span></td>
                         <td className="p-4 text-center font-black text-blue-600">{stat.qty} pcs</td>
                         <td className="p-4 text-center">
-                          <input 
-                            type="number" 
-                            value={mrps[pKey] || ''} 
-                            onChange={(e) => setMrps({ ...mrps, [pKey]: e.target.value })}
-                            placeholder="0" 
-                            className="w-24 p-1.5 bg-slate-50 border rounded-lg text-center font-black text-slate-800 text-xs"
-                          />
+                          <input type="number" value={mrps[pKey] || ''} onChange={(e) => setMrps({ ...mrps, [pKey]: e.target.value })} className="w-20 p-1 bg-slate-50 border text-center font-bold text-xs rounded" placeholder="0" />
                         </td>
-                        <td className="p-4 text-right font-bold text-slate-500">{currentMrp > 0 ? `${minAllowedTotal} ৳` : '—'}</td>
+                        <td className="p-4 text-right font-semibold text-slate-500">{currentMrp > 0 ? `${minVal} ৳` : '—'}</td>
                         <td className="p-4 text-right font-black text-slate-900">{stat.total} ৳</td>
                         <td className="p-4 text-right font-black">
-                          {currentMrp > 0 ? (
-                            <span className={surplusAmount >= 0 ? 'text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded' : 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'}>
-                              {surplusAmount >= 0 ? `+${surplusAmount}` : surplusAmount} ৳
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 font-medium text-xs italic">Set MRP</span>
-                          )}
+                          {currentMrp > 0 ? <span className={surplus >= 0 ? 'text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded' : 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'}>{surplus >= 0 ? `+${surplus}` : surplus} ৳</span> : <span className="text-slate-400 italic">Set MRP</span>}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
-                {/* 🔴 ব্রাউজারে গ্র্যান্ড টোটাল রো ইন্টিগ্রেশন */}
-                <tfoot className="bg-slate-900 text-white font-black text-xs border-t-2 border-slate-900">
+                <tfoot className="bg-slate-900 text-white font-black">
                   <tr>
-                    <td colSpan="2" className="p-4 uppercase tracking-wider text-right">Grand Total:</td>
-                    <td className="p-4 text-center text-orange-400 font-black text-sm">{totals.totalQty} pcs</td>
-                    <td className="p-4"></td>
+                    <td colSpan="2" className="p-4 text-right">Grand Total:</td>
+                    <td className="p-4 text-center text-orange-400">{totals.totalQty} pcs</td>
+                    <td></td>
                     <td className="p-4 text-right text-slate-300">{totals.totalMinAllowed} ৳</td>
-                    <td className="p-4 text-right text-emerald-400 text-sm">{totals.totalActualSold} ৳</td>
-                    <td className="p-4 text-right text-orange-400 text-sm">+{totals.totalSurplus} ৳</td>
+                    <td className="p-4 text-right text-emerald-400">{totals.totalActualSold} ৳</td>
+                    <td className="p-4 text-right text-orange-400">+{totals.totalSurplus} ৳</td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
 
-          {reportType === 'customer' && (
-            // কাস্টমার রিপোর্টের এক্সিস্টিং ভিউ কোড অপরিবর্তিত...
-            <div className="text-center font-bold text-slate-400 py-4">কাস্টমার মডিউল লোডেড। উপরে কাস্টমার সার্চ করুন।</div>
-          )}
+          {reportType === 'customer' && <div className="text-center font-bold text-slate-400 py-4">কাস্টমার মডিউল। উপরে সার্চ উইন্ডো ব্যবহার করুন।</div>}
         </div>
       )}
 
-      {/* 👑 ------------------------------------------------------------- 👑 */}
-      {/* 🏛️ সম্পূর্ণ হিডেন ফরমাল কর্পোরেট PDF টেমপ্লেট (শুধুমাত্র ডাউনলোডের সময় জেনারেট হবে) */}
-      {/* 👑 ------------------------------------------------------------- 👑 */}
-      <div id="formal-corporate-pdf-template" className="hidden bg-white p-12 text-slate-900 font-sans tracking-tight" style={{ width: '277mm' }}>
+      {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
+      {/* 👔 সম্পূর্ণ এক্সক্লুসিভ ফরমাল মিনিমাল এ৪ পোর্ট্রেট PDF লেআউট (প্রিন্ট ফাইল) */}
+      {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
+      <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '185mm', fontFamily: "Times New Roman, 'Inter', serif", lineHeight: '1.4' }}>
         
-        {/* অফিশিয়াল লেটারহেড হেডার */}
-        <div className="flex justify-between items-start border-b-4 border-slate-900 pb-6 mb-8">
+        {/* মিনিমালিস্টিক লেটারহেড হেডার */}
+        <div className="border-b border-slate-800 pb-4 mb-6 flex justify-between items-start">
           <div>
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase">LAMS POWER</h1>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Socioeconomic & Solar Energy Solutions</p>
-            <p className="text-[11px] text-slate-400 font-semibold mt-0.5">Faridpur, Bangladesh</p>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight uppercase" style={{ letterSpacing: '0.05em' }}>LAMS POWER</h1>
+            <p className="text-[10px] text-slate-400 mt-1">
+              Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh<br />
+            </p>
           </div>
           <div className="text-right">
-            <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight bg-slate-100 px-4 py-1.5 rounded-lg inline-block">Monthly Sales & Revenue Report</h2>
-            <p className="text-xs font-bold text-slate-600 mt-3">Statement Period: <span className="font-black text-slate-900">{startDate}</span> to <span className="font-black text-slate-900">{endDate}</span></p>
-            <p className="text-[10px] text-slate-400 font-medium mt-1">Generated On: {new Date().toLocaleDateString()}</p>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-800 border border-slate-800 px-3 py-1 bg-slate-50 inline-block">Financial Sales Statement</h2>
+            <p className="text-[10px] text-slate-600 mt-2 font-semibold">Period: <span className="font-bold">{startDate}</span> to <span className="font-bold">{endDate}</span></p>
+            <p className="text-[9px] text-slate-400 mt-0.5">Generated: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
 
-        {/* এক্সিকিউটিভ সামারি বক্স */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <div className="border-2 border-slate-200 rounded-xl p-4 text-center">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Total Sales Target (MRP Based)</span>
-            <span className="text-xl font-black text-slate-800">{totals.totalMinAllowed} ৳</span>
+        {/* এক্সিকিউটিভ সামারি রো (থিন ডিভাইডার স্টাইল) */}
+        <div className="border-y border-slate-400 py-3 my-4 grid grid-cols-3 text-center text-[11px] font-bold uppercase tracking-wide bg-slate-50/50">
+          <div className="border-r border-slate-200">
+            <span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span>
+            <span className="text-slate-900 text-sm font-black">{totals.totalMinAllowed} ৳</span>
           </div>
-          <div className="border-2 border-slate-900 rounded-xl p-4 text-center bg-slate-50">
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Actual Realized Revenue</span>
-            <span className="text-xl font-black text-blue-700">{totals.totalActualSold} ৳</span>
+          <div className="border-r border-slate-200">
+            <span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Sales</span>
+            <span className="text-blue-900 text-sm font-black">{totals.totalActualSold} ৳</span>
           </div>
-          <div className="border-2 border-emerald-200 rounded-xl p-4 text-center bg-emerald-50/30">
-            <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block mb-1">Net Margin Surplus</span>
-            <span className="text-xl font-black text-emerald-600">+{totals.totalSurplus} ৳</span>
+          <div>
+            <span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span>
+            <span className="text-slate-900 text-sm font-black">+{totals.totalSurplus} ৳</span>
           </div>
         </div>
 
-        {/* ফরমাল ডাটা টেবিল */}
-        <div className="border-2 border-slate-900 rounded-2xl overflow-hidden mb-12">
-          <table className="w-full text-left text-xs border-collapse">
+        {/* আল্ট্রা-মিনিমাল কর্পোরেট ডাটা টেবিল */}
+        <div className="mt-6">
+          <table className="w-full text-left text-[10px] border-collapse">
             <thead>
-              <tr className="bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider border-b border-slate-900">
-                <th className="p-3 border-r border-slate-800">Product Description</th>
-                <th className="p-3 text-center border-r border-slate-800">Warehouse Source</th>
-                <th className="p-3 text-center border-r border-slate-800">Volume Sold</th>
-                <th className="p-3 text-right border-r border-slate-800">Base MRP / Unit</th>
-                <th className="p-3 text-right border-r border-slate-800">Min Allowed Value</th>
-                <th className="p-3 text-right border-r border-slate-800">Actual Gross Sold</th>
-                <th className="p-3 text-right">Net Surplus Margin</th>
+              <tr className="border-b border-slate-800 font-bold uppercase text-slate-600 tracking-wider">
+                <th className="pb-2 font-bold w-1/3">Product Specification</th>
+                <th className="pb-2 text-center font-bold">Source</th>
+                <th className="pb-2 text-center font-bold">Qty</th>
+                <th className="pb-2 text-right font-bold">Base MRP</th>
+                <th className="pb-2 text-right font-bold">Min Value</th>
+                <th className="pb-2 text-right font-bold">Gross Sold</th>
+                <th className="pb-2 text-right font-bold">Net Surplus</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-300">
+            <tbody className="divide-y divide-slate-200">
               {reportData && Object.values(reportData.productStats).map((stat, idx) => {
                 const pKey = `${stat.name}_${stat.house}`;
                 const currentMrp = parseFloat(mrps[pKey]) || 0;
-                const minAllowedTotal = currentMrp * stat.qty;
-                const surplusAmount = stat.total - minAllowedTotal;
+                const minVal = currentMrp * stat.qty;
+                const surplus = stat.total - minVal;
 
                 return (
                   <tr key={idx} className="bg-white">
-                    <td className="p-3 font-bold text-slate-900 border-r border-slate-200">{stat.name}</td>
-                    <td className="p-3 text-center font-bold uppercase text-slate-600 border-r border-slate-200">{stat.house}</td>
-                    <td className="p-3 text-center font-black text-slate-800 border-r border-slate-200">{stat.qty} units</td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-700 border-r border-slate-200">{currentMrp} ৳</td>
-                    <td className="p-3 text-right font-mono font-bold text-slate-600 border-r border-slate-200">{minAllowedTotal} ৳</td>
-                    <td className="p-3 text-right font-mono font-black text-slate-900 border-r border-slate-200">{stat.total} ৳</td>
-                    <td className="p-3 text-right font-mono font-black text-slate-900 bg-slate-50">
-                      {surplusAmount >= 0 ? `+${surplusAmount}` : surplusAmount} ৳
+                    <td className="py-2.5 font-semibold text-slate-900">{stat.name}</td>
+                    <td className="py-2.5 text-center text-slate-600 uppercase font-medium">{stat.house}</td>
+                    <td className="py-2.5 text-center font-bold text-slate-800">{stat.qty} pcs</td>
+                    <td className="py-2.5 text-right font-medium text-slate-700">{currentMrp} ৳</td>
+                    <td className="py-2.5 text-right font-medium text-slate-600">{minVal} ৳</td>
+                    <td className="py-2.5 text-right font-bold text-slate-900">{stat.total} ৳</td>
+                    <td className="py-2.5 text-right font-bold text-slate-900 bg-slate-50/50">
+                      {surplus >= 0 ? `+${surplus}` : surplus} ৳
                     </td>
                   </tr>
                 );
               })}
             </tbody>
-            {/* 🔴 পিডিএফ এর গ্র্যান্ড টোটাল কন্ট্রোল */}
-            <tfoot className="bg-slate-200 text-slate-900 font-black uppercase text-[10px] tracking-wider border-t-2 border-slate-900">
-              <tr>
-                <td colSpan="2" className="p-3 text-right border-r border-slate-300">Grand Financial Total:</td>
-                <td className="p-3 text-center font-black text-slate-900 border-r border-slate-300">{totals.totalQty} Units</td>
-                <td className="p-3 border-r border-slate-300"></td>
-                <td className="p-3 text-right font-mono font-black text-slate-800 border-r border-slate-300">{totals.totalMinAllowed} ৳</td>
-                <td className="p-3 text-right font-mono font-black text-blue-900 border-r border-slate-300">{totals.totalActualSold} ৳</td>
-                <td className="p-3 text-right font-mono font-black text-emerald-700 bg-emerald-50">{totals.totalSurplus} ৳</td>
+            {/* বটম গ্র্যান্ড টোটাল ডাবল আন্ডারলাইন স্টাইল */}
+            <tfoot>
+              <tr className="border-t-2 border-b border-slate-800 font-bold text-slate-900 uppercase tracking-wider bg-slate-50">
+                <td colSpan="2" className="py-3 text-right font-bold">Total Valuations:</td>
+                <td className="py-3 text-center font-bold">{totals.totalQty} Pcs</td>
+                <td></td>
+                <td className="py-3 text-right font-bold">{totals.totalMinAllowed} ৳</td>
+                <td className="py-3 text-right font-bold text-blue-900">{totals.totalActualSold} ৳</td>
+                <td className="py-3 text-right font-bold text-slate-900">+{totals.totalSurplus} ৳</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        {/* কর্পোরেট সিগনেচার ভেরিফিকেশন ব্লক */}
-        <div className="grid grid-cols-3 gap-12 mt-16 pt-8 text-center text-xs font-black uppercase tracking-wider text-slate-600">
+        {/* অথরাইজড সিগনেচার ব্লক (ফরমাল অফিস স্টাইল) */}
+        <div className="mt-24 grid grid-cols-3 gap-8 text-center text-[9px] uppercase tracking-wider text-slate-500 font-bold">
           <div>
-            <div className="border-t border-slate-400 pt-2 mx-6">Prepared By (Accounts Executive)</div>
+            <div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By<br />(Accounts & Promotions)</div>
           </div>
           <div>
-            <div className="border-t border-slate-400 pt-2 mx-6">Checked By (Manager Audit)</div>
+            <div className="border-t border-slate-300 pt-1.5 mx-4">Verified By<br />(Internal Auditor)</div>
           </div>
           <div>
-            <div className="border-t border-slate-900 pt-2 mx-6 text-slate-900">Approved By (Managing Director / CEO)</div>
+            <div className="border-t border-slate-900 pt-1.5 mx-4 text-slate-900 font-bold">Authorized Approval<br />(Managing Director / CEO)</div>
           </div>
         </div>
 
       </div>
 
-      {/* কাস্টমার বিল ডিটেইলস মডাল কোড অপরিবর্তিত */}
     </div>
   );
 };
