@@ -95,7 +95,20 @@ const PublicCatalog = ({ onAdminClick }) => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">로드 হচ্ছে...</div>;
+  // 🛠️ ফিক্স: কোরিয়ান টেক্সট বাদ দিয়ে পিওর মেটেরিয়াল থিম লোডিং অ্যানিমেশন জেনারেট করা হলো
+  if (loading) return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+      <div className="relative w-16 h-16">
+        {/* আউটার অ্যানিমেটেড রিং */}
+        <div className="absolute inset-0 rounded-full border-4 border-slate-200"></div>
+        {/* স্পিনিং রিং (ল্যামস পাওয়ার অরেঞ্জ থিম কালার) */}
+        <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+      </div>
+      <p className="text-slate-500 font-black tracking-widest text-sm uppercase animate-pulse" style={{ fontFamily: "'Inter', sans-serif" }}>
+        Loading Catalogue...
+      </p>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -154,10 +167,8 @@ const PublicCatalog = ({ onAdminClick }) => {
                             <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm">
                               <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black text-center">✓ In Stock</p>
                               
-                              {/* 🛠️ ফিক্সড গ্রিড: ২-কলাম হবে এবং আইটেমগুলো সেন্টারে জাস্টিফাই হবে */}
                               <div className="grid grid-cols-2 gap-2 justify-items-center justify-center w-full">
                                 {brand.inStock.map((model, idx) => {
-                                  // যদি টোটাল বাটন বিজোড় হয় (যেমন ৩ বা ৫ টা) এবং এটিই শেষ বাটন হয়
                                   const isLastOdd = brand.inStock.length % 2 !== 0 && idx === brand.inStock.length - 1;
                                   return (
                                     <button 
