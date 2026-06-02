@@ -11,12 +11,15 @@ const FrontEndCustom = () => {
     contact_showroom: '', contact_numbers: '', contact_hotline: '', contact_email: ''
   });
 
-  // সাব-সেকশন ২: প্রোডাক্ট লিস্ট ও সিলেক্টেড প্রোডাক্ট স্টেট
-  const [allProducts, setAllProducts] = useState([]);
-  const [selectedProductId, setSelectedProductId] = useState('');
+  // সাব-সেকশন ২: ইউনিক প্রোডাক্ট লিস্ট স্টেট
+  const [uniqueProducts, setUniqueProducts] = useState([]);
+  const [selectedProductKey, setSelectedProductKey] = useState(''); // "category|name|model" ফরম্যাটে থাকবে
   const [productForm, setProductForm] = useState({
     volt: '', watt: '', description: ''
   });
+
+  // ডাটাবেজের সম্পূর্ণ রিলিজিয়াস ব্যাকআপ প্রোডাক্টস (আপডেটের সময় রেফারেন্সের জন্য)
+  const [rawProducts, setRawProducts] = useState([]);
 
   useEffect(() => {
     fetchInitialData();
@@ -24,30 +27,64 @@ const FrontEndCustom = () => {
 
   const fetchInitialData = async () => {
     setLoading(true);
+    
     // সাইট সেটিংস লোড
     const { data: settings } = await supabase.from('site_settings').select('*').single();
     if (settings) setSiteSettings(settings);
 
-    // প্রোডাক্টস লোড (ইউনিক নাম ও মডেল আইডেন্টিফাই করার জন্য)
+    // প্রোডাক্টস লোড
     const { data: prods } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (prods) setAllProducts(prods);
+    if (prods) {
+      setRawProducts(prods);
+
+      // 🧠 স্মার্ট ফিল্টারিং: ক্যাটাগরি, ব্র্যান্ডের নাম এবং মডেল কম্বাইন করে ইউনিক লিস্ট তৈরি
+      const seen = new Set();
+      const uniqueList = [];
+
+      prods.forEach(p => {
+        // ফাঁকা বা নাল হ্যান্ডলিং
+        const cat = p.category ? p.category.trim() : '';
+        const name = p.name ? p.name.trim() : '';
+        const model = p.model ? p.model.trim() : '';
+        
+        const uniqueKey = `${cat}|${name}|${model}`;
+
+        if (!seen.has(uniqueKey) && uniqueKey !== '||') {
+          seen.add(uniqueKey);
+          uniqueList.push({
+            uniqueKey,
+            category: p.category,
+            name: p.name,
+            model: p.model,
+            volt: p.volt || '',
+            watt: p.watt || '',
+            description: p.description || ''
+          });
+        }
+      });
+
+      setUniqueProducts(uniqueList);
+    }
     setLoading(false);
   };
 
-  // নির্দিষ্ট প্রোডাক্ট সিলেক্ট করলে তার এক্সিস্টিং ডাটা ফর্মে লোড করা
+  // ড্রপডাউন থেকে প্রোডাক্ট সিলেক্ট করলে এক্সিস্টিং ডাটা লোড
   const handleProductSelectChange = (e) => {
-    const pId = e.target.value;
-    setSelectedProductId(pId);
-    if (!pId) {
+    const key = e.target.value;
+    setSelectedProductKey(key);
+
+    if (!key) {
       setProductForm({ volt: '', watt: '', description: '' });
       return;
     }
-    const targetProd = allProducts.find(p => p.id === parseInt(pId));
+
+    // ইউনিক লিস্ট থেকে ডাটা খুঁজে ফর্মে বসানো
+    const targetProd = uniqueProducts.find(p => p.uniqueKey === key);
     if (targetProd) {
       setProductForm({
-        volt: targetProd.volt || '',
-        watt: targetProd.watt || '',
-        description: targetProd.description || ''
+        volt: targetProd.volt,
+        watt: targetProd.watt,
+        description: targetProd.description
       });
     }
   };
@@ -66,12 +103,17 @@ const FrontEndCustom = () => {
     setLoading(false);
   };
 
-  // প্রোডাক্ট স্পেসিফিকেশন সেভ লজিক
+  // 💾 প্রোডাক্ট বিবরণী সেভ লজিক (একসাথে সব হাউজের রো আপডেট করার ফিক্সড মেথড)
   const handleSaveProductSpecs = async (e) => {
     e.preventDefault();
-    if (!selectedProductId) return alert("দয়া করে একটি প্রোডাক্ট সিলেক্ট করুন!");
+    if (!selectedProductKey) return alert("দয়া করে একটি প্রোডাক্ট সিলেক্ট করুন!");
+    
     setLoading(true);
+    // কি ভেঙে ক্যাটাগরি, নাম এবং মডেল আলাদা করা হচ্ছে
+    const [category, name, model] = selectedProductKey.split('|');
+
     try {
+      // 🔄 .eq() চেইনিং এর মাধ্যমে একই ব্র্যান্ড ও মডেলের যতগুলো রো আছে, সব একবারে আপডেট হবে
       const { error } = await supabase
         .from('products')
         .update({
@@ -79,14 +121,21 @@ const FrontEndCustom = () => {
           watt: productForm.watt,
           description: productForm.description
         })
-        .eq('id', selectedProductId);
+        .eq('category', category)
+        .eq('name', name)
+        .eq('model', model);
 
       if (error) throw error;
-      alert("🎉 প্রোডাক্টের অতিরিক্ত বিবরণ সফলভাবে ক্যাটালগে যুক্ত হয়েছে!");
       
-      // লোকাল স্টেট রি-সিঙ্ক
-      setAllProducts(prev => prev.map(p => p.id === parseInt(selectedProductId) ? { ...p, ...productForm } : p));
+      alert(`🎉 ${name} [${model}] এর বিবরণ সকল হাউজ বা লোকেশনে একসাথে আপডেট হয়েছে!`);
+      
+      // লোকাল স্টেট রি-সিঙ্ক করে নেওয়া যেন রিলোড ছাড়া টেবিলে চেঞ্জ দেখা যায়
+      setUniqueProducts(prev => prev.map(p => 
+        p.uniqueKey === selectedProductKey ? { ...p, ...productForm } : p
+      ));
+
     } catch (err) {
+      console.error(err);
       alert("ত্রুটি হয়েছে: " + err.message);
     }
     setLoading(false);
@@ -152,37 +201,37 @@ const FrontEndCustom = () => {
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg shadow-slate-900/10">
+            <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg">
               {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন'}
             </button>
           </form>
         </div>
       )}
 
-      {/* ---------------- সাব-সেকশন ২: প্রোডাক্ট বিবরণী এডিটর ---------------- */}
+      {/* ---------------- সাব-সেকশন ২: প্রোডাক্ট বিবরণী এডিটর (ইউনিক ফিল্টারড) ---------------- */}
       {activeTab === 'product_details' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
           <h2 className="text-xl font-black text-slate-800 mb-2">প্রোডাক্ট ডেসক্রিপশন ও ক্যাপাসিটি প্যারামিটার এন্ট্রি</h2>
-          <p className="text-xs text-slate-400 mb-6">ড্রপডাউন থেকে নির্দিষ্ট মডেল বেছে নিয়ে তার ভোল্টেজ, ওয়াট এবং ক্যাটালগ বিবরণ সেট করুন।</p>
+          <p className="text-xs text-slate-400 mb-6">ড্রপডাউন থেকে নির্দিষ্ট মডেল বেছে নিয়ে তার ভোল্টেজ, ওয়াট এবং ক্যাটালগ বিবরণ সেট করুন (একসাথে সকল হাউজে আপডেট হবে)।</p>
           
           <form onSubmit={handleSaveProductSpecs} className="space-y-5">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">১. প্রোডাক্ট এবং মডেল সিলেক্ট করুন</label>
               <select 
-                value={selectedProductId} 
+                value={selectedProductKey} 
                 onChange={handleProductSelectChange}
                 className="w-full p-4 bg-slate-50 border rounded-2xl font-black text-slate-800 outline-none focus:ring-2 focus:ring-slate-900"
               >
                 <option value="">প্রোডাক্ট বেছে নিন...</option>
-                {allProducts.map(p => (
-                  <option key={p.id} value={p.id}>
+                {uniqueProducts.map(p => (
+                  <option key={p.uniqueKey} value={p.uniqueKey}>
                     [{p.category}] — {p.name} — {p.model}
                   </option>
                 ))}
               </select>
             </div>
 
-            {selectedProductId && (
+            {selectedProductKey && (
               <div className="space-y-5 animate-in slide-in-from-top-3 duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
@@ -215,7 +264,7 @@ const FrontEndCustom = () => {
                     name="description"
                     value={productForm.description}
                     onChange={e => setProductForm({...productForm, description: e.target.value})}
-                    placeholder="পাবলিক পেজে দেখানোর জন্য প্রোডাক্টের বিস্তারিত টেকনিক্যাল ডেটা বা রিভিউ এখানে লিখুন..."
+                    placeholder="পাবলিক পেজে দেখানোর জন্য প্রোডাক্টের বিস্তারিত টেকনিক্যাল ডেটা বা বিবরণ এখানে লিখুন..."
                     rows="4" 
                     className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-950" 
                   />
