@@ -11,15 +11,16 @@ import ProductEntry from './ProductEntry';
 import StockManagement from './StockManagement';
 import FrontEndCustom from './FrontEndCustom';
 import SmartUpload from "./SmartUpload";
+import ServiceManager from "./ServiceManager"; // 🛠️ ভুল সংশোধন ও নতুন ইম্পোর্ট
 
 const AdminPanel = ({ onLogout }) => {
   const [view, setView] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // সাব-মেনু টগল করার জন্য নতুন স্টেট
+  // সাব-মেনু টগল করার জন্য স্টেট
   const [openSubMenu, setOpenSubMenu] = useState('');
 
-  // মেনু স্ট্রাকচার আপডেট করা হয়েছে (সাব-মেনু সহ)
+  // মেনু স্ট্রাকচার আপডেট করা হয়েছে (সার্ভিস সেকশন যোগ করে)
   const menuItems = [
     { id: 'dashboard', icon: '📊', label: 'ড্যাশবোর্ড (Dashboard)' },
     { id: 'smart_scan', icon: '📸', label: 'স্মার্ট স্ক্যানার (AI)' },
@@ -45,13 +46,14 @@ const AdminPanel = ({ onLogout }) => {
         { id: 'false_billing', label: 'ফলস বিল/চালান' },
       ]
     },
+    { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, // 🛠️ নতুন মেনু যোগ করা হলো
     { id: 'reports', icon: '📋', label: 'রিপোর্ট (Reports)' },
     { id: 'frontend_custom', icon: '⚙️', label: 'পাবলিক পেজ এডিট' },
   ];
 
   const handleMenuClick = (item) => {
     if (item.isDropdown) {
-      // যদি ড্রপডাউন হয়, তবে টগল করবে
+      // যদি ড্রপডাউন হয়, তবে টগল করবে
       setOpenSubMenu(openSubMenu === item.id ? '' : item.id);
     } else {
       // সাধারণ মেনু হলে ভিউ চেঞ্জ করবে
@@ -149,6 +151,7 @@ const AdminPanel = ({ onLogout }) => {
           {view === 'chalans' && <ChalanManager />}
           {view === 'bills' && <BillManager />}
           {view === 'stock_management' && <StockManagement />}
+          {view === 'service_manager' && <ServiceManager />} {/* 🛠️ নতুন কম্পোনেন্ট এখানে কানেক্ট হলো */}
           {view === 'reports' && <Reports />}
           {view === 'false_billing' && <FalseBilling />}
           {view === 'frontend_custom' && <FrontEndCustom />}
