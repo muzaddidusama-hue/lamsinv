@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ServiceManager = () => {
-  const [searchNo, setSearchNo] = useState('');
-  const [record, setRecord] = useState(null); // চালান বা বিলের মূল ডাটা
-  const [inverterItem, setInverterItem] = useState(null); // ফিল্টার করা ইনভার্টার প্রোডাক্ট
+  const [searchNo, setSearchNo] = useState(''); // বিল/চালান সার্চ
+  const [record, setRecord] = useState(null); 
+  const [inverterItem, setInverterItem] = useState(null); 
+  const [serialNumbers, setSerialNumbers] = useState([]); // চালানের আন্ডারে মাল্টিপল সিরিয়াল ইনপুট
+
+  // 🔍 সেকশন ২-এর জন্য গ্লোবাল সিরিয়াল সার্চ ও ফর্ম স্টেট
+  const [globalSerialSearch, setGlobalSerialSearch] = useState(''); 
   const [loading, setLoading] = useState(false);
+  const [serviceLoading, setServiceLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ১. inv_sl টেবিলের কলাম স্ট্রাকচার অনুযায়ী স্টেট ম্যানেজমেন্ট
-  const [serialNumbers, setSerialNumbers] = useState([]); // মাল্টিপল সিরিয়াল নম্বর ইনপুট ট্র্যাক করার জন্য
-  const [activeSerialData, setActiveSerialData] = useState(null); // বর্তমানে যে সিরিয়ালটি সেকশন ২ এ সিলেক্টেড আছে
+  // ৪টি সার্ভিসের মেইন ফর্ম স্টেট
   const [formData, setFormData] = useState({
     bill_no: '',
     chalan_no: '',
@@ -22,7 +25,7 @@ const ServiceManager = () => {
     serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
   });
 
-  // স্মার্ট সার্চ: বিল বা চালান নম্বর দিয়ে ডাটাবেজ খোঁজা
+  // ১. চালান বা বিল নম্বর দিয়ে সার্চ (স্মার্ট সার্চ)
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!searchNo.trim()) return alert("চালান বা বিল নম্বর দিন!");
@@ -31,7 +34,6 @@ const ServiceManager = () => {
     setRecord(null);
     setInverterItem(null);
     setSerialNumbers([]);
-    setActiveSerialData(null);
 
     const queryText = searchNo.trim().toUpperCase();
 
@@ -58,7 +60,6 @@ const ServiceManager = () => {
 
       if (itemErr) throw itemErr;
 
-      // ইনভার্টার ফিল্টার করা
       const inverter = itemData?.find(item => 
         item.products?.category?.toLowerCase().includes('inverter') || 
         item.products?.name?.toLowerCase().includes('inverter')
@@ -66,9 +67,16 @@ const ServiceManager = () => {
 
       if (inverter) {
         setInverterItem(inverter);
-        // কোয়ান্টিটি অনুযায়ী খালি ইনপুট ফিল্ড জেনারেট করা
         const emptyFields = Array.from({ length: inverter.quantity }, () => "");
         setSerialNumbers(emptyFields);
+        
+        // ফর্ম স্টেটে বিল ও চালান নম্বর অটো-সেট করে রাখা
+        setFormData(prev => ({
+          ...prev,
+          bill_no: mainData.bill_no || '',
+          chalan_no: mainData.chalan_no || '',
+          inv_type: inverter.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid'
+        }));
       } else {
         setInverterItem(null);
       }
@@ -80,112 +88,100 @@ const ServiceManager = () => {
     setLoading(false);
   };
 
-  // সিরিয়াল ফিল্ডের ইনপুট চেঞ্জ হ্যান্ডলার
-  const handleSerialInputChange = (index, value) => {
-    const updated = [...serialNumbers];
-    updated[index] = value;
-    setSerialNumbers(updated);
-  };
-
-  // 🔑 ২. inv_sl টেবিলে সিরিয়াল এন্ট্রি এবং সার্ভিস উইন্ডো লক করার ফাংশন
+  // সেকশন ১ থেকে নির্দিষ্ট সিরিয়াল নম্বর inv_sl টেবিলে কুইক রেজিস্টার/লোড করা
   const handleRegisterSerial = async (index, event) => {
     event.preventDefault();
-    const currentSerial = serialNumbers[index]?.trim();
+    const currentSerial = serialNumbers[index]?.trim().toUpperCase();
 
     if (!currentSerial) return alert("অনুগ্রহ করে সিরিয়াল নম্বরটি ইনপুট দিন!");
-    setSubmitting(true);
+    
+    setGlobalSerialSearch(currentSerial);
+    fetchSerialData(currentSerial);
+  };
 
+  // 🔍 ২. সেকশন ২-এর সিরিয়াল সার্চ ফাংশন (যা সরাসরি এবং সেকশন ১ দুই জায়গা থেকেই কাজ করবে)
+  const handleDirectSerialSearch = (e) => {
+    e.preventDefault();
+    if (!globalSerialSearch.trim()) return alert("ইনভার্টারের সিরিয়াল নম্বর দিন!");
+    fetchSerialData(globalSerialSearch.trim().toUpperCase());
+  };
+
+  // সিরিয়াল অনুযায়ী ডাটাবেজ থেকে ডাটা আনা বা ফর্মে রেডি করা
+  const fetchSerialData = async (serialNo) => {
+    setServiceLoading(true);
     try {
-      // প্রথমে চেক করব inv_sl টেবিলে এই সিরিয়াল আগে থেকে ইনসার্ট করা আছে কি না
-      const { data: existingRecord, error: fetchErr } = await supabase
+      const { data, error } = await supabase
         .from('inv_sl')
         .select('*')
-        .eq('sl_no', currentSerial)
+        .eq('sl_no', serialNo)
         .maybeSingle();
 
-      if (fetchErr) throw fetchErr;
+      if (error) throw error;
 
-      if (existingRecord) {
-        // যদি ডাটা অলরেডি থাকে, তবে সেই এক্সিস্টিং ডাটা ফর্মে লোড হবে (যাতে আগের সার্ভিস হিস্টোরি দেখা যায়)
-        setFormData(existingRecord);
-        setActiveSerialData(existingRecord);
-        alert(`ℹ️ এই সিরিয়াল নম্বরটি আগে থেকেই সিস্টেমে রেজিস্টার্ড আছে। পূর্বের সার্ভিসের তথ্য লোড করা হয়েছে।`);
+      if (data) {
+        setFormData(data);
+        alert(`ℹ️ সিরিয়াল নম্বর ${serialNo}-এর পূর্বের সার্ভিসের তথ্য লোড হয়েছে। আপনি এখন এটি আপডেট করতে পারবেন।`);
       } else {
-        // যদি ডাটা না থাকে, তবে স্মার্ট সার্চ থেকে পাওয়া বিল ও চালান নম্বরসহ নতুন রো তৈরি (Insert) হবে
-        const newSerialRow = {
+        // যদি ডাটাবেজে না থাকে, তবে ফর্ম রিসেট করে নতুন এন্ট্রির জন্য রেডি করা
+        setFormData({
           bill_no: record?.bill_no || '',
           chalan_no: record?.chalan_no || '',
           inv_type: inverterItem?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
-          sl_no: currentSerial,
+          sl_no: serialNo,
           serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
           serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
           serv_3_date: '', serv_3_problem: '', serv_3_amount: '', remarks3: '',
           serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
-        };
-
-        const { data: insertedData, error: insertErr } = await supabase
-          .from('inv_sl')
-          .insert([newSerialRow])
-          .select()
-          .single();
-
-        if (insertErr) throw insertErr;
-
-        setFormData(insertedData);
-        setActiveSerialData(insertedData);
-        alert(`✅ সিরিয়াল নম্বর ${currentSerial} সফলভাবে inv_sl টেবিলে রেজিস্টার করা হয়েছে!`);
+        });
+        alert(`📝 সিরিয়াল নম্বর ${serialNo} সিস্টেমে নতুন। তথ্য ইনপুট দিয়ে নিচে সাবমিট করুন।`);
       }
     } catch (error) {
       console.error(error);
-      alert("সিরিয়াল নম্বর এন্ট্রি করতে সমস্যা হয়েছে: " + error.message);
+      alert("সিরিয়াল ডাটা লোড করতে সমস্যা হয়েছে!");
     }
-    setSubmitting(false);
+    setServiceLoading(false);
   };
 
-  // ৪টি সার্ভিসের ইনপুট চেঞ্জ হ্যান্ডলার
-  const handleServiceFieldChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+  // ফর্ম চেঞ্জ হ্যান্ডলার
+  const handleFormChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 🛠️ ৩. সেকশন ২: ৪টি সার্ভিসের যাবতীয় তথ্য এন্ট্রি/আপডেট করার ফাইনাল ফাংশন
-  const handleSaveServiceDetails = async (e) => {
+  // 💾 ৩. ডাটাবেজে সিরিয়ালসহ সার্ভিসের তথ্য Upsert (Insert অথবা Update) করা
+  const handleSaveAllData = async (e) => {
     e.preventDefault();
-    if (!formData.sl_no) return alert("প্রথমে সেকশন ১ থেকে একটি সিরিয়াল নম্বর রেজিস্টার করুন!");
+    if (!formData.sl_no?.trim()) return alert("অনুগ্রহ করে প্রথমে একটি সিরিয়াল নম্বর নিশ্চিত করুন (সার্চ বা এন্ট্রি করে)!");
 
     setSubmitting(true);
     try {
-      // টাইপকাস্টিং ফিক্স: অ্যামাউন্টগুলো ডাটাবেজের int8 ফরম্যাটের সাথে ম্যাচ করতে নাম্বারে কনভার্ট করা হয়েছে
       const payload = {
         ...formData,
+        sl_no: formData.sl_no.trim().toUpperCase(),
         serv_1_amount: formData.serv_1_amount ? parseInt(formData.serv_1_amount) : null,
         serv_2_amount: formData.serv_2_amount ? parseInt(formData.serv_2_amount) : null,
         serv_3_amount: formData.serv_3_amount ? parseInt(formData.serv_3_amount) : null,
         serv_4_amount: formData.serv_4_amount ? parseInt(formData.serv_4_amount) : null,
       };
 
+      // upsert ব্যবহার করা হয়েছে যেন নতুন হলে insert হয়, পুরাতন হলে update হয়
       const { error } = await supabase
         .from('inv_sl')
-        .update(payload)
-        .eq('sl_no', formData.sl_no);
+        .upsert(payload, { onConflict: 'sl_no' });
 
       if (error) throw error;
 
-      alert(`🎉 সিরিয়াল ${formData.sl_no} এর যাবতীয় সার্ভিসের তথ্য সফলভাবে সেভ করা হয়েছে!`);
-      setActiveSerialData(payload); // লাইভ ভিউ আপডেট
+      alert(`🎉 সিরিয়াল নম্বর ${payload.sl_no}-এর যাবতীয় তথ্য সফলভাবে ডাটাবেসে সেভ করা হয়েছে!`);
     } catch (error) {
       console.error(error);
-      alert("সার্ভিসের তথ্য সেভ করতে ত্রুটি হয়েছে: " + error.message);
+      alert("তথ্য সেভ করতে সমস্যা হয়েছে: " + error.message);
     }
     setSubmitting(false);
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 pb-20 p-4" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+    <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 p-4" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* প্রধান সার্চ বার */}
+      {/* 🔍 টপ মেইন সার্চ বার (চালান/বিল সার্চ) */}
       <div className="bg-white p-6 rounded-3xl border shadow-sm">
         <form onSubmit={handleSearch} className="flex gap-4">
           <input 
@@ -196,197 +192,185 @@ const ServiceManager = () => {
             className="flex-1 h-14 px-6 bg-slate-50 border rounded-2xl font-black text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-600" 
           />
           <button type="submit" disabled={loading} className="h-14 px-10 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-colors">
-            {loading ? 'খোঁজা হচ্ছে...' : 'সার্চ'}
+            {loading ? 'খোঁজা হচ্ছে...' : 'চালান সার্চ'}
           </button>
         </form>
       </div>
 
-      {record && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in zoom-in-95">
-          
-          {/* ==================== সেকশন ১: ইনভার্টারের বিবরণ ও ডায়নামিক সিরিয়াল এন্ট্রি ==================== */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">১. ইনভার্টারের বিবরণ ও সিরিয়াল এন্ট্রি</h3>
-              
-              {inverterItem ? (
+      {/* প্রধান ২-কলাম লেআউট (যা সবসময় স্ক্রিনে থাকবে) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* ==================== 📋 সেকশন ১: ইনভার্টারের বিবরণ ও চালানের সিরিয়াল তালিকা ==================== */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4 min-h-[400px]">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">
+              ১. চালানের ইনভার্টার তালিকা
+            </h3>
+            
+            {record ? (
+              inverterItem ? (
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
                     <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার মডেল</p>
-                    <p className="text-lg font-black">{inverterItem.products?.name}</p>
-                    <p className="text-sm font-medium text-blue-600">Model: {inverterItem.products?.model}</p>
+                    <p className="text-base font-black">{inverterItem.products?.name}</p>
+                    <p className="text-xs font-medium text-blue-600">Model: {inverterItem.products?.model}</p>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2 text-sm bg-slate-50 p-3 rounded-xl">
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl">
                     <div>
-                      <span className="text-xs text-slate-400 block">মোট পরিমাণ</span>
-                      <span className="font-black text-slate-700 text-base">{inverterItem.quantity} Pcs</span>
+                      <span className="text-slate-400 block">মোট পরিমাণ</span>
+                      <span className="font-black text-slate-700 text-sm">{inverterItem.quantity} Pcs</span>
                     </div>
                     <div>
-                      <span className="text-xs text-slate-400 block">ওয়ারেন্টি কাল</span>
-                      <span className="font-black text-slate-700 text-base">{inverterItem.products?.warranty || '১ বছর'}</span>
+                      <span className="text-slate-400 block">ওয়ারেন্টি কাল</span>
+                      <span className="font-black text-slate-700 text-sm">{inverterItem.products?.warranty || '১ বছর'}</span>
                     </div>
                   </div>
 
-                  {/* কোয়ান্টিটি অনুযায়ী ডায়নামিক সিরিয়াল ইনপুট লিস্ট */}
-                  <div className="pt-4 border-t border-dashed space-y-3">
-                    <label className="text-xs font-black text-slate-500 uppercase block">
-                      সিরিয়াল নম্বর টাইপ করে ডানপাশের বাটনে ক্লিক করে টেবিলে এন্ট্রি করুন:
-                    </label>
-                    
-                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                      {serialNumbers.map((serial, index) => (
-                        <div key={index} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border">
-                          <span className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center font-black text-xs text-slate-600">
-                            #{index + 1}
-                          </span>
-                          <input 
-                            type="text"
-                            value={serial}
-                            onChange={(e) => handleSerialInputChange(index, e.target.value)}
-                            placeholder={`সিরিয়াল নম্বর লিখুন`}
-                            className="flex-1 p-2 bg-white border rounded-lg font-bold uppercase text-xs outline-none focus:border-blue-600"
-                          />
-                          <button 
-                            type="button"
-                            onClick={(e) => handleRegisterSerial(index, e)}
-                            disabled={submitting}
-                            className={`px-3 py-2 text-xs font-bold rounded-lg text-white transition-all ${activeSerialData?.sl_no === serial && serial !== "" ? 'bg-green-600' : 'bg-blue-600 hover:bg-blue-700'}`}
-                          >
-                            {activeSerialData?.sl_no === serial && serial !== "" ? '✅ লোডেড' : 'এন্ট্রি'}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                  {/* ডায়নামিক সিরিয়াল ইনপুট রেন্ডারিং */}
+                  <div className="space-y-3 pt-2 border-t border-dashed">
+                    <p className="text-[11px] font-black text-slate-500 uppercase">সিরিয়াল নম্বর লিখে ডানপাশের বাটনে ক্লিক করুন:</p>
+                    {serialNumbers.map((serial, index) => (
+                      <div key={index} className="flex items-center gap-2 bg-slate-50 p-2 rounded-xl border">
+                        <span className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center font-black text-[10px] text-slate-600">
+                          #{index + 1}
+                        </span>
+                        <input 
+                          type="text"
+                          value={serial}
+                          onChange={(e) => {
+                            const updated = [...serialNumbers];
+                            updated[index] = e.target.value;
+                            setSerialNumbers(updated);
+                          }}
+                          placeholder={`সিরিয়াল দিন`}
+                          className="flex-1 p-1.5 bg-white border rounded font-bold uppercase text-xs outline-none focus:border-blue-600"
+                        />
+                        <button 
+                          type="button"
+                          onClick={(e) => handleRegisterSerial(index, e)}
+                          className="px-2 py-1.5 text-[10px] font-black bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                        >
+                          লোড করুন
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
                 <div className="p-6 text-center bg-red-50 border border-red-100 rounded-2xl">
-                  <p className="font-black text-red-600 text-base">⚠️ এই বিলে কোন ইনভার্টার নেই</p>
+                  <p className="font-black text-red-600 text-sm">⚠️ এই বিলে কোন ইনভার্টার নেই</p>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* ==================== সেকশন ২: ৪টি সার্ভিসের তথ্য ইনপুট ও লাইভ ভিউ প্রদর্শন ==================== */}
-          <div className="lg:col-span-7 space-y-6">
-            <div className="bg-white p-6 rounded-3xl border shadow-sm h-full flex flex-col justify-between">
-              <div>
-                <div className="flex justify-between items-center border-b pb-3 mb-4 flex-wrap gap-2">
-                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">
-                    ২. সার্ভিসের তথ্য ইনপুট এবং লাইভ স্ট্যাটাস
-                  </h3>
-                  {activeSerialData && (
-                    <span className="bg-orange-600 text-white font-black text-xs px-3 py-1 rounded-full uppercase">
-                      S/N: {activeSerialData.sl_no}
-                    </span>
-                  )}
-                </div>
-
-                {activeSerialData ? (
-                  <form onSubmit={handleSaveServiceDetails} className="space-y-6">
-                    {/* ইনভার্টার টাইপ সিলেক্টর */}
-                    <div className="flex items-center gap-2 bg-slate-50 p-3 rounded-xl border w-fit">
-                      <label className="text-xs font-black text-slate-600 uppercase">ইনভার্টার টাইপ:</label>
-                      <select 
-                        name="inv_type" 
-                        value={formData.inv_type} 
-                        onChange={handleServiceFieldChange} 
-                        className="p-1.5 bg-white border rounded-lg font-bold text-xs outline-none focus:ring-1 focus:ring-slate-900"
-                      >
-                        <option value="Hybrid">Hybrid (হাইব্রিড)</option>
-                        <option value="On-Grid">On-Grid (অন-গ্রিড)</option>
-                      </select>
-                    </div>
-
-                    {/* ৪টি সার্ভিসের গ্রিড কন্টেইনার */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[380px] overflow-y-auto pr-1">
-                      {[1, 2, 3, 4].map((num) => (
-                        <div key={num} className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 relative">
-                          <span className="absolute top-2 right-2 bg-slate-200 text-slate-500 font-black text-[10px] px-2 py-0.5 rounded-md">
-                            Record ০{num}
-                          </span>
-                          <h4 className="font-black text-slate-700 text-xs flex items-center gap-1 border-b pb-1 mb-2">🛠️ সার্ভিস সেগমেন্ট</h4>
-                          
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block">তারিখ (Date)</label>
-                            <input 
-                              type="text" 
-                              name={`serv_${num}_date`} 
-                              placeholder="DD-MM-YYYY" 
-                              value={formData[`serv_${num}_date`] || ''} 
-                              onChange={handleServiceFieldChange} 
-                              className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none focus:border-blue-600" 
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <label className="text-[9px] font-black text-slate-400 uppercase block">সমস্যা (Problem)</label>
-                            <textarea 
-                              name={`serv_${num}_problem`} 
-                              placeholder="কী সমস্যা হয়েছিল বিস্তারিত..." 
-                              value={formData[`serv_${num}_problem`] || ''} 
-                              onChange={handleServiceFieldChange} 
-                              className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none min-h-[50px] max-h-[80px]" 
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="space-y-1">
-                              <label className="text-[9px] font-black text-slate-400 uppercase block">বিল অ্যামাউন্ট (৳)</label>
-                              <input 
-                                type="number" 
-                                name={`serv_${num}_amount`} 
-                                placeholder="টাকা" 
-                                value={formData[`serv_${num}_amount`] || ''} 
-                                onChange={handleServiceFieldChange} 
-                                className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none focus:border-blue-600" 
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <label className="text-[9px] font-black text-slate-400 uppercase block">মন্তব্য (Remarks)</label>
-                              <input 
-                                type="text" 
-                                name={`remarks${num}`} 
-                                placeholder="নোট" 
-                                value={formData[`remarks${num}`] || ''} 
-                                onChange={handleServiceFieldChange} 
-                                className="w-full p-2 bg-white border rounded-lg text-xs font-bold outline-none focus:border-blue-600" 
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* বড় পাবলিশ বাটন */}
-                    <button 
-                      type="submit" 
-                      disabled={submitting}
-                      className="w-full h-12 bg-orange-600 text-white rounded-xl font-black text-sm hover:bg-orange-700 shadow-md transition-all active:scale-[0.99]"
-                    >
-                      {submitting ? 'সংরক্ষণ করা হচ্ছে...' : `💾 সিরিয়াল ${formData.sl_no} এর যাবতীয় সার্ভিসের তথ্য আপডেট করুন`}
-                    </button>
-                  </form>
-                ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400 border border-dashed rounded-2xl min-h-[300px]">
-                    <p className="italic font-bold text-sm">সেকশন ১ এর সিরিয়াল নাম্বারটি লিখে পাশে থাকা "এন্ট্রি" বাটনে ক্লিক করুন।</p>
-                    <p className="text-[11px] text-slate-400 mt-1">ক্লিক করার সাথে সাথে ডেটাবেজের inv_sl টেবিলে বিল ও চালান নম্বরসহ সিরিয়ালটি রেজিস্টার হয়ে যাবে এবং এখানে সার্ভিসের ফর্ম ওপেন হবে।</p>
-                  </div>
-                )}
+              )
+            ) : (
+              <div className="text-center py-12 text-slate-300 italic text-sm">
+                উপরে চালান নম্বর দিয়ে সার্চ দিলে চালানের ইনভার্টার ও পরিমাণ এখানে আসবে।
               </div>
-            </div>
+            )}
           </div>
-
         </div>
-      )}
 
-      {/* ইনিশিয়াল স্টেট মেসেজ */}
-      {!record && !loading && (
-        <div className="py-20 text-center font-bold text-slate-300 italic border border-dashed rounded-3xl bg-white">
-          শুরু করতে প্রথমে উপরে চালান বা বিল নম্বর দিয়ে সার্চ করুন।
+        {/* ==================== 🛠️ সেকশন ২: সিরিয়াল সার্চ, ইনপুট ও ৪টি সার্ভিসের তথ্য (PERMANENT VISIBLE) ==================== */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-6">
+            
+            {/* সেকশন ২-এর নিজস্ব সিরিয়াল সার্চ ইনপুট */}
+            <div className="border-b pb-4">
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span>২. ইনভার্টার সিরিয়াল সার্চ ও সার্ভিসের তথ্য ইনপুট</span>
+                {formData.sl_no && (
+                  <span className="bg-orange-500 text-white font-black text-[10px] px-2.5 py-0.5 rounded-full uppercase">
+                    Active: {formData.sl_no}
+                  </span>
+                )}
+              </h3>
+              
+              <form onSubmit={handleDirectSerialSearch} className="flex gap-2 max-w-md">
+                <input 
+                  type="text"
+                  value={globalSerialSearch}
+                  onChange={(e) => setGlobalSerialSearch(e.target.value)}
+                  placeholder="সরাসরি ইনভার্টার সিরিয়াল দিয়ে সার্চ দিন..."
+                  className="flex-1 p-2.5 bg-slate-50 border rounded-xl font-bold uppercase text-xs outline-none focus:ring-1 focus:ring-blue-600"
+                />
+                <button type="submit" disabled={serviceLoading} className="bg-slate-900 text-white px-4 rounded-xl text-xs font-bold hover:bg-slate-800">
+                  {serviceLoading ? 'খোঁজা হচ্ছে...' : 'সিরিয়াল সার্চ'}
+                </button>
+              </form>
+            </div>
+
+            {/* মেইন ৪টি সার্ভিসের ইনপুট ফর্ম */}
+            <form onSubmit={handleSaveAllData} className="space-y-6">
+              
+              {/* মেটাডাটা ইনফো (বিল, চালান ও টাইপ) */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-2xl border text-xs font-bold">
+                <div className="space-y-1">
+                  <label className="text-slate-400 block">সিরিয়াল নম্বর (Required)</label>
+                  <input type="text" name="sl_no" value={formData.sl_no} onChange={handleFormChange} placeholder="যেমন: INV-1022" className="w-full p-2 bg-white border rounded-lg font-black uppercase" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 block">বিল নম্বর</label>
+                  <input type="text" name="bill_no" value={formData.bill_no} onChange={handleFormChange} placeholder="BILL NO" className="w-full p-2 bg-white border rounded-lg uppercase" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 block">চালান নম্বর</label>
+                  <input type="text" name="chalan_no" value={formData.chalan_no} onChange={handleFormChange} placeholder="CHALAN NO" className="w-full p-2 bg-white border rounded-lg uppercase" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-slate-400 block">ইনভার্টার টাইপ</label>
+                  <select name="inv_type" value={formData.inv_type} onChange={handleFormChange} className="w-full p-2 bg-white border rounded-lg">
+                    <option value="Hybrid">Hybrid</option>
+                    <option value="On-Grid">On-Grid</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* ৪টি সার্ভিসের সেগমেন্ট গ্রিড */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto pr-1">
+                {[1, 2, 3, 4].map((num) => (
+                  <div key={num} className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 relative">
+                    <span className="absolute top-2 right-2 bg-slate-200 text-slate-500 font-black text-[9px] px-2 py-0.5 rounded">
+                      সার্ভিস রেকর্ড ০{num}
+                    </span>
+                    <h4 className="font-black text-slate-700 text-xs flex items-center gap-1 border-b pb-1 mb-2">🛠️ Service Record</h4>
+                    
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 block">তারিখ (Date)</label>
+                      <input type="text" name={`serv_${num}_date`} placeholder="DD-MM-YYYY" value={formData[`serv_${num}_date`] || ''} onChange={handleFormChange} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 block">সমস্যা (Problem)</label>
+                      <textarea name={`serv_${num}_problem`} placeholder="কী সমস্যা হয়েছিল..." value={formData[`serv_${num}_problem`] || ''} onChange={handleFormChange} className="w-full p-2 bg-white border rounded-lg text-xs font-bold min-h-[45px] max-h-[70px]" />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 block">বিল অ্যামাউন্ট (৳)</label>
+                        <input type="number" name={`serv_${num}_amount`} placeholder="টাকা" value={formData[`serv_${num}_amount`] || ''} onChange={handleFormChange} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-black text-slate-400 block">মন্তব্য (Remarks)</label>
+                        <input type="text" name={`remarks${num}`} placeholder="নোট" value={formData[`remarks${num}`] || ''} onChange={handleFormChange} className="w-full p-2 bg-white border rounded-lg text-xs font-bold" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* অ্যাকশন বাটন */}
+              <button 
+                type="submit" 
+                disabled={submitting}
+                className="w-full h-12 bg-orange-600 text-white rounded-xl font-black text-sm hover:bg-orange-700 shadow-md transition-all active:scale-[0.99]"
+              >
+                {submitting ? 'সেভ করা হচ্ছে...' : '💾 সিরিয়াল ও সার্ভিসের যাবতীয় তথ্য টেবিলে সেভ/আপডেট করুন'}
+              </button>
+            </form>
+          </div>
         </div>
-      )}
+
+      </div>
     </div>
   );
 };
