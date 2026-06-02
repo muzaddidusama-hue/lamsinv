@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import emailjs from '@emailjs/browser'; // ✉️ EmailJS লাইব্রেরি যুক্ত করা হলো
 
 // আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট
 import Dashboard from './Dashboard';
@@ -20,12 +21,16 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState('');
 
-  // 🔑 নিজের পাসওয়ার্ড কুইক চেঞ্জ করার স্টেট মডিউল
+  // 🔑 ৩-স্টেপ ওটিপি পাসওয়ার্ড চেঞ্জের স্টেট মডিউল
   const [showPassModal, setShowPassModal] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [inputOtp, setInputOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [step, setStep] = useState(1); // ১ = পুরাতন পাসওয়ার্ড, ২ = ওটিপি কোড, ৩ = নতুন পাসওয়ার্ড
   const [passLoading, setPassLoading] = useState(false);
 
-  // 🛡️ কন্ডিশনাল মেনু ফিল্টারিং: রোল অনুযায়ী অপশন কন্ট্রোল
+  // রোল অনুযায়ী মেনু ফিল্টারিং
   const menuItems = [
     { id: 'dashboard', icon: '📊', label: 'ড্যাশবোর্ড (Dashboard)' },
     { id: 'smart_scan', icon: '📸', label: 'স্মার্ট স্ক্যানার (AI)' },
@@ -54,7 +59,6 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, 
     { id: 'reports', icon: '📋', label: 'রিপোর্ট (Reports)' },
     
-    // 🔒 সিকিউরিটি ফিক্স: পাবলিক পেজ এডিট শুধুমাত্র Admin এবং CEO দেখতে পারবে
     ...((currentUserRole === 'Admin' || currentUserRole === 'CEO') ? [
       { id: 'frontend_custom', icon: '⚙️', label: 'পাবলিক পেজ এডিট' },
       { id: 'user_management', icon: '👥', label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
@@ -75,28 +79,115 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     setIsMobileMenuOpen(false);
   };
 
-  // 📝 ইউজারের নিজের পাসওয়ার্ড নিজে আপডেট করার ব্যাকএন্ড হ্যান্ডলার
-  const handleSelfPasswordUpdate = async (e) => {
+  // ✉️ স্টেপ ১: পুরাতন পাসওয়ার্ড চেক করা এবং ইমেইলে ওটিপি পাঠানো
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     const activeEmpId = localStorage.getItem('user_emp_id');
-    if (!newPassword.trim()) return alert("দয়া করে নতুন পাসওয়ার্ডটি লিখুন!");
+    if (!oldPassword.trim()) return alert("দয়া করে বর্তমান পাসওয়ার্ডটি দিন!");
 
     setPassLoading(true);
     try {
-      const { error } = await supabase
+      // ১. ডাটাবেজ থেকে ইউজারের বর্তমান পাসওয়ার্ড এবং ইমেইল তুলে আনা
+      const { data: user, error: fetchErr } = await supabase
+        .from('users')
+        .select('password, email, name')
+        .eq('emp_id', activeEmpId)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      // ২. ওল্ড পাসওয়ার্ড ভ্যালিডেশন
+      if (user.password !== oldPassword.trim()) {
+        alert("❌ আপনার বর্তমান (পুরাতন) পাসওয়ার্ডটি ভুল! আবার চেষ্টা করুন।");
+        setPassLoading(false);
+        return;
+      }
+
+      if (!user.email) {
+        alert("⚠️ আপনার অ্যাকাউন্টে কোনো ইমেইল যুক্ত করা নেই! এডমিনের সাথে যোগাযোগ করুন।");
+        setPassLoading(false);
+        return;
+      }
+
+      // ৩. ৪ ডিজিটের সিকিউরড র‍্যান্ডম ওটিপি জেনারেশন
+      const otp = Math.floor(1000 + Math.random() * 9000).toString();
+      setGeneratedOtp(otp);
+
+      // ৪. আপনার প্রোভাইড করা ক্রেডেনশিয়ালস দিয়ে EmailJS এর মাধ্যমে মেইল পাঠানো
+      const templateParams = {
+        to_name: user.name,
+        to_email: user.email,
+        otp_code: otp,
+      };
+
+      await emailjs.send(
+        'service_ohv3i8b',      // Your Service ID
+        'template_qqu787o',     // Your Template ID
+        templateParams, 
+        'BYD2vaVEFWA15jwUu'     // Your Public Key
+      );
+
+      alert(`📩 একটি ওটিপি কোড আপনার রেজিস্টার্ড ইমেইলে (${user.email}) পাঠানো হয়েছে!`);
+      setStep(2); // ওটিপি কোড ইনপুট স্ক্রিনে মুভ করা
+    } catch (err) {
+      alert("ওটিপি পাঠাতে সমস্যা হয়েছে: " + err.message);
+    }
+    setPassLoading(false);
+  };
+
+  // 🔢 স্টেপ ২: ইনপুট করা ওটিপি যাচাই করা
+  const handleVerifyOtp = (e) => {
+    e.preventDefault();
+    if (inputOtp.trim() === generatedOtp) {
+      alert("✅ ওটিপি মিলেছে! এবার আপনার নতুন পাসওয়ার্ডটি দিন।");
+      setStep(3); // নতুন পাসওয়ার্ড সেট করার স্ক্রিনে মুভ করা
+    } else {
+      alert("❌ ভুল ওটিপি কোড! আবার চেষ্টা করুন।");
+    }
+  };
+
+  // 💾 স্টেপ ৩: নতুন পাসওয়ার্ড ডাটাবেজে ফাইনাল সেভ করা
+  const handleFinalPasswordSave = async (e) => {
+    e.preventDefault();
+    const activeEmpId = localStorage.getItem('user_emp_id');
+    
+    if (!newPassword.trim()) return alert("দয়া করে নতুন পাসওয়ার্ডটি লিখুন!");
+    if (newPassword.trim().length < 6) {
+      return alert("নতুন পাসওয়ার্ডটি কমপক্ষে ৬ ডিজিটের হতে হবে!");
+    }
+
+    setPassLoading(true);
+    try {
+      const { error: updateErr } = await supabase
         .from('users')
         .update({ password: newPassword.trim() })
         .eq('emp_id', activeEmpId);
 
-      if (error) throw error;
+      if (updateErr) throw updateErr;
 
       alert("🎉 আপনার পাসওয়ার্ডটি সফলভাবে পরিবর্তন করা হয়েছে!");
+      
+      // স্টেট এবং ফর্ম ডাটা রিসেট
+      setOldPassword('');
       setNewPassword('');
+      setInputOtp('');
+      setGeneratedOtp('');
+      setStep(1);
       setShowPassModal(false);
     } catch (err) {
       alert("পাসওয়ার্ড পরিবর্তন করতে সমস্যা হয়েছে: " + err.message);
     }
     setPassLoading(false);
+  };
+
+  // মডাল ক্লোজ ও রিসেট হেল্পার
+  const closePassModal = () => {
+    setShowPassModal(false);
+    setOldPassword('');
+    setNewPassword('');
+    setInputOtp('');
+    setGeneratedOtp('');
+    setStep(1);
   };
 
   return (
@@ -162,7 +253,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       {/* মেইন কন্টেন্ট এরিয়া */}
       <main className="flex-1 overflow-y-auto h-full relative flex flex-col">
         
-        {/* ডেস্কটপ এবং মোবাইলের জন্য ইউনিফাইড টপ মেটা বার */}
+        {/* টপ মেটা বার */}
         <div className="bg-white border-b border-slate-100 p-4 px-6 md:px-8 flex justify-between items-center z-10 shadow-sm">
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-black text-slate-800 hidden md:block">👋 {currentUserName}</h1>
@@ -172,7 +263,6 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 🔑 সেলফ পাসওয়ার্ড রিকোয়েস্ট বাটন */}
             <button 
               onClick={() => setShowPassModal(true)}
               className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs px-4 py-2 rounded-xl transition-all flex items-center gap-1"
@@ -185,7 +275,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           </div>
         </div>
 
-        {/* সিলেক্ট করা কম্পোনেন্টগুলো লোড এরিয়া */}
+        {/* কন্টেন্ট লোড এরিয়া */}
         <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1">
           {view === 'dashboard' && <Dashboard />}
           {view === 'smart_scan' && <SmartUpload />} 
@@ -202,35 +292,89 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         </div>
       </main>
 
-      {/* 🎯 কাস্টম পাসওয়ার্ড পরিবর্তনকারী পপ-আপ মডাল */}
+      {/* 🎯 কাস্টম পাসওয়ার্ড পরিবর্তনকারী পপ-আপ মডাল (৩-স্টেপ ওটিপি ইমপ্লিমেন্টেশন) */}
       {showPassModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[150] animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2rem] p-6 w-full max-w-sm shadow-2xl border animate-in zoom-in-95 duration-200">
-            <h3 className="text-lg font-black text-slate-800 border-b pb-2 mb-4">🔑 নতুন পাসওয়ার্ড সেট করুন</h3>
-            <form onSubmit={handleSelfPasswordUpdate} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase">New Password</label>
-                <input 
-                  type="text" 
-                  placeholder="কমপক্ষে ৬ ডিজিটের পাসওয়ার্ড"
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-sm outline-none focus:border-orange-500"
-                  required
-                />
-              </div>
-              <div className="flex gap-2 justify-end pt-2">
-                <button type="button" onClick={() => { setShowPassModal(false); setNewPassword(''); }} className="px-4 py-2 text-xs font-bold text-slate-400">বাতিল</button>
-                <button type="submit" disabled={passLoading} className="px-5 py-2 bg-slate-900 hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-md transition-colors">
-                  {passLoading ? 'আপডেট হচ্ছে...' : 'পাসওয়ার্ড সেভ করুন'}
-                </button>
-              </div>
-            </form>
+          <div className="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl border relative animate-in zoom-in-95 duration-200">
+            
+            <h3 className="text-xl font-black text-slate-800 border-b pb-3 mb-5 flex items-center gap-2">
+              🔑 {step === 1 ? 'পাসওয়ার্ড পরিবর্তন' : step === 2 ? 'ইমেইল ওটিপি যাচাই' : 'নতুন পাসওয়ার্ড'}
+            </h3>
+
+            {/* ➡️ স্টেপ ১: বর্তমান পাসওয়ার্ড যাচাই */}
+            {step === 1 && (
+              <form onSubmit={handleSendOtp} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Current Password (পুরাতন পাসওয়ার্ড)</label>
+                  <input 
+                    type="password" 
+                    placeholder="বর্তমান পাসওয়ার্ড দিন"
+                    value={oldPassword}
+                    onChange={e => setOldPassword(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button type="button" onClick={closePassModal} className="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button>
+                  <button type="submit" disabled={passLoading} className="px-5 py-3 bg-slate-900 hover:bg-orange-600 text-white font-black text-xs rounded-xl shadow-md transition-colors">
+                    {passLoading ? 'যাচাই হচ্ছে...' : 'ওটিপি পাঠান ✉️'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ➡️ স্টেপ ২: ওটিপি কোড ইনপুট */}
+            {step === 2 && (
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Enter 4-Digit OTP</label>
+                  <input 
+                    type="text" 
+                    maxLength="4"
+                    placeholder="••••"
+                    value={inputOtp}
+                    onChange={e => setInputOtp(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-black text-center text-xl tracking-[0.5em]"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button type="button" onClick={() => setStep(1)} className="px-4 py-2 text-xs font-bold text-slate-400">পিছনে যান</button>
+                  <button type="submit" className="px-5 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl shadow-md transition-colors">
+                    কোড যাচাই করুন ✓
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ➡️ স্টেপ ৩: নতুন পাসওয়ার্ড সেট (সিকিউরড করার জন্য টাইপ password করা হয়েছে) */}
+            {step === 3 && (
+              <form onSubmit={handleFinalPasswordSave} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">New Password</label>
+                  <input 
+                    type="password" 
+                    placeholder="কমপক্ষে ৬ ডিজিটের নতুন পাসওয়ার্ড"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+                    required
+                  />
+                </div>
+                <div className="flex gap-2 justify-end pt-2">
+                  <button type="submit" disabled={passLoading} className="w-full py-4 bg-slate-900 hover:bg-green-600 text-white font-black text-sm rounded-2xl shadow-lg transition-colors">
+                    {passLoading ? 'সেভ হচ্ছে...' : 'পাসওয়ার্ড নিশ্চিত করুন 💾'}
+                  </button>
+                </div>
+              </form>
+            )}
+
           </div>
         </div>
       )}
 
-      {/* মোবাইল ফ্লোটিং মেনু (FAB) */}
+      {/* মোবাইল ফ্লোটিং মেনু (FAB) কোড অপরিবর্তিত */}
       <div className="md:hidden">
         {isMobileMenuOpen && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={() => setIsMobileMenuOpen(false)}></div>

@@ -5,8 +5,8 @@ const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // নতুন ইউজার তৈরির ফরম স্টেট
-  const [newUser, setNewUser] = useState({ emp_id: '', name: '', password: '', role: 'Staff' });
+  // 📝 ফিক্স: নতুন ইউজার তৈরির ফরম স্টেটে 'email' যোগ করা হয়েছে
+  const [newUser, setNewUser] = useState({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
 
   useEffect(() => {
     fetchUsers();
@@ -21,16 +21,20 @@ const UserManagement = () => {
     setNewUser({ ...newUser, [e.target.name]: e.target.value });
   };
 
-  // ১. নতুন এমপ্লয়ী যুক্ত করার ফাংশন (অ্যাক্সেস দেওয়া)
+  // ১. নতুন এমপ্লয়ী যুক্ত করার ফাংশন (ইমেইল সহ)
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    if (!newUser.emp_id || !newUser.name || !newUser.password) return alert("সবগুলো ঘর পূরণ করুন!");
+    // ভ্যালিডেশনে ইমেইল চেক যুক্ত করা হলো
+    if (!newUser.emp_id || !newUser.name || !newUser.email || !newUser.password) {
+      return alert("সবগুলো ঘর পূরণ করুন!");
+    }
 
     setLoading(true);
     try {
       const payload = {
         emp_id: newUser.emp_id.trim().toUpperCase(),
         name: newUser.name.trim(),
+        email: newUser.email.trim(), // ✉️ ইমেইল ডাটাবেজে পাঠানোর জন্য রেডি
         password: newUser.password.trim(),
         role: newUser.role,
         is_active: true
@@ -40,10 +44,10 @@ const UserManagement = () => {
       if (error) throw error;
 
       alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন!`);
-      setNewUser({ emp_id: '', name: '', password: '', role: 'Staff' });
+      setNewUser({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
       fetchUsers(); // লিস্ট রিফ্রেশ
     } catch (err) {
-      alert("ত্রুটি: আইডিটি ইতিমধ্যে ব্যবহৃত হতে পারে। " + err.message);
+      alert("ত্রুটি: আইডি অথবা ইমেইলটি ইতিমধ্যে ব্যবহৃত হতে পারে। " + err.message);
     }
     setLoading(false);
   };
@@ -87,6 +91,13 @@ const UserManagement = () => {
               <label className="text-slate-400 block mb-1">এমপ্লয়ীর নাম</label>
               <input type="text" name="name" value={newUser.name} onChange={handleInputChange} placeholder="নাম লিখুন" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
             </div>
+            
+            {/* ✉️ ফিক্স: ইমেইল নেওয়ার জন্য নতুন ইনপুট ফিল্ড যুক্ত করা হলো */}
+            <div>
+              <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস (OTP এর জন্য)</label>
+              <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder="example@gmail.com" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
+            </div>
+
             <div>
               <label className="text-slate-400 block mb-1">লগইন পাসওয়ার্ড</label>
               <input type="text" name="password" value={newUser.password} onChange={handleInputChange} placeholder="পাসওয়ার্ড সেট করুন" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
@@ -113,7 +124,7 @@ const UserManagement = () => {
               <thead>
                 <tr className="bg-slate-900 text-white uppercase font-black text-[10px] tracking-wider border-b">
                   <th className="p-3">ID</th>
-                  <th className="p-3">নাম</th>
+                  <th className="p-3">নাম / ইমেইল</th> {/* হেডার রি-নেম */}
                   <th className="p-3">পাসওয়ার্ড</th>
                   <th className="p-3">রোল</th>
                   <th className="p-3 text-center">স্ট্যাটাস</th>
@@ -124,10 +135,16 @@ const UserManagement = () => {
                 {users.map((user) => (
                   <tr key={user.id} className="hover:bg-slate-50">
                     <td className="p-3 font-black text-slate-900 uppercase">{user.emp_id}</td>
-                    <td className="p-3 font-bold">{user.name}</td>
+                    
+                    {/* 💡 সুন্দর লেআউট: নামের ঠিক নিচে ছোট করে ইমেইল অ্যাড্রেসটিও দেখা যাবে */}
+                    <td className="p-3">
+                      <p className="font-bold text-slate-900">{user.name}</p>
+                      <p className="text-[10px] font-medium text-slate-400 select-all">{user.email || '—'}</p>
+                    </td>
+
                     <td className="p-3 font-mono font-bold text-slate-400 tracking-widest select-none">
-  ••••••
-</td>
+                      ••••••
+                    </td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${user.role === 'Admin' || user.role === 'CEO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                         {user.role}
@@ -139,7 +156,6 @@ const UserManagement = () => {
                       </span>
                     </td>
                     <td className="p-3 text-center">
-                      {/* ADMIN100 এর নিজের এক্সেস নিজে যেন ব্লক না করতে পারে তার প্রোটেকশন */}
                       {user.emp_id === 'ADMIN100' ? (
                         <span className="text-[10px] italic text-slate-400">মাস্টার ওনার</span>
                       ) : (
