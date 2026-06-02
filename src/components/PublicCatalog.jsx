@@ -22,8 +22,6 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [products, setProducts] = useState([]);
   const [siteSettings, setSiteSettings] = useState({}); 
   const [loading, setLoading] = useState(true);
-
-  // 📝 মডাল এবং ডিটেইলস ভিউ স্টেট
   const [selectedModalProduct, setSelectedModalProduct] = useState(null);
 
   useEffect(() => {
@@ -34,7 +32,7 @@ const PublicCatalog = ({ onAdminClick }) => {
       const { data: settingsData } = await supabase.from('site_settings').select('*').single();
       if (settingsData) setSiteSettings(settingsData);
       
-      loading ? setLoading(false) : null;
+      setLoading(false);
     };
     fetchData();
   }, []);
@@ -90,7 +88,6 @@ const PublicCatalog = ({ onAdminClick }) => {
     }).filter(Boolean);
   };
 
-  // 💡 মডেল ক্লিক হ্যান্ডলার: অবজেক্ট বের করে মডালে পাঠানো
   const handleModelClick = (brandName, modelName) => {
     const matchProduct = products.find(p => p.name === brandName && p.model === modelName);
     if (matchProduct) {
@@ -98,15 +95,15 @@ const PublicCatalog = ({ onAdminClick }) => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">লোড হচ্ছে...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">লোড হচ্ছে...</div>;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      <header className="bg-white py-4 px-6 shadow-sm sticky top-0 z-50 border-b border-slate-100">
+      <header className="bg-white py-5 px-6 shadow-sm sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-[1400px] mx-auto flex items-center justify-center gap-4">
-          <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-10 lg:h-14 object-contain" />
-          <h1 className="text-xl lg:text-3xl font-black text-slate-900 tracking-tighter uppercase">
+          <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-12 lg:h-16 object-contain" />
+          <h1 className="text-2xl lg:text-4xl font-black text-slate-900 tracking-tighter uppercase">
             {siteSettings.header_name || 'Lams Power Inventory'}
           </h1>
         </div>
@@ -138,23 +135,35 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               return (
                 <div key={cat} className="mb-16">
-                  <h2 className="text-2xl lg:text-3xl font-black text-slate-800 mb-8 border-l-8 border-slate-900 pl-4">{cat}</h2>
+                  {/* ক্যাটাগরি হেডিং এর ফন্ট বড় করা হয়েছে */}
+                  <h2 className="text-3xl lg:text-4xl font-black text-slate-800 mb-8 border-l-8 border-slate-900 pl-4">{cat}</h2>
+                  
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 items-start">
                     {grouped.map((brand, index) => (
                       <div key={index} className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-50 group hover:shadow-2xl hover:shadow-slate-200/50 transition-all duration-500 flex flex-col items-center">
+                        
                         <div className="w-full bg-[#F0F2F5] rounded-[2rem] aspect-[4/3] mb-6 flex items-center justify-center p-6 overflow-hidden">
                           <img src={brand.image_url} alt={brand.name} className="max-h-full max-w-full object-contain transition-transform duration-700 group-hover:scale-110" />
                         </div>
-                        <h3 className="text-3xl font-black text-slate-900 mb-6 tracking-tight">{brand.name}</h3>
                         
-                        {/* 🛠️ মডিফাইড বাটন গ্রিড: ক্লিক করলে মডাল ট্রিগার হবে */}
-                        <div className="w-full space-y-3">
+                        {/* ব্র্যান্ড বা কোম্পানির নাম আরও বড় (text-4xl) করা হয়েছে */}
+                        <h3 className="text-4xl font-black text-slate-900 mb-6 tracking-tight">{brand.name}</h3>
+                        
+                        <div className="w-full space-y-4">
+                          
+                          {/* 🟢 ইন স্টক কন্ডিশন সেকশন: ফন্ট সাইজ এবং প্যাডিং বাড়ানো হয়েছে */}
                           {brand.inStock.length > 0 && (
-                            <div className="w-full bg-[#009A66] text-white p-3 rounded-2xl font-bold text-center text-xs shadow-sm">
-                              <p className="opacity-70 mb-1.5 uppercase tracking-wider text-[9px] font-black">In Stock (বিস্তারিত দেখতে মডেলে চাপুন)</p>
-                              <div className="flex flex-wrap justify-center gap-1.5">
+                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold text-center border shadow-sm">
+                              <p className="opacity-90 mb-2 uppercase tracking-wider text-[11px] font-black">✓ In Stock (বিস্তারিত দেখতে মডেলে চাপুন)</p>
+                              
+                              {/* মডেল নম্বর বাটনগুলোর সাইজ বাড়িয়ে text-sm ও font-black করা হয়েছে */}
+                              <div className="flex flex-wrap justify-center gap-2">
                                 {brand.inStock.map(model => (
-                                  <button key={model} onClick={() => handleModelClick(brand.name, model)} className="bg-white/20 hover:bg-white/40 px-2.5 py-1 rounded-lg text-xs font-black transition-all">
+                                  <button 
+                                    key={model} 
+                                    onClick={() => handleModelClick(brand.name, model)} 
+                                    className="bg-white text-[#009A66] hover:bg-slate-100 px-3.5 py-1.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95"
+                                  >
                                     {model}
                                   </button>
                                 ))}
@@ -162,12 +171,18 @@ const PublicCatalog = ({ onAdminClick }) => {
                             </div>
                           )}
                           
+                          {/* 🟡 আপকামিং সেকশন: ফন্ট সাইজ বড় করা হয়েছে */}
                           {brand.upcoming.length > 0 && (
-                            <div className="w-full bg-[#deb100] text-white p-3 rounded-2xl font-bold text-center text-xs shadow-sm">
-                              <p className="opacity-70 mb-1.5 uppercase tracking-wider text-[9px] font-black">Coming Soon</p>
-                              <div className="flex flex-wrap justify-center gap-1.5">
+                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold text-center border shadow-sm">
+                              <p className="opacity-90 mb-2 uppercase tracking-wider text-[11px] font-black">⏳ Coming Soon</p>
+                              
+                              <div className="flex flex-wrap justify-center gap-2">
                                 {brand.upcoming.map(model => (
-                                  <button key={model} onClick={() => handleModelClick(brand.name, model)} className="bg-white/20 hover:bg-white/40 px-2.5 py-1 rounded-lg text-xs font-black transition-all">
+                                  <button 
+                                    key={model} 
+                                    onClick={() => handleModelClick(brand.name, model)} 
+                                    className="bg-white text-[#b38f00] hover:bg-slate-100 px-3.5 py-1.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95"
+                                  >
                                     {model}
                                   </button>
                                 ))}
@@ -184,6 +199,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             })}
           </main>
 
+          {/* সাইডবার কন্টাক্ট ইনফোও স্পষ্ট করা হলো */}
           <aside className="w-full lg:w-80 shrink-0 order-2 lg:order-1">
             <div className="lg:sticky lg:top-28 bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-50 space-y-6">
               <div className="space-y-1">
@@ -191,34 +207,34 @@ const PublicCatalog = ({ onAdminClick }) => {
                 <div className="h-1 w-12 bg-orange-500 rounded-full"></div>
               </div>
 
-              <div className="space-y-4 text-sm text-slate-600 leading-relaxed font-medium">
+              <div className="space-y-4 text-base text-slate-700 leading-relaxed font-semibold">
                 {siteSettings.contact_address && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Office</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Office</p>
                     <p>{siteSettings.contact_address}</p>
                   </div>
                 )}
                 {siteSettings.contact_showroom && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Showroom</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Showroom</p>
                     <p>{siteSettings.contact_showroom}</p>
                   </div>
                 )}
                 {siteSettings.contact_numbers && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Contact</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Contact</p>
                     <p className="whitespace-pre-line">{siteSettings.contact_numbers.split(', ').join('\n')}</p>
                   </div>
                 )}
                 {siteSettings.contact_hotline && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Hotline</p>
-                    <p className="text-orange-600 font-bold">{siteSettings.contact_hotline}</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">Hotline</p>
+                    <p className="text-orange-600 font-black text-lg">{siteSettings.contact_hotline}</p>
                   </div>
                 )}
                 {siteSettings.contact_email && (
                   <div>
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">E-mail</p>
+                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1">E-mail</p>
                     <p className="text-slate-900 underline">{siteSettings.contact_email}</p>
                   </div>
                 )}
@@ -229,12 +245,11 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       </div>
 
-      {/* ---------------- 🎯 মডার্ন প্রোডাক্ট ডিটেইলস পপ-আপ মডাল ---------------- */}
+      {/* ---------------- 🎯 পপ-আপ মডাল: এর ভেতরের টেক্সটও অনেক স্পষ্ট করা হয়েছে ---------------- */}
       {selectedModalProduct && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
             
-            {/* ক্লোজ বাটন */}
             <button 
               onClick={() => setSelectedModalProduct(null)}
               className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl"
@@ -242,31 +257,28 @@ const PublicCatalog = ({ onAdminClick }) => {
               ✕
             </button>
 
-            {/* হেডার পার্ট */}
             <div className="border-b pb-4 mb-5">
-              <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3 py-1 rounded-full uppercase">
+              <span className="text-[11px] font-black tracking-widest bg-orange-100 text-orange-600 px-3 py-1 rounded-full uppercase">
                 {selectedModalProduct.category}
               </span>
               <h3 className="text-3xl font-black text-slate-900 mt-2">{selectedModalProduct.name}</h3>
-              <p className="text-sm font-bold text-slate-400 mt-0.5">মডেল/ক্যাপাসিটি: {selectedModalProduct.model}</p>
+              <p className="text-lg font-black text-orange-600 mt-1">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
             </div>
 
-            {/* ভোল্টেজ ও ওয়াট প্যারামিটার গ্রিড */}
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
-                <span className="text-xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
+                <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
               </div>
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
-                <span className="text-xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
+                <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
+                <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
               </div>
             </div>
 
-            {/* বিস্তারিত ডেসক্রিপশন টেক্সট */}
             <div className="space-y-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
-              <div className="bg-slate-50 p-5 rounded-2xl border text-sm text-slate-700 leading-relaxed font-medium max-h-48 overflow-y-auto custom-scrollbar">
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block px-1">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+              <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
                 {selectedModalProduct.description ? (
                   <p className="whitespace-pre-line">{selectedModalProduct.description}</p>
                 ) : (
@@ -275,10 +287,9 @@ const PublicCatalog = ({ onAdminClick }) => {
               </div>
             </div>
 
-            {/* ফুটার বাটন */}
             <button 
               onClick={() => setSelectedModalProduct(null)}
-              className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-sm tracking-wide transition-all shadow-lg"
+              className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-base tracking-wide transition-all shadow-lg"
             >
               বন্ধ করুন
             </button>
