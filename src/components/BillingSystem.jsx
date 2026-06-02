@@ -57,16 +57,39 @@ const BillingSystem = () => {
     if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
     if (parseInt(qty) > product.stock_quantity) return alert(`স্টকে মাত্র ${product.stock_quantity} পিস আছে!`);
+    
     setCart([...cart, { 
         product_id: product.id, 
         name: product.name, 
         model: product.model, 
         category: product.category, 
-        unit_price: product.unit_price, 
+        unit_price: parseFloat(product.unit_price) || 0, // ডিফল্ট রেট চলে আসবে
         qty: parseInt(qty), 
-        total: product.unit_price * parseInt(qty) 
+        total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
     }]);
     setSelectedProduct(''); setQty('');
+  };
+
+  // 🔄 নতুন লজিক: কার্ট টেবিলের ভেতরের লাইভ ডাটা (দাম ও পরিমাণ) পরিবর্তনের ফাংশন
+  const handleCartDataChange = (index, field, value) => {
+    const updatedCart = [...cart];
+    
+    if (field === 'qty') {
+      const parsedQty = parseInt(value) || 0;
+      // স্টকের সাথে পুনরায় ক্রস ভ্যালিডেশন
+      const originalProduct = products.find(p => p.id === updatedCart[index].product_id);
+      if (originalProduct && parsedQty > originalProduct.stock_quantity) {
+        alert(`দুঃখিত, স্টকে সর্বোচ্চ ${originalProduct.stock_quantity} পিস উপলব্ধ আছে!`);
+        return;
+      }
+      updatedCart[index].qty = parsedQty;
+    } else if (field === 'unit_price') {
+      updatedCart[index].unit_price = parseFloat(value) || 0; // ম্যানুয়াল প্রাইস অ্যাসাইন
+    }
+
+    // প্রতি রো-এর ইন্ডিভিজুয়াল টোটাল রি-ক্যালকুলেশন
+    updatedCart[index].total = updatedCart[index].qty * updatedCart[index].unit_price;
+    setCart(updatedCart);
   };
 
   const handleGenerateChallan = async () => {
@@ -94,15 +117,28 @@ const BillingSystem = () => {
 
       const chalanNo = isManualChalan ? manualChalanNo : `CHL-${Date.now().toString().slice(-6)}`;
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
-        chalan_no: chalanNo, status: 'hold', total_amount: cart.reduce((acc, item) => acc + item.total, 0),
-        house, customer_id: customerId, is_in_house: isInHouse, transfer_to: isInHouse ? transferTo : null
+        chalan_no: chalanNo, 
+        status: 'hold', 
+        total_amount: cart.reduce((acc, item) => acc + item.total, 0), // কার্টের বর্তমান লাইভ প্রাইস যোগফল
+        house, 
+        customer_id: customerId, 
+        is_in_house: isInHouse, 
+        transfer_to: isInHouse ? transferTo : null
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
 
       const itemsForPrint = [];
       for (let item of cart) {
-        await supabase.from('chalan_items').insert([{ chalan_id: chalanData.id, product_id: item.product_id, quantity: item.qty, unit_price: item.unit_price, total_price: item.total }]);
+        // 💾 ফিক্স: ডাটাবেজে আপনার ম্যানুয়ালি এডিট করা unit_price এবং total পাঠানো হচ্ছে
+        await supabase.from('chalan_items').insert([{ 
+          chalan_id: chalanData.id, 
+          product_id: item.product_id, 
+          quantity: item.qty, 
+          unit_price: item.unit_price, 
+          total_price: item.total 
+        }]);
+        
         await supabase.from('products').update({ stock_quantity: products.find(p => p.id === item.product_id).stock_quantity - item.qty }).eq('id', item.product_id);
         itemsForPrint.push({ ...item, quantity: item.qty, total_price: item.total });
       }
@@ -111,7 +147,8 @@ const BillingSystem = () => {
       setShowSuccessModal(true);
       setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo('');
       fetchAvailableProducts();
-    } catch (e) { alert("ত্রুটি হয়েছে!"); }
+    } catch (e) { alert("ত্রুটি হয়েছে!"); }
+    loading(false);
     setLoading(false);
   };
 
@@ -122,19 +159,19 @@ const BillingSystem = () => {
       const billNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
       const { error } = await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: billNo }).eq('id', generatedData.chalan.id);
       if (error) throw error;
-      alert(`✅ বিল তৈরি হয়েছে! নং: ${billNo}`);
+      alert(`✅ বিল তৈরি হয়েছে! নং: ${billNo}`);
       
       const billToPrint = { ...generatedData.chalan, bill_no: billNo, payment_method: paymentMethod };
       printBill(billToPrint, generatedData.customer, generatedData.items);
       
       setShowSuccessModal(false);
       setQuickBillMode(false);
-    } catch (e) { alert("সমস্যা হয়েছে!"); }
+    } catch (e) { alert("সমস্যা হয়েছে!"); }
     setLoading(false);
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Hind Siliguri', sans-serif"}}>
+    <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
       <div className="flex justify-between items-center bg-white p-6 rounded-3xl border shadow-sm">
         <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
         <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
@@ -197,14 +234,47 @@ const BillingSystem = () => {
         <div className="lg:col-span-8">
           <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col h-full min-h-[500px]">
             <div className="flex-1 overflow-x-auto">
-              <table className="w-full text-left">
-                <thead><tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2"><th className="pb-4">Item</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Price</th><th className="pb-4 text-right">Total</th><th className="pb-4"></th></tr></thead>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
+                    <th className="pb-4">Item</th>
+                    <th className="pb-4 text-center w-24">Qty</th>
+                    <th className="pb-4 text-center w-36">Price (Editable)</th>
+                    <th className="pb-4 text-right">Total</th>
+                    <th className="pb-4"></th>
+                  </tr>
+                </thead>
                 <tbody className="divide-y divide-slate-100">
                   {cart.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
-                      <td className="py-4 text-center font-black">{item.qty}</td>
-                      <td className="py-4 text-right font-medium text-slate-500">{item.unit_price} ৳</td>
+                      <td className="py-4 font-bold text-slate-800">
+                        {item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span>
+                      </td>
+                      
+                      {/* লাইভ এডিটেবল পরিমাণ ইনপুট বক্স */}
+                      <td className="py-4 text-center">
+                        <input 
+                          type="number"
+                          value={item.qty}
+                          onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)}
+                          className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900"
+                        />
+                      </td>
+                      
+                      {/* 🛠️ লাইভ ম্যানুয়াল প্রাইস এন্ট্রি ইনপুট বক্স */}
+                      <td className="py-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <input 
+                            type="number"
+                            value={item.unit_price}
+                            onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)}
+                            className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none focus:border-orange-500"
+                            placeholder="0"
+                          />
+                          <span className="text-slate-400 text-[11px]">৳</span>
+                        </div>
+                      </td>
+
                       <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
                       <td className="py-4 text-right"><button onClick={() => {const nc = [...cart]; nc.splice(idx, 1); setCart(nc);}} className="text-red-400 font-bold text-xl">×</button></td>
                     </tr>
