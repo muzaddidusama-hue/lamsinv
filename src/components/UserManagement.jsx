@@ -125,7 +125,9 @@ const UserManagement = () => {
                   <tr key={user.id} className="hover:bg-slate-50">
                     <td className="p-3 font-black text-slate-900 uppercase">{user.emp_id}</td>
                     <td className="p-3 font-bold">{user.name}</td>
-                    <td className="p-3 bg-slate-50/50 font-mono font-bold text-slate-600">{user.password}</td>
+                    <td className="p-3 font-mono font-bold text-slate-400 tracking-widest select-none">
+  ••••••
+</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${user.role === 'Admin' || user.role === 'CEO' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
                         {user.role}
