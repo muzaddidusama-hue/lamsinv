@@ -16,7 +16,7 @@ const ServiceManager = () => {
   // এডিট মোড ট্র্যাক করার স্টেট
   const [isEditing, setIsEditing] = useState(false);
 
-  // ডাটাবেজের ৪টি সার্ভিসের রিলিজিয়াস ম্যাপিং স্টেট
+  // ডাটাবেজের ৪টি সার্ভিসের কলাম স্ট্রাকচার অনুযায়ী স্টেট (কলামের নাম হুবহু ডাটাবেজের মতো)
   const [dbRowData, setDbRowData] = useState({
     bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
@@ -91,12 +91,12 @@ const ServiceManager = () => {
 
     } catch (error) {
       console.error(error);
-      alert("তথ্য লোড করতে समस्या হয়েছে!");
+      alert("তথ্য লোড করতে সমস্যা হয়েছে!");
     }
     setLoading(false);
   };
 
-  // সেকশন ১ থেকে কুইক লোড
+  // সেকশন ১ থেকে সিরিয়াল কুইক লোড
   const handleRegisterSerial = (index, event) => {
     event.preventDefault();
     const currentSerial = serialNumbers[index]?.trim().toUpperCase();
@@ -127,7 +127,6 @@ const ServiceManager = () => {
 
       if (data) {
         setDbRowData(data);
-        // প্রথম এভেইলেবল বা খালি স্লটটি অটো-সিলেক্ট করা
         determineNextAvailableSlot(data);
       } else {
         const freshRow = {
@@ -156,7 +155,7 @@ const ServiceManager = () => {
     else if (!data.serv_2_date) setSelectedServiceSlot('2');
     else if (!data.serv_3_date) setSelectedServiceSlot('3');
     else if (!data.serv_4_date) setSelectedServiceSlot('4');
-    else setSelectedServiceSlot('1'); // সব ফুল থাকলে ডিফল্ট ১
+    else setSelectedServiceSlot('1');
   };
 
   // ফর্ম ক্লিয়ারিং হেল্পার
@@ -165,21 +164,18 @@ const ServiceManager = () => {
     setIsEditing(false);
   };
 
-  // টেবিল থেকে কোনো রো এডিট করতে চাইলে তা ফর্মে পুশ করা
+  // 📝 টেবিল থেকে কোনো রো এডিট করতে চাইলে তা ফর্মে পুশ করা (ফিক্সড)
   const handleEditClick = (slotNum) => {
     setIsEditing(true);
     setSelectedServiceSlot(slotNum.toString());
+    
+    // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী সঠিক প্রোপার্টি রিড করা হচ্ছে
     setSingleInput({
       date: dbRowData[`serv_${slotNum}_date`] || '',
-      problem: dbRowData[`serv_${numToProblemField(slotNum)}`] || '',
+      problem: dbRowData[`serv_${slotNum}_problem`] || '', // কলামের নাম ফিক্সড: serv_1_problem, serv_2_problem ইত্যাদি
       amount: dbRowData[`serv_${slotNum}_amount`] || '',
       remarks: dbRowData[`remarks${slotNum}`] || '',
     });
-  };
-
-  // কলাম নাম্বারকে টেক্সট ম্যাপিং কনভার্টার
-  const numToProblemField = (num) => {
-    return num === '1' ? '1_problem' : num === '2' ? '2_problem' : num === '3' ? '3_problem' : '4_problem';
   };
 
   // সিঙ্গল ইনপুট ফিল্ড চেঞ্জ হ্যান্ডলার
@@ -197,7 +193,7 @@ const ServiceManager = () => {
     const slot = selectedServiceSlot;
 
     try {
-      // স্টেটে থাকা মেইন রো অবজেক্টের নির্দিষ্ট স্লটগুলোর ডাটা মডিফাই করা
+      // ডাইনামিক অবজেক্ট কী ম্যাপিং একদম সোজা ও ফিক্সড কলামে করা হয়েছে
       const updatedDbRow = {
         ...dbRowData,
         [`serv_${slot}_date`]: singleInput.date,
@@ -213,9 +209,9 @@ const ServiceManager = () => {
       if (error) throw error;
 
       alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে ডাটাবেজে সংরক্ষণ করা হয়েছে!`);
-      setDbRowData(updatedDbRow); // টেবিল ডাটা রি-রেন্ডার
+      setDbRowData(updatedDbRow); // টেবিল রি-রেন্ডার হবে লাইভ ডাটা সহ
       resetServiceForm();
-      determineNextAvailableSlot(updatedDbRow); // নেক্সট খালি স্লটে অটোমুভ করা
+      determineNextAvailableSlot(updatedDbRow);
 
     } catch (error) {
       console.error(error);
@@ -226,8 +222,8 @@ const ServiceManager = () => {
 
   // নির্দিষ্ট স্লট লকড কি না চেক করার মেথড
   const isSlotLocked = (slotNum) => {
-    if (isEditing && selectedServiceSlot === slotNum.toString()) return false; // এডিট মোডে লক রিলিজ হবে
-    return !!dbRowData[`serv_${slotNum}_date`]; // যদি ঐ স্লটে তারিখ থাকে তবে ট্রু (লকড)
+    if (isEditing && selectedServiceSlot === slotNum.toString()) return false; 
+    return !!dbRowData[`serv_${slotNum}_date`]; 
   };
 
   return (
@@ -325,7 +321,7 @@ const ServiceManager = () => {
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-6">
             
-            {/* সিরিয়াল সার্চ */}
+            {/* সিরিয়াল সার্চ বার */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b pb-4">
               <div>
                 <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
@@ -354,39 +350,37 @@ const ServiceManager = () => {
 
             {/* 🛠️ একক (Single) সার্ভিস ইনপুট ফর্ম সেগমেন্ট */}
             {dbRowData.sl_no && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 animate-in fade-in duration-200">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                    <span className="w-2 h-2 rounded-full bg-orange-500"></span>
                     <h4 className="font-black text-slate-800 text-sm">
                       {isEditing ? '📝 রেকর্ড এডিট মোড' : '📥 নতুন সার্ভিস ইনপুট ঘর'}
                     </h4>
                   </div>
                   
-                  {/* সার্ভিস স্লট সিলেক্টর (০১ থেকে ০৪) */}
+                  {/* সার্ভিস স্লট সিলেক্টর */}
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-slate-500">রেকর্ড স্লট:</label>
                     <select
                       value={selectedServiceSlot}
                       onChange={(e) => setSelectedServiceSlot(e.target.value)}
-                      disabled={isEditing} // এডিট করার সময় স্লট পরিবর্তন ব্লক থাকবে
+                      disabled={isEditing} 
                       className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none"
                     >
                       <option value="1">সার্ভিস রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option>
                       <option value="2">সার্ভিস রেকর্ড ০২ {isSlotLocked('2') ? '🔒 (Locked)' : ''}</option>
-                      <option value="3">সার্ভিস record ০৩ {isSlotLocked('3') ? '🔒 (Locked)' : ''}</option>
+                      <option value="3">সার্ভিস রেকর্ড ০৩ {isSlotLocked('3') ? '🔒 (Locked)' : ''}</option>
                       <option value="4">সার্ভিস রেকর্ড ০৪ {isSlotLocked('4') ? '🔒 (Locked)' : ''}</option>
                     </select>
                   </div>
                 </div>
 
                 {isSlotLocked(selectedServiceSlot) ? (
-                  // যদি ঐ স্লটে অলরেডি ডাটা থাকে এবং ইউজার এডিট বাটনে না চাপ দেয়, তবে সতর্কবার্তা দেখাবে
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-center text-amber-800 text-xs font-bold">
-                    🔒 এই সার্ভিস স্লটটি লক করা আছে। তথ্য পরিবর্তন করতে নিচের টেবিল থেকে "এডিট" বাটনে ক্লিক করুন।
+                    🔒 এই সার্ভিস স্লটটি লক করা আছে। তথ্য পরিবর্তন করতে নিচের টেবিল থেকে "এডিট" বাটন চাপুন।
                   </div>
                 ) : (
-                  // ইনপুট ঘর (একটাই এভেইলেবল থাকবে)
                   <form onSubmit={handleSaveService} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
                       <div className="md:col-span-4 space-y-1">
@@ -421,7 +415,7 @@ const ServiceManager = () => {
               </div>
             )}
 
-            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ */}
+            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ (ফিক্সড অবজেক্ট কী ম্যাপিং) */}
             {dbRowData.sl_no && (
               <div className="space-y-3">
                 <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider px-1">📊 সার্ভিসের ইতিহাস তালিকা (inv_sl)</h4>
@@ -439,8 +433,9 @@ const ServiceManager = () => {
                     </thead>
                     <tbody className="text-xs divide-y font-medium text-slate-700">
                       {[1, 2, 3, 4].map((num) => {
+                        // ডাটাবেজের কলামের সাথে হুবহু নাম ম্যাচ করা হলো
                         const date = dbRowData[`serv_${num}_date`];
-                        const problem = dbRowData[`serv_${numToProblemField(num.toString())}`];
+                        const problem = dbRowData[`serv_${num}_problem`]; // ফিক্সড: serv_1_problem, serv_2_problem ইত্যাদি
                         const amount = dbRowData[`serv_${num}_amount`];
                         const remarks = dbRowData[`remarks${num}`];
 
