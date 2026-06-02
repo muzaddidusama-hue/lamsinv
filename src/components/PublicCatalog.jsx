@@ -1,28 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-// স্পেশাল সর্টিং ফাংশন: VA এবং kW ক্যালকুলেট করে ছোট থেকে বড় সাজাবে
 const sortModelsByCapacity = (modelsArray) => {
   const parseCapacity = (modelName) => {
     const match = modelName.match(/([\d.]+)\s*(va|w|kw)/i);
     if (!match) return Infinity; 
-
     const value = parseFloat(match[1]);
     const unit = match[2].toLowerCase();
-
-    if (unit === 'kw') {
-      return value * 1000;
-    }
+    if (unit === 'kw') return value * 1000;
     return value;
   };
-
   return modelsArray.sort((a, b) => {
     const capA = parseCapacity(a);
     const capB = parseCapacity(b);
-
-    if (capA !== capB) {
-      return capA - capB; 
-    }
+    if (capA !== capB) return capA - capB; 
     return a.localeCompare(b); 
   });
 };
@@ -32,6 +23,9 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [siteSettings, setSiteSettings] = useState({}); 
   const [loading, setLoading] = useState(true);
 
+  // 📝 মডাল এবং ডিটেইলস ভিউ স্টেট
+  const [selectedModalProduct, setSelectedModalProduct] = useState(null);
+
   useEffect(() => {
     const fetchData = async () => {
       const { data: prodData } = await supabase.from('products').select('*');
@@ -40,12 +34,11 @@ const PublicCatalog = ({ onAdminClick }) => {
       const { data: settingsData } = await supabase.from('site_settings').select('*').single();
       if (settingsData) setSiteSettings(settingsData);
       
-      setLoading(false);
+      loading ? setLoading(false) : null;
     };
     fetchData();
   }, []);
 
-  // 🔴 আপডেট: সোলার প্যানেলকে দুটি আলাদা ক্যাটাগরিতে ভাগ করা হয়েছে
   const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt", "Lithium Battery"];
   
   const getGroupedProducts = (catProds) => {
@@ -84,10 +77,8 @@ const PublicCatalog = ({ onAdminClick }) => {
         } else if (data.isUpcoming) {
           upcoming.push(modelName);
         }
-        // 🔴 আপডেট: Out of Stock ডাটা আমরা পুশই করছি না, তাই সেটা পুরোপুরি হাইড হয়ে যাবে
       });
 
-      // 🔴 আপডেট: যদি কোনো ব্র্যান্ডের স্টক এবং আপকামিং দুটোই ফাঁকা থাকে, তবে পুরো কার্ডটাই রিমুভ হয়ে যাবে
       if (inStock.length === 0 && upcoming.length === 0) return null;
 
       return {
@@ -96,13 +87,21 @@ const PublicCatalog = ({ onAdminClick }) => {
         inStock: sortModelsByCapacity(inStock),
         upcoming: sortModelsByCapacity(upcoming)
       };
-    }).filter(Boolean); // null ডাটাগুলোকে অ্যারে থেকে ফেলে দেবে
+    }).filter(Boolean);
+  };
+
+  // 💡 মডেল ক্লিক হ্যান্ডলার: অবজেক্ট বের করে মডালে পাঠানো
+  const handleModelClick = (brandName, modelName) => {
+    const matchProduct = products.find(p => p.name === brandName && p.model === modelName);
+    if (matchProduct) {
+      setSelectedModalProduct(matchProduct);
+    }
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">লোড হচ্ছে...</div>;
 
   return (
-    <div className="min-h-screen bg-[#F4F5F7]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+    <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
       <header className="bg-white py-4 px-6 shadow-sm sticky top-0 z-50 border-b border-slate-100">
         <div className="max-w-[1400px] mx-auto flex items-center justify-center gap-4">
@@ -118,24 +117,19 @@ const PublicCatalog = ({ onAdminClick }) => {
           
           <main className="flex-1 order-1 lg:order-2">
             {categories.map(cat => {
-              
-              // 🔴 আপডেট: 12V এবং 24V ফিল্টার লজিক
               const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
 
               const catProds = products.filter(p => {
                 if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return false;
-
                 const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
                 const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
                 if (cat === 'Solar Panel - 12 Volt') {
                   return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
                 }
-                
                 if (cat === 'Solar Panel - 24 Volt') {
                   return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
                 }
-
                 return p.category === cat;
               });
 
@@ -152,14 +146,36 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img src={brand.image_url} alt={brand.name} className="max-h-full max-w-full object-contain transition-transform duration-700 group-hover:scale-110" />
                         </div>
                         <h3 className="text-3xl font-black text-slate-900 mb-6 tracking-tight">{brand.name}</h3>
-                        <div className="w-full space-y-2">
+                        
+                        {/* 🛠️ মডিফাইড বাটন গ্রিড: ক্লিক করলে মডাল ট্রিগার হবে */}
+                        <div className="w-full space-y-3">
                           {brand.inStock.length > 0 && (
-                            <div className="w-full bg-[#009A66] text-white py-3 px-4 rounded-xl font-bold text-center text-sm">In Stock: {brand.inStock.join(', ')}</div>
+                            <div className="w-full bg-[#009A66] text-white p-3 rounded-2xl font-bold text-center text-xs shadow-sm">
+                              <p className="opacity-70 mb-1.5 uppercase tracking-wider text-[9px] font-black">In Stock (বিস্তারিত দেখতে মডেলে চাপুন)</p>
+                              <div className="flex flex-wrap justify-center gap-1.5">
+                                {brand.inStock.map(model => (
+                                  <button key={model} onClick={() => handleModelClick(brand.name, model)} className="bg-white/20 hover:bg-white/40 px-2.5 py-1 rounded-lg text-xs font-black transition-all">
+                                    {model}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
+                          
                           {brand.upcoming.length > 0 && (
-                            <div className="w-full bg-[#deb100] text-white py-3 px-4 rounded-xl font-bold text-center text-sm">Coming Soon: {brand.upcoming.join(', ')}</div>
+                            <div className="w-full bg-[#deb100] text-white p-3 rounded-2xl font-bold text-center text-xs shadow-sm">
+                              <p className="opacity-70 mb-1.5 uppercase tracking-wider text-[9px] font-black">Coming Soon</p>
+                              <div className="flex flex-wrap justify-center gap-1.5">
+                                {brand.upcoming.map(model => (
+                                  <button key={model} onClick={() => handleModelClick(brand.name, model)} className="bg-white/20 hover:bg-white/40 px-2.5 py-1 rounded-lg text-xs font-black transition-all">
+                                    {model}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
+
                       </div>
                     ))}
                   </div>
@@ -213,15 +229,69 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       </div>
 
+      {/* ---------------- 🎯 মডার্ন প্রোডাক্ট ডিটেইলস পপ-আপ মডাল ---------------- */}
+      {selectedModalProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
+            
+            {/* ক্লোজ বাটন */}
+            <button 
+              onClick={() => setSelectedModalProduct(null)}
+              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl"
+            >
+              ✕
+            </button>
+
+            {/* হেডার পার্ট */}
+            <div className="border-b pb-4 mb-5">
+              <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3 py-1 rounded-full uppercase">
+                {selectedModalProduct.category}
+              </span>
+              <h3 className="text-3xl font-black text-slate-900 mt-2">{selectedModalProduct.name}</h3>
+              <p className="text-sm font-bold text-slate-400 mt-0.5">মডেল/ক্যাপাসিটি: {selectedModalProduct.model}</p>
+            </div>
+
+            {/* ভোল্টেজ ও ওয়াট প্যারামিটার গ্রিড */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
+                <span className="text-xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+              </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
+                <span className="text-xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
+              </div>
+            </div>
+
+            {/* বিস্তারিত ডেসক্রিপশন টেক্সট */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+              <div className="bg-slate-50 p-5 rounded-2xl border text-sm text-slate-700 leading-relaxed font-medium max-h-48 overflow-y-auto custom-scrollbar">
+                {selectedModalProduct.description ? (
+                  <p className="whitespace-pre-line">{selectedModalProduct.description}</p>
+                ) : (
+                  <p className="italic text-slate-400 text-center py-4">এই মডেলটির জন্য কোনো অতিরিক্ত বিবরণ এখনো এন্ট্রি করা হয়নি।</p>
+                )}
+              </div>
+            </div>
+
+            {/* ফুটার বাটন */}
+            <button 
+              onClick={() => setSelectedModalProduct(null)}
+              className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-sm tracking-wide transition-all shadow-lg"
+            >
+              বন্ধ করুন
+            </button>
+          </div>
+        </div>
+      )}
+
       <footer className="mt-10 bg-white border-t border-slate-100">
         <div className="max-w-[1200px] mx-auto py-6 px-6 flex flex-col items-center gap-4">
           {siteSettings.footer_image_url && (
             <img src={siteSettings.footer_image_url} alt="Featured Products" className="w-full max-w-4xl object-contain opacity-90" />
           )}
-          <button 
-            onClick={onAdminClick} 
-            className="text-[9px] font-black text-slate-300 hover:text-slate-900 transition-colors uppercase tracking-[0.4em]"
-          >
+          <button onClick={onAdminClick} className="text-[9px] font-black text-slate-300 hover:text-slate-900 transition-colors uppercase tracking-[0.4em]">
             Staff Access
           </button>
         </div>
