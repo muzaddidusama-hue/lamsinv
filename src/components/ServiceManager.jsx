@@ -1,20 +1,16 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient'; // আপনার প্রজেক্টের সুপাবেস ক্লায়েন্ট পাথ অনুযায়ী চেক করে নেবেন
+import { supabase } from '../supabaseClient'; // আপনার প্রজেক্ট অনুযায়ী পাথ চেক করে নেবেন
 
 const ServiceManager = () => {
-    // সার্চ এবং ইনপুট স্টেট
     const [searchSlNo, setSearchSlNo] = useState('');
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
-
-    // প্রোডাক্টের বেসিক ইনফো (অন্যান্য টেবিল থেকে আসবে)
     const [productInfo, setProductInfo] = useState(null);
 
-    // inv_sl টেবিলের ডাটা স্টেট
     const [formData, setFormData] = useState({
         bill_no: '',
         chalan_no: '',
-        inv_type: 'Hybrid', // Default
+        inv_type: 'Hybrid',
         sl_no: '',
         serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
         serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
@@ -22,7 +18,6 @@ const ServiceManager = () => {
         serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
     });
 
-    // সিরিয়াল নাম্বার দিয়ে সার্চ করার লজিক
     const handleSearch = async (e) => {
         e.preventDefault();
         if (!searchSlNo.trim()) return;
@@ -32,17 +27,16 @@ const ServiceManager = () => {
         setProductInfo(null);
 
         try {
-            // ১. আপনার বিক্রয় বা স্টক টেবিল থেকে প্রোডাক্টের নাম, মডেল ও ডেট খুঁজুন
-            // (এখানে 'sales_items' এবং কলামের নাম আপনার ডাটাবেজ অনুযায়ী পরিবর্তন করে নেবেন)
+            // সেলস বা কাস্টমার টেবিল থেকে তথ্য খোঁজা (আপনার আসল টেবিলের নাম এখানে বসাবেন)
             const { data: productData, error: productError } = await supabase
-                .from('sales_items') // আপনার আসল সেলস/স্টক টেবিলের নাম এখানে হবে
+                .from('sales_items') 
                 .select('product_name, model, sale_date, bill_no, chalan_no, type')
                 .eq('serial_no', searchSlNo.trim())
                 .single();
 
             if (productError && productError.code !== 'PGRST116') throw productError;
 
-            // ২. এবার inv_sl টেবিল থেকে এক্সিস্টিং সার্ভিসের ডাটা চেক করুন
+            // inv_sl টেবিল থেকে সার্ভিসের তথ্য খোঁজা
             const { data: serviceData, error: serviceError } = await supabase
                 .from('inv_sl')
                 .select('*')
@@ -51,7 +45,6 @@ const ServiceManager = () => {
 
             if (serviceError && serviceError.code !== 'PGRST116') throw serviceError;
 
-            // যদি সেলস টেবিলে ডাটা পাওয়া যায়
             if (productData) {
                 setProductInfo({
                     name: productData.product_name,
@@ -60,12 +53,10 @@ const ServiceManager = () => {
                 });
             }
 
-            // যদি সার্ভিস টেবিলে আগে থেকেই ডাটা থাকে তবে ফর্ম ফিল্ড লোড হবে, না হলে নতুন এন্ট্রি হবে
             if (serviceData) {
                 setFormData(serviceData);
                 setMessage({ type: 'info', text: 'এই সিরিয়াল নাম্বারের আগের সার্ভিস রেকর্ড পাওয়া গেছে।' });
             } else {
-                // নতুন এন্ট্রি হলে বিল, চালান ও সিরিয়াল অটো-ফিল হবে (যদি সেলস টেবিলে থাকে)
                 setFormData({
                     bill_no: productData?.bill_no || '',
                     chalan_no: productData?.chalan_no || '',
@@ -77,7 +68,7 @@ const ServiceManager = () => {
                     serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
                 });
                 if (!productData) {
-                    setMessage({ type: 'warning', text: 'সেলার/স্টক টেবিলে এই সিরিয়াল পাওয়া যায়নি, তবে আপনি নতুন সার্ভিস এন্ট্রি করতে পারবেন।' });
+                    setMessage({ type: 'warning', text: 'সেলস রেকর্ডে এই সিরিয়াল পাওয়া যায়নি, তবে নতুন সার্ভিস এন্ট্রি করতে পারবেন।' });
                 }
             }
 
@@ -89,29 +80,22 @@ const ServiceManager = () => {
         }
     };
 
-    // ইনপুট চেঞ্জ হ্যান্ডলার
     const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value
-        });
+        setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    // ডাটা সাবমিট বা আপডেট করার লজিক (Upsert)
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setMessage({ type: '', text: '' });
 
         try {
-            // upsert ব্যবহার করলে ডাটা থাকলে আপডেট হবে, না থাকলে নতুন রো তৈরি হবে
             const { error } = await supabase
                 .from('inv_sl')
-                .upsert([formData], { onConflict: 'sl_no' }); // sl_no ইউনিক ধরে কনফ্লিক্ট হ্যান্ডেল করবে
+                .upsert([formData], { onConflict: 'sl_no' });
 
             if (error) throw error;
-
-            setMessage({ type: 'success', text: 'সার্ভিস লিস্ট সফলভাবে ডাটাবেজে আপডেট হয়েছে!' });
+            setMessage({ type: 'success', text: 'সার্ভিস রেকর্ড সফলভাবে ডাটাবেজে সংরক্ষণ করা হয়েছে!' });
         } catch (error) {
             console.error(error);
             setMessage({ type: 'error', text: 'সেভ করতে সমস্যা হয়েছে: ' + error.message });
@@ -122,122 +106,180 @@ const ServiceManager = () => {
 
     return (
         <div style={styles.container}>
-            <h2 style={styles.title}>ইনভার্টার সার্ভিস ম্যানেজমেন্ট (inv_sl)</h2>
+            <div style={styles.headerSection}>
+                <h2 style={styles.title}>🛠️ ইনভার্টার সার্ভিস ও ওয়ারেন্টি ট্র্যাকিং</h2>
+                <p style={styles.subtitle}>সিরিয়াল নাম্বার দিয়ে সার্চ করুন এবং সার্ভিসের বিবরণ আপডেট করুন</p>
+            </div>
 
-            {/* সার্চ সেকশন */}
+            {/* সার্চ বার */}
             <form onSubmit={handleSearch} style={styles.searchForm}>
-                <input 
-                    type="text" 
-                    placeholder="ইনভার্টার সিরিয়াল নাম্বার দিয়ে সার্চ করুন..." 
-                    value={searchSlNo}
-                    onChange={(e) => setSearchSlNo(e.target.value)}
-                    style={styles.searchInput}
-                />
+                <div style={styles.searchContainer}>
+                    <span style={styles.searchIcon}>🔍</span>
+                    <input 
+                        type="text" 
+                        placeholder="ইনভার্টার সিরিয়াল নাম্বারটি এখানে লিখুন..." 
+                        value={searchSlNo}
+                        onChange={(e) => setSearchSlNo(e.target.value)}
+                        style={styles.searchInput}
+                    />
+                </div>
                 <button type="submit" style={styles.searchButton} disabled={loading}>
-                    {loading ? 'খোঁজা হচ্ছে...' : 'সার্চ করুন'}
+                    {loading ? 'খোঁজা হচ্ছে...' : 'অনুসন্ধান করুন'}
                 </button>
             </form>
 
-            {/* মেসেজ ডিসপ্লে */}
+            {/* মেসেজ বা অ্যালার্ট */}
             {message.text && (
                 <div style={{...styles.alert, ...styles[message.type]}}>
                     {message.text}
                 </div>
             )}
 
-            {/* প্রোডাক্টের বেসিক ইনফো ডিসপ্লে */}
-            {productInfo && (
-                <div style={styles.infoBox}>
-                    <h3>🔍 প্রোডাক্টের বিবরণ (সেলস/স্টক রেকর্ড)</h3>
-                    <p><strong>ইনভার্টার নাম:</strong> {productInfo.name}</p>
-                    <p><strong>মডেল:</strong> {productInfo.model}</p>
-                    <p><strong>বিক্রয়ের তারিখ:</strong> {productInfo.date}</p>
-                </div>
-            )}
-
-            {/* মূল ইনপুট ফর্ম */}
+            {/* মূল গ্রিড লেআউট (স্ক্রিনশটের মতো দুই কলাম) */}
             {formData.sl_no && (
-                <form onSubmit={handleSubmit} style={styles.mainForm}>
-                    
-                    {/* বেসিক চালান ও বিল তথ্য */}
-                    <div style={styles.row}>
-                        <div style={styles.col}>
-                            <label style={styles.label}>বিল নম্বর (Bill No)</label>
-                            <input type="text" name="bill_no" value={formData.bill_no} onChange={handleChange} style={styles.input} required />
-                        </div>
-                        <div style={styles.col}>
-                            <label style={styles.label}>চালান নম্বর (Chalan No)</label>
-                            <input type="text" name="chalan_no" value={formData.chalan_no} onChange={handleChange} style={styles.input} required />
-                        </div>
-                        <div style={styles.col}>
-                            <label style={styles.label}>ইনভার্টার টাইপ</label>
-                            <select name="inv_type" value={formData.inv_type} onChange={handleChange} style={styles.input}>
-                                <option value="Hybrid">Hybrid (হাইব্রিড)</option>
-                                <option value="On-Grid">On-Grid (অন-গ্রিড)</option>
-                            </select>
-                        </div>
-                        <div style={styles.col}>
-                            <label style={styles.label}>সিরিয়াল নং (স্থির)</label>
-                            <input type="text" value={formData.sl_no} disabled style={{...styles.input, backgroundColor: '#e9ecef'}} />
-                        </div>
-                    </div>
-
-                    <hr style={styles.divider} />
-
-                    {/* ৪টি সার্ভিসের লুপ/গ্রিড */}
-                    <div style={styles.serviceGrid}>
-                        {[1, 2, 3, 4].map((num) => (
-                            <div key={num} style={styles.serviceCard}>
-                                <h4 style={styles.serviceCardTitle}>🛠️ সার্ভিস সেগমেন্ট - 0{num}</h4>
+                <form onSubmit={handleSubmit}>
+                    <div style={styles.layoutGrid}>
+                        
+                        {/* বাম কলাম: বেসিক ও কাস্টমার/প্রোডাক্ট ইনফো */}
+                        <div style={styles.leftColumn}>
+                            <div style={styles.card}>
+                                <h3 style={styles.cardTitle}>📦 প্রোডাক্ট ও চালানের বিবরণ</h3>
                                 
-                                <label style={styles.label}>সার্ভিস তারিখ</label>
-                                <input type="text" name={`serv_${num}_date`} placeholder="উদা: 12-05-2026" value={formData[`serv_${num}_date`]} onChange={handleChange} style={styles.input} />
+                                <div style={styles.inputGroup}>
+                                    <label style={styles.label}>সিরিয়াল নম্বর (স্থির)</label>
+                                    <input type="text" value={formData.sl_no} disabled style={styles.disabledInput} />
+                                </div>
 
-                                <label style={styles.label}>সমস্যা / প্রবলেম</label>
-                                <textarea name={`serv_${num}_problem`} placeholder="কী সমস্যা হয়েছিল..." value={formData[`serv_${num}_problem`]} onChange={handleChange} style={styles.textarea} />
+                                <div style={styles.inputGroup}>
+                                    <label style={styles.label}>বিল নম্বর (Bill No)</label>
+                                    <input type="text" name="bill_no" value={formData.bill_no} onChange={handleChange} style={styles.input} required placeholder="উদা: BILL-1024" />
+                                </div>
 
-                                <label style={styles.label}>সার্ভিস অ্যামাউন্ট (টাকা)</label>
-                                <input type="number" name={`serv_${num}_amount`} placeholder="অ্যামাউন্ট" value={formData[`serv_${num}_amount`]} onChange={handleChange} style={styles.input} />
+                                <div style={styles.inputGroup}>
+                                    <label style={styles.label}>চালান নম্বর (Chalan No)</label>
+                                    <input type="text" name="chalan_no" value={formData.chalan_no} onChange={handleChange} style={styles.input} required placeholder="উদা: CH-5021" />
+                                </div>
 
-                                <label style={styles.label}>মন্তব্য (Remarks)</label>
-                                <input type="text" name={`remarks${num}`} placeholder="মন্তব্য লিখুন..." value={formData[`remarks${num}`]} onChange={handleChange} style={styles.input} />
+                                <div style={styles.inputGroup}>
+                                    <label style={styles.label}>ইনভার্টার টাইপ</label>
+                                    <select name="inv_type" value={formData.inv_type} onChange={handleChange} style={styles.selectInput}>
+                                        <option value="Hybrid">Hybrid (হাইব্রিড)</option>
+                                        <option value="On-Grid">On-Grid (অন-গ্রিড)</option>
+                                    </select>
+                                </div>
                             </div>
-                        ))}
+
+                            {/* এক্সিস্টিং সেলস রেকর্ড থাকলে অটো দেখাবে */}
+                            {productInfo && (
+                                <div style={{...styles.card, ...styles.infoCard}}>
+                                    <h4 style={styles.infoCardTitle}>📋 ডাটাবেজ সেলস রেকর্ড</h4>
+                                    <div style={styles.infoRow}><strong>নাম:</strong> <span>{productInfo.name}</span></div>
+                                    <div style={styles.infoRow}><strong>মডেল:</strong> <span>{productInfo.model}</span></div>
+                                    <div style={styles.infoRow}><strong>বিক্রয় তারিখ:</strong> <span>{productInfo.date}</span></div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ডান কলাম: ৪টি সার্ভিস হিস্টোরি কার্ড */}
+                        <div style={styles.rightColumn}>
+                            <div style={styles.serviceGrid}>
+                                {[1, 2, 3, 4].map((num) => (
+                                    <div key={num} style={styles.serviceCard}>
+                                        <div style={styles.serviceHeader}>
+                                            <span style={styles.serviceBadge}>0{num}</span>
+                                            <h4 style={styles.serviceTitle}>সার্ভিস রেকর্ড {num}</h4>
+                                        </div>
+                                        
+                                        <div style={styles.inputGroup}>
+                                            <label style={styles.label}>সার্ভিসের তারিখ</label>
+                                            <input type="text" name={`serv_${num}_date`} placeholder="DD-MM-YYYY" value={formData[`serv_${num}_date`]} onChange={handleChange} style={styles.input} />
+                                        </div>
+
+                                        <div style={styles.inputGroup}>
+                                            <label style={styles.label}>সমস্যা (Problem)</label>
+                                            <textarea name={`serv_${num}_problem`} placeholder="কী সমস্যা হয়েছিল বিস্তারিত লিখুন..." value={formData[`serv_${num}_problem`]} onChange={handleChange} style={styles.textarea} />
+                                        </div>
+
+                                        <div style={styles.inputGroup}>
+                                            <label style={styles.label}>সার্ভিস খরচ / বিল (৳)</label>
+                                            <input type="number" name={`serv_${num}_amount`} placeholder="টাকার পরিমাণ" value={formData[`serv_${num}_amount`]} onChange={handleChange} style={styles.input} />
+                                        </div>
+
+                                        <div style={styles.inputGroup}>
+                                            <label style={styles.label}>মন্তব্য (Remarks)</label>
+                                            <input type="text" name={`remarks${num}`} placeholder="অতিরিক্ত তথ্য..." value={formData[`remarks${num}`]} onChange={handleChange} style={styles.input} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
                     </div>
 
-                    <button type="submit" style={styles.submitButton} disabled={loading}>
-                        {loading ? 'ডাটা সেভ হচ্ছে...' : 'ডাটাবেজে সংরক্ষণ করুন (Save / Update)'}
-                    </button>
+                    {/* নিচের বড় সাবমিট বাটন */}
+                    <div style={styles.actionContainer}>
+                        <button type="submit" style={styles.submitButton} disabled={loading}>
+                            {loading ? 'ডাটা সংরক্ষণ করা হচ্ছে...' : '💾 অল ডাটা আপডেট করুন (Save Changes)'}
+                        </button>
+                    </div>
                 </form>
             )}
         </div>
     );
 };
 
-// ইনলাইন সিএসএস স্টাইলস (Hind Siliguri ফন্ট সাপোর্টসহ মডার্ন ডার্ক/লাইট ক্লিন কম্বিনেশন)
+// আপনার নতুন UI স্ক্রিনশট থিমের ওপর ভিত্তি করে চমৎকার কাস্টম সিএসএস স্টাইলস
 const styles = {
-    container: { maxWidth: '1100px', margin: '0 auto', padding: '20px', fontFamily: "'Hind Siliguri', sans-serif" },
-    title: { color: '#004d40', borderBottom: '3px solid #ff6f00', paddingBottom: '10px', marginBottom: '25px' },
-    searchForm: { display: 'flex', gap: '10px', marginBottom: '20px' },
-    searchInput: { flex: 1, padding: '12px', border: '1px solid #ccc', borderRadius: '6px', fontSize: '16px' },
-    searchButton: { padding: '12px 25px', background: '#004d40', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '16px' },
-    infoBox: { background: '#e0f2f1', padding: '15px', borderRadius: '8px', marginBottom: '25px', borderLeft: '5px solid #004d40' },
-    mainForm: { background: '#fff', padding: '25px', borderRadius: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' },
-    row: { display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '15px' },
-    col: { flex: '1 1 220px', display: 'flex', flexDirection: 'column' },
-    label: { fontSize: '14px', fontWeight: 'bold', marginBottom: '5px', color: '#333' },
-    input: { padding: '10px', border: '1px solid #ccc', borderRadius: '5px', fontSize: '14px', marginBottom: '10px' },
-    textarea: { padding: '10px', border: '1px solid #ccc', borderRadius: '5px', fontSize: '14px', minHeight: '60px', marginBottom: '10px', resize: 'vertical' },
-    divider: { margin: '25px 0', border: '0', borderTop: '1px solid #ddd' },
-    serviceGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '25px' },
-    serviceCard: { background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #eaeaea' },
-    serviceCardTitle: { color: '#ff6f00', marginBottom: '12px', borderBottom: '1px dashed #ccc', paddingBottom: '5px' },
-    submitButton: { width: '100%', padding: '15px', background: '#ff6f00', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' },
-    alert: { padding: '12px', borderRadius: '6px', marginBottom: '20px', fontWeight: 'bold' },
-    success: { background: '#d4edda', color: '#155724' },
-    error: { background: '#f8d7da', color: '#721c24' },
-    info: { background: '#d1ecf1', color: '#0c5460' },
-    warning: { background: '#fff3cd', color: '#856404' }
+    container: { maxWidth: '1280px', margin: '0 auto', padding: '30px 20px', fontFamily: "'Hind Siliguri', sans-serif", backgroundColor: '#f8fafc', minHeight: '100vh' },
+    headerSection: { marginBottom: '30px', textAlign: 'left' },
+    title: { color: '#0f172a', fontSize: '26px', fontWeight: '700', marginBottom: '5px' },
+    subtitle: { color: '#64748b', fontSize: '14px' },
+    
+    // সার্চ বার স্টাইল
+    searchForm: { display: 'flex', gap: '15px', marginBottom: '35px', background: '#fff', padding: '15px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05)' },
+    searchContainer: { flex: 1, display: 'flex', alignItems: 'center', background: '#f1f5f9', borderRadius: '8px', padding: '0 15px', border: '1px solid #e2e8f0' },
+    searchIcon: { fontSize: '18px', marginRight: '10px' },
+    searchInput: { width: '100%', border: 'none', background: 'transparent', padding: '12px 0', fontSize: '16px', outline: 'none', color: '#1e293b' },
+    searchButton: { padding: '12px 30px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', transition: 'all 0.2s' },
+    
+    // গ্রিড লেআউট (২ কলাম)
+    layoutGrid: { display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '25px', alignItems: 'start' },
+    leftColumn: { display: 'flex', flexDirection: 'column', gap: '25px' },
+    rightColumn: {},
+
+    // কার্ড ডিজাইন
+    card: { background: '#fff', borderRadius: '12px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)' },
+    cardTitle: { fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '20px', paddingBottom: '10px', borderBottom: '1px solid #f1f5f9' },
+    
+    // ইনপুট ফর্ম এলিমেন্টস
+    inputGroup: { marginBottom: '16px', display: 'flex', flexDirection: 'column' },
+    label: { fontSize: '13px', fontWeight: '600', color: '#475569', marginBottom: '6px' },
+    input: { padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', color: '#334155', outline: 'none', transition: 'border 0.2s', background: '#fff' },
+    selectInput: { padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', color: '#334155', outline: 'none', background: '#fff' },
+    disabledInput: { padding: '10px 14px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', color: '#64748b', background: '#f8fafc', fontWeight: 'bold' },
+    textarea: { padding: '10px 14px', border: '1px solid #cbd5e1', borderRadius: '8px', fontSize: '14px', color: '#334155', minHeight: '70px', outline: 'none', resize: 'vertical' },
+    
+    // সেলস রেকর্ড বক্স
+    infoCard: { background: '#f0fdf4', borderColor: '#bbf7d0' },
+    infoCardTitle: { fontSize: '15px', fontWeight: '700', color: '#166534', marginBottom: '12px' },
+    infoRow: { display: 'flex', justifycontent: 'space-between', fontSize: '13px', color: '#14532d', padding: '6px 0', borderBottom: '1px dashed #dcfce7' },
+
+    // সার্ভিস গ্রিড (৪টি কার্ডের সেট)
+    serviceGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' },
+    serviceCard: { background: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px 0 rgb(0 0 0 / 0.1)' },
+    serviceHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' },
+    serviceBadge: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '50%', background: '#ffedd5', color: '#ea580c', fontSize: '13px', fontWeight: '700' },
+    serviceTitle: { fontSize: '15px', fontWeight: '600', color: '#1e293b' },
+
+    // বাটন ও মেসেজ এলার্টস
+    actionContainer: { marginTop: '30px', textAlign: 'right' },
+    submitButton: { width: '100%', padding: '16px', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: '600', boxShadow: '0 4px 6px -1px rgb(234 88 12 / 0.2)' },
+    
+    alert: { padding: '14px', borderRadius: '8px', marginBottom: '25px', fontSize: '14px', fontWeight: '500' },
+    success: { background: '#dcfce7', color: '#155724', border: '1px solid #bbf7d0' },
+    error: { background: '#fee2e2', color: '#721c24', border: '1px solid #fecaca' },
+    info: { background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' },
+    warning: { background: '#fef3c7', color: '#856404', border: '1px solid #fde68a' }
 };
 
 export default ServiceManager;
