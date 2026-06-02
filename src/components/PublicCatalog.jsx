@@ -95,7 +95,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">লোড হচ্ছে...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">로드 হচ্ছে...</div>;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -135,7 +135,6 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               return (
                 <div key={cat} className="mb-16">
-                  {/* ক্যাটাগরি হেডিং এর ফন্ট বড় করা হয়েছে */}
                   <h2 className="text-3xl lg:text-4xl font-black text-slate-800 mb-8 border-l-8 border-slate-900 pl-4">{cat}</h2>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 items-start">
@@ -146,23 +145,22 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img src={brand.image_url} alt={brand.name} className="max-h-full max-w-full object-contain transition-transform duration-700 group-hover:scale-110" />
                         </div>
                         
-                        {/* ব্র্যান্ড বা কোম্পানির নাম আরও বড় (text-4xl) করা হয়েছে */}
                         <h3 className="text-4xl font-black text-slate-900 mb-6 tracking-tight">{brand.name}</h3>
                         
                         <div className="w-full space-y-4">
                           
-                          {/* 🟢 ইন স্টক কন্ডিশন সেকশন: ফন্ট সাইজ এবং প্যাডিং বাড়ানো হয়েছে */}
+                          {/* 🟢 ইন স্টক কন্ডিশন সেকশন */}
                           {brand.inStock.length > 0 && (
-                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold text-center border shadow-sm">
-                              <p className="opacity-90 mb-2 uppercase tracking-wider text-[11px] font-black">✓ In Stock (বিস্তারিত দেখতে মডেলে চাপুন)</p>
+                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm">
+                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black">✓ In Stock</p>
                               
-                              {/* মডেল নম্বর বাটনগুলোর সাইজ বাড়িয়ে text-sm ও font-black করা হয়েছে */}
-                              <div className="flex flex-wrap justify-center gap-2">
+                              {/* 🛠️ ফিক্স: এখানে grid grid-cols-2 এবং gap-2 দিয়ে পাশাপাশি দুটি করে বাটন এক লাইনে নিয়ে আসা হয়েছে */}
+                              <div className="grid grid-cols-2 gap-2">
                                 {brand.inStock.map(model => (
                                   <button 
                                     key={model} 
                                     onClick={() => handleModelClick(brand.name, model)} 
-                                    className="bg-white text-[#009A66] hover:bg-slate-100 px-3.5 py-1.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95"
+                                    className="bg-white text-[#009A66] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate"
                                   >
                                     {model}
                                   </button>
@@ -171,17 +169,18 @@ const PublicCatalog = ({ onAdminClick }) => {
                             </div>
                           )}
                           
-                          {/* 🟡 আপকামিং সেকশন: ফন্ট সাইজ বড় করা হয়েছে */}
+                          {/* 🟡 আপকামিং সেকশন */}
                           {brand.upcoming.length > 0 && (
-                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold text-center border shadow-sm">
-                              <p className="opacity-90 mb-2 uppercase tracking-wider text-[11px] font-black">⏳ Coming Soon</p>
+                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold border shadow-sm">
+                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black">⏳ Coming Soon</p>
                               
-                              <div className="flex flex-wrap justify-center gap-2">
+                              {/* 🛠️ ফিক্স: এখানেও ২-কলামের গ্রিড গ্রাউন্ড লেআউট করা হয়েছে */}
+                              <div className="grid grid-cols-2 gap-2">
                                 {brand.upcoming.map(model => (
                                   <button 
                                     key={model} 
                                     onClick={() => handleModelClick(brand.name, model)} 
-                                    className="bg-white text-[#b38f00] hover:bg-slate-100 px-3.5 py-1.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95"
+                                    className="bg-white text-[#b38f00] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate"
                                   >
                                     {model}
                                   </button>
@@ -199,7 +198,6 @@ const PublicCatalog = ({ onAdminClick }) => {
             })}
           </main>
 
-          {/* সাইডবার কন্টাক্ট ইনফোও স্পষ্ট করা হলো */}
           <aside className="w-full lg:w-80 shrink-0 order-2 lg:order-1">
             <div className="lg:sticky lg:top-28 bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/50 border border-slate-50 space-y-6">
               <div className="space-y-1">
@@ -245,7 +243,7 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       </div>
 
-      {/* ---------------- 🎯 পপ-আপ মডাল: এর ভেতরের টেক্সটও অনেক স্পষ্ট করা হয়েছে ---------------- */}
+      {/* 🎯 মডাল উইন্ডো */}
       {selectedModalProduct && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
