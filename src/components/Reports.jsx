@@ -18,8 +18,12 @@ const Reports = () => {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // 🔴 নতুন স্টেট: কাস্টমারের বিল ডিটেইলস মডাল দেখানোর জন্য
+  // কাস্টমারের বিল ডিটেইলস মডাল দেখানোর জন্য
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
+
+  // 📝 নতুন স্টেট: প্রোডাক্ট অনুযায়ী ম্যানুয়াল MRP ট্র্যাক করার অবজেক্ট
+  const [mrps, setMrps] = useState({});
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   useEffect(() => {
     generateReport();
@@ -52,7 +56,7 @@ const Reports = () => {
       processReportData(chalans || []);
     } catch (error) {
       console.error(error);
-      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
+      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
     }
     setLoading(false);
   };
@@ -73,7 +77,6 @@ const Reports = () => {
       const amt = parseFloat(ch.total_amount) || 0;
       const house = ch.house || 'Head Office';
 
-      // ১. সামারি
       if (isPaid) {
         data.totalBills += 1;
         data.totalBillAmount += amt;
@@ -82,26 +85,21 @@ const Reports = () => {
         data.totalChalanAmount += amt;
       }
 
-      // ২. হাউজ
       if (isPaid) {
         if (!data.houseStats[house]) data.houseStats[house] = { bills: 0, amount: 0 };
         data.houseStats[house].bills += 1;
         data.houseStats[house].amount += amt;
       }
 
-      // ৩. কাস্টমার
       if (isPaid && ch.customers) {
         const custName = ch.customers.name;
         const custPhone = ch.customers.phone || '';
         const custKey = `${custName}_${custPhone}`; 
 
         if (!data.customerStats[custKey]) {
-          // 🔴 আপডেট: bills: [] যুক্ত করা হয়েছে যাতে প্রতিটি বিল সেভ থাকে
           data.customerStats[custKey] = { name: custName, phone: custPhone, amount: 0, items: [], bills: [] };
         }
         data.customerStats[custKey].amount += amt;
-        
-        // 🔴 আপডেট: পুরো বিল অবজেক্টটা সেভ করা হচ্ছে
         data.customerStats[custKey].bills.push(ch);
         
         ch.chalan_items.forEach(item => {
@@ -110,7 +108,6 @@ const Reports = () => {
         });
       }
 
-      // ৪. প্রোডাক্ট
       if (isPaid) {
         ch.chalan_items.forEach(item => {
           const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
@@ -155,6 +152,41 @@ const Reports = () => {
     setCustomerSearch(e.target.value);
   };
 
+  // 📥 ডাইনামিক ল্যান্ডস্কেপ PDF ডাউনলোড ইঞ্জিন
+  const downloadReportPDF = () => {
+    const element = document.getElementById('report-print-area');
+    if (!element) return;
+
+    setPdfLoading(true);
+
+    const executeDownload = () => {
+      const opt = {
+        margin: [12, 12, 12, 12],
+        filename: `Lams_Power_${reportType}_Report_${startDate}_to_${endDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' } // ল্যান্ডস্কেপ মোড সেট করা হয়েছে বড় ডাটার জন্য
+      };
+
+      window.html2pdf().from(element).set(opt).save().then(() => {
+        setPdfLoading(false);
+      }).catch((err) => {
+        console.error(err);
+        setPdfLoading(false);
+      });
+    };
+
+    // যদি উইন্ডোতে html2pdf স্ক্রিপ্ট লোড না থাকে তবে ইনস্ট্যান্ট CDN ইনজেক্ট করবে
+    if (!window.html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = executeDownload;
+      document.head.appendChild(script);
+    } else {
+      executeDownload();
+    }
+  };
+
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
@@ -162,6 +194,7 @@ const Reports = () => {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
+      {/* ফিল্টার কন্ট্রোল উইন্ডো */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 items-end">
         <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -178,25 +211,52 @@ const Reports = () => {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 bg-slate-100 p-2 rounded-xl border border-slate-200">
-        {[
-          { id: 'summary', label: 'সার্বিক হিসাব (Summary)' },
-          { id: 'house', label: 'হাউজ রিপোর্ট (HO vs Showroom)' },
-          { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
-          { id: 'customer', label: 'কাস্টমার রিপোর্ট' }
-        ].map(tab => (
+      {/* নেভিগেশন ট্যাব এবং PDF ডাউনলোড বোতাম */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-100 p-2 rounded-xl border border-slate-200">
+        <div className="flex flex-wrap gap-2 flex-1">
+          {[
+            { id: 'summary', label: 'সার্বিক হিসাব (Summary)' },
+            { id: 'house', label: 'হাউজ রিপোর্ট (HO vs Showroom)' },
+            { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
+            { id: 'customer', label: 'কাস্টমার রিপোর্ট' }
+          ].map(tab => (
+            <button 
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); }}
+              className={`flex-1 min-w-[150px] py-3 px-4 rounded-lg font-bold text-sm transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        
+        {/* 📥 পিডিএফ এক্সপোর্ট বাটন */}
+        {reportData && !loading && (
           <button 
-            key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); }}
-            className={`flex-1 min-w-[150px] py-3 px-4 rounded-lg font-bold text-sm transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+            onClick={downloadReportPDF}
+            disabled={pdfLoading}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 whitespace-nowrap"
           >
-            {tab.label}
+            {pdfLoading ? 'প্রিন্ট ফাইল রেডি হচ্ছে...' : '📥 Download PDF'}
           </button>
-        ))}
+        )}
       </div>
 
       {reportData && !loading && (
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm animate-in fade-in duration-500">
+        // 🎯 আইডি র্যাপার এরিয়াটি html2pdf প্রিন্ট করার জন্য ডিফাইন করা হয়েছে
+        <div id="report-print-area" className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm animate-in fade-in duration-500">
           
+          {/* PDF এর টপ হেডার ব্রান্ডিং (যা প্রিন্ট ফাইলে দৃশ্যমান হবে) */}
+          <div className="hidden pdf-header border-b-2 border-slate-900 pb-4 mb-6 flex justify-between items-end">
+            <div>
+              <h2 className="text-3xl font-black text-slate-900 tracking-tighter">LAMS POWER</h2>
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-0.5">Inventory & Sales Statement Report</p>
+            </div>
+            <div className="text-right text-xs font-bold text-slate-600">
+              <p>তারিখ পরিধি: <span className="font-black text-slate-900">{startDate}</span> থেকে <span className="font-black text-slate-900">{endDate}</span></p>
+              <p className="text-[10px] uppercase text-slate-400 mt-1">Report Type: {reportType}</p>
+            </div>
+          </div>
+
           {/* ১. সামারি */}
           {reportType === 'summary' && (
             <div className="space-y-8">
@@ -219,12 +279,12 @@ const Reports = () => {
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="bg-slate-50 p-4 border-b border-slate-200">
-                  <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">এই সময়ের ক্রেতাগণ (Purchasing Customers)</h3>
+                  <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">এই সময়ের ক্রেতাগণ (Purchasing Customers)</h3>
                 </div>
-                <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                   <table className="w-full text-left">
                     <thead>
-                      <tr className="bg-white text-[11px] uppercase font-black text-slate-400 sticky top-0 shadow-sm">
+                      <tr className="bg-white text-[11px] uppercase font-black text-slate-400 sticky top-0 shadow-sm border-b">
                         <th className="p-3">Customer Name</th>
                         <th className="p-3">Mobile No.</th>
                         <th className="p-3 text-right">Total Purchased</th>
@@ -238,7 +298,7 @@ const Reports = () => {
                           <td className="p-3 text-right font-black text-blue-600">{cust.amount} ৳</td>
                         </tr>
                       ))}
-                      {Object.keys(reportData.customerStats).length === 0 && (
+                      {Object.values(reportData.customerStats).length === 0 && (
                         <tr><td colSpan="3" className="p-4 text-center font-bold text-slate-400">এই তারিখে কোনো বিক্রয় নেই</td></tr>
                       )}
                     </tbody>
@@ -267,33 +327,73 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ৩. প্রোডাক্ট সেলস */}
+          {/* 📦 ৩. প্রোডাক্ট সেলস রিপোর্ট (ম্যানুয়াল MRP ও অতিরিক্ত বিক্রয় লজিকসহ) */}
           {reportType === 'product' && (
             <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 text-[11px] uppercase font-black text-slate-500">
+                  <tr className="bg-slate-50 text-[11px] uppercase font-black text-slate-500 border-b">
                     <th className="p-4">Product Description</th>
                     <th className="p-4 text-center">House</th>
                     <th className="p-4 text-center">Total Qty Sold</th>
-                    <th className="p-4 text-right">Total Value</th>
+                    {/* প্রিন্ট বা পিডিএফে ইনপুট বক্সের বর্ডার এবং প্লেসহোল্ডার হাইড করতে বিশেষ ক্লাস ও স্টাইলিং */}
+                    <th className="p-4 text-center w-36 hide-on-pdf-label">MRP (Per Unit)</th>
+                    <th className="p-4 text-right">Min Allowed Value</th>
+                    <th className="p-4 text-right">Actual Sold Value</th>
+                    <th className="p-4 text-right">Surplus Above MRP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {Object.values(reportData.productStats).sort((a,b) => b.qty - a.qty).map((stat, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="p-4 font-bold text-slate-800">{stat.name}</td>
-                      <td className="p-4 text-center">
-                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${stat.house === 'Showroom' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-700'}`}>
-                          {stat.house}
-                        </span>
-                      </td>
-                      <td className="p-4 text-center font-black text-blue-600">{stat.qty} pcs</td>
-                      <td className="p-4 text-right font-black text-slate-900">{stat.total} ৳</td>
-                    </tr>
-                  ))}
+                  {Object.values(reportData.productStats).sort((a,b) => b.qty - a.qty).map((stat, idx) => {
+                    const pKey = `${stat.name}_${stat.house}`;
+                    const currentMrp = parseFloat(mrps[pKey]) || 0;
+                    const minAllowedTotal = currentMrp * stat.qty;
+                    const surplusAmount = stat.total - minAllowedTotal;
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="p-4 font-bold text-slate-800">{stat.name}</td>
+                        <td className="p-4 text-center">
+                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${stat.house === 'Showroom' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-700'}`}>
+                            {stat.house}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center font-black text-blue-600">{stat.qty} pcs</td>
+                        
+                        {/* 🛠️ MRP ম্যানুয়াল এন্ট্রি ইনপুট বক্স */}
+                        <td className="p-4 text-center justify-center flex items-center">
+                          <div className="relative print-mrp-wrapper">
+                            <input 
+                              type="number" 
+                              value={mrps[pKey] || ''} 
+                              onChange={(e) => setMrps({ ...mrps, [pKey]: e.target.value })}
+                              placeholder="0" 
+                              className="w-24 p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-center font-black text-slate-800 outline-none focus:border-blue-500 text-xs shadow-inner hide-input-border-pdf"
+                            />
+                            <span className="hidden pdf-mrp-text font-black text-slate-800 text-xs">{currentMrp} ৳</span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 text-right font-bold text-slate-500">
+                          {currentMrp > 0 ? `${minAllowedTotal} ৳` : '—'}
+                        </td>
+                        <td className="p-4 text-right font-black text-slate-900">{stat.total} ৳</td>
+                        
+                        {/* 💰 MRP থেকে কত বেশি মূল্যে বিক্রি হয়েছে তার লাভ নির্ণয় */}
+                        <td className="p-4 text-right font-black">
+                          {currentMrp > 0 ? (
+                            <span className={surplusAmount >= 0 ? 'text-emerald-600 bg-emerald-50 px-2 py-1 rounded' : 'text-rose-600 bg-rose-50 px-2 py-1 rounded'}>
+                              {surplusAmount >= 0 ? `+${surplusAmount}` : surplusAmount} ৳
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic font-medium text-[11px]">MRP সেট করুন</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {Object.keys(reportData.productStats).length === 0 && (
-                    <tr><td colSpan="4" className="p-4 text-center font-bold text-slate-400">কোনো তথ্য নেই</td></tr>
+                    <tr><td colSpan="7" className="p-4 text-center font-bold text-slate-400">কোনো তথ্য নেই</td></tr>
                   )}
                 </tbody>
               </table>
@@ -304,7 +404,7 @@ const Reports = () => {
           {reportType === 'customer' && (
             <div className="space-y-6 bg-slate-50 p-6 rounded-xl border border-slate-200">
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 filter-selectors-hide">
                 {/* স্মার্ট সার্চ বক্স */}
                 <div className="relative z-40">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">🔍 সার্চ করে খুঁজুন</label>
@@ -359,7 +459,7 @@ const Reports = () => {
                   filteredCustomers.map((cust, idx) => (
                     <div 
                       key={idx} 
-                      onClick={() => setSelectedCustomerBills(cust)} // 🔴 মডাল ওপেন করার লজিক
+                      onClick={() => setSelectedCustomerBills(cust)} 
                       className="border border-slate-200 p-5 rounded-xl bg-white hover:border-blue-500 transition-all shadow-sm cursor-pointer relative group"
                     >
                       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2 mb-3">
@@ -368,7 +468,7 @@ const Reports = () => {
                           <p className="text-xs font-bold text-slate-400">{cust.phone}</p>
                         </div>
                         <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">Click to view bills ➔</span>
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block select-ignore-pdf">Click to view bills ➔</span>
                           <span className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-black text-sm text-center">
                             Total Purchased: {cust.amount} ৳
                           </span>
@@ -388,12 +488,11 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 কাস্টমার বিল ডিটেইলস মডাল */}
+      {/* কাস্টমার বিল ডিটেইলস মডাল উইন্ডো */}
       {selectedCustomerBills && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-[2rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
             
-            {/* Header */}
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
               <div>
                 <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Customer History</p>
@@ -406,7 +505,6 @@ const Reports = () => {
               </div>
             </div>
 
-            {/* Bills List */}
             <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-6">
               {selectedCustomerBills.bills.map((bill, i) => (
                 <div key={i} className="bg-slate-50 border border-slate-200 p-5 md:p-6 rounded-3xl">
@@ -454,6 +552,28 @@ const Reports = () => {
           </div>
         </div>
       )}
+
+      {/* 📋 PDF এক্সপোর্ট ইন্টিগ্রিটি কন্ট্রোল কাস্টম গ্লোবাল CSS */}
+      <style>{`
+        @media print {
+          .hide-on-pdf-label { font-size: 10px !important; }
+        }
+        /* html2pdf জেনারেট করার সময় ইনপুট বক্স লুকিয়ে ক্লিন টেক্সট দেখানোর স্টাইলিং রুলস */
+        .html2pdf__page-active .hide-input-border-pdf {
+          display: none !important;
+        }
+        .html2pdf__page-active .pdf-mrp-text {
+          display: inline-block !important;
+        }
+        .html2pdf__page-active .pdf-header {
+          display: flex !important;
+        }
+        .html2pdf__page-active .filter-selectors-hide,
+        .html2pdf__page-active .select-ignore-pdf {
+          display: none !important;
+        }
+      `}</style>
+
     </div>
   );
 };
