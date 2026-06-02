@@ -120,7 +120,7 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // 📥 কাস্টম মিনিমাল এ৪ পোর্ট্রেট PDF জেনারেটর ইঞ্জিন
+  // 📥 মার্জিন শিফটিং এরর ফিক্সড পিডিএফ ইঞ্জিন
   const downloadReportPDF = () => {
     const element = document.getElementById('formal-corporate-portrait-pdf');
     if (!element) return;
@@ -129,11 +129,17 @@ const Reports = () => {
 
     const executeDownload = () => {
       const opt = {
-        margin: [15, 12, 15, 12],
+        margin: 0, // 💡 মার্জিন ০ করা হলো যাতে বাইরের ফ্লেক্স/গ্রিড লেআউট পিডিএফ-কে বামে না সরায়
         filename: `LAMS_POWER_Sales_Report_${startDate}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } // 💡 পোর্ট্রেট (লম্বালম্বি) মোড সেট করা হয়েছে
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          logging: false,
+          scrollX: 0, // 💡 স্ক্রল পজিশন এরর লক ফিক্স
+          scrollY: 0
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
       element.classList.remove('hidden');
@@ -315,9 +321,19 @@ const Reports = () => {
       )}
 
       {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
-      {/* 👔 সম্পূর্ণ এক্সক্লুসিভ ফরমাল মিনিমাল এ৪ পোর্ট্রেট PDF লেআউট (প্রিন্ট ফাইল) */}
+      {/* 👔 সম্পূর্ণ ফিক্সড এক্সক্লুসিভ ফরমাল মিনিমাল এ৪ পোর্ট্রেট PDF লেআউট (প্রিন্ট ফাইল) */}
       {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
-      <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '185mm', fontFamily: "Times New Roman, 'Inter', serif", lineHeight: '1.4' }}>
+      <div 
+        id="formal-corporate-portrait-pdf" 
+        className="hidden bg-white text-slate-900" 
+        style={{ 
+          width: '210mm',         // 💡 এ৪ পেজের একদম ফিক্সড স্ট্যান্ডার্ড উইডথ
+          padding: '20mm',        // 💡 সিএসএস দিয়ে ইন্টারনাল সেফ মার্জিন কন্ট্রোল করা হলো
+          boxSizing: 'border-box',
+          fontFamily: "Times New Roman, 'Inter', serif", 
+          lineHeight: '1.4' 
+        }}
+      >
         
         {/* মিনিমালিস্টিক লেটারহেড হেডার */}
         <div className="border-b border-slate-800 pb-4 mb-6 flex justify-between items-start">
@@ -334,7 +350,7 @@ const Reports = () => {
           </div>
         </div>
 
-        {/* এক্সিকিউটিভ সামারি রো (থিন ডিভাইডার স্টাইল) */}
+        {/* এক্সিকিউティブ সামারি রো (থিন ডিভাইডার স্টাইল) */}
         <div className="border-y border-slate-400 py-3 my-4 grid grid-cols-3 text-center text-[11px] font-bold uppercase tracking-wide bg-slate-50/50">
           <div className="border-r border-slate-200">
             <span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span>
@@ -386,7 +402,7 @@ const Reports = () => {
                 );
               })}
             </tbody>
-            {/* বটম গ্র্যান্ড টোটাল ডাবল আন্ডারলাইন স্টাইল */}
+            {/* বটম গ্র্যান্ড টোটাল */}
             <tfoot>
               <tr className="border-t-2 border-b border-slate-800 font-bold text-slate-900 uppercase tracking-wider bg-slate-50">
                 <td colSpan="2" className="py-3 text-right font-bold">Total Valuations:</td>
@@ -400,7 +416,7 @@ const Reports = () => {
           </table>
         </div>
 
-        {/* অথরাইজড সিগনেচার ব্লক (ফরমাল অফিস স্টাইল) */}
+        {/* অথরাইজড সিগনেচার বার */}
         <div className="mt-24 grid grid-cols-3 gap-8 text-center text-[9px] uppercase tracking-wider text-slate-500 font-bold">
           <div>
             <div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By<br />(Accounts & Promotions)</div>
