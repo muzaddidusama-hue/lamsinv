@@ -95,7 +95,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">로드 হচ্ছে...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">লোড হচ্ছে...</div>;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -145,22 +145,24 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img src={brand.image_url} alt={brand.name} className="max-h-full max-w-full object-contain transition-transform duration-700 group-hover:scale-110" />
                         </div>
                         
-                        <h3 className="text-4xl font-black text-slate-900 mb-6 tracking-tight">{brand.name}</h3>
+                        <h3 className="text-4xl font-black text-slate-900 mb-6 tracking-tight text-center">{brand.name}</h3>
                         
                         <div className="w-full space-y-4">
                           
                           {/* 🟢 ইন স্টক কন্ডিশন সেকশন */}
                           {brand.inStock.length > 0 && (
-                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm">
-                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black">✓ In Stock</p>
+                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm flex flex-col items-center justify-center">
+                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black text-center">✓ In Stock</p>
                               
-                              {/* 🛠️ ফিক্স: এখানে grid grid-cols-2 এবং gap-2 দিয়ে পাশাপাশি দুটি করে বাটন এক লাইনে নিয়ে আসা হয়েছে */}
-                              <div className="grid grid-cols-2 gap-2">
+                              {/* 🛠️ ফিক্স: flex flex-wrap justify-center ম্যাজিক ব্যবহার করা হয়েছে, যা ১টি আইটেমকে অটোমেটিক মাঝে রাখবে এবং লেখাগুলো মিডল অ্যালাইন করবে */}
+                              <div className="flex flex-wrap justify-center gap-2 w-full">
                                 {brand.inStock.map(model => (
                                   <button 
                                     key={model} 
                                     onClick={() => handleModelClick(brand.name, model)} 
-                                    className="bg-white text-[#009A66] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate"
+                                    className={`bg-white text-[#009A66] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate ${
+                                      brand.inStock.length === 1 ? 'w-48 mx-auto' : 'w-[48%]'
+                                    }`}
                                   >
                                     {model}
                                   </button>
@@ -171,16 +173,18 @@ const PublicCatalog = ({ onAdminClick }) => {
                           
                           {/* 🟡 আপকামিং সেকশন */}
                           {brand.upcoming.length > 0 && (
-                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold border shadow-sm">
-                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black">⏳ Coming Soon</p>
+                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold border shadow-sm flex flex-col items-center justify-center">
+                              <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black text-center">⏳ Coming Soon</p>
                               
-                              {/* 🛠️ ফিক্স: এখানেও ২-কলামের গ্রিড গ্রাউন্ড লেআউট করা হয়েছে */}
-                              <div className="grid grid-cols-2 gap-2">
+                              {/* 🛠️ ফিক্স: এখানেও ১টি আইটেম থাকলে উইডথ লিমিট করে সেন্টারে এলাইন করা হয়েছে */}
+                              <div className="flex flex-wrap justify-center gap-2 w-full">
                                 {brand.upcoming.map(model => (
                                   <button 
                                     key={model} 
                                     onClick={() => handleModelClick(brand.name, model)} 
-                                    className="bg-white text-[#b38f00] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate"
+                                    className={`bg-white text-[#b38f00] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate ${
+                                      brand.upcoming.length === 1 ? 'w-48 mx-auto' : 'w-[48%]'
+                                    }`}
                                   >
                                     {model}
                                   </button>
@@ -259,8 +263,8 @@ const PublicCatalog = ({ onAdminClick }) => {
               <span className="text-[11px] font-black tracking-widest bg-orange-100 text-orange-600 px-3 py-1 rounded-full uppercase">
                 {selectedModalProduct.category}
               </span>
-              <h3 className="text-3xl font-black text-slate-900 mt-2">{selectedModalProduct.name}</h3>
-              <p className="text-lg font-black text-orange-600 mt-1">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
+              <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
+              <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
@@ -275,10 +279,10 @@ const PublicCatalog = ({ onAdminClick }) => {
             </div>
 
             <div className="space-y-2">
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block px-1">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+              <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
               <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
                 {selectedModalProduct.description ? (
-                  <p className="whitespace-pre-line">{selectedModalProduct.description}</p>
+                  <p className="whitespace-pre-line text-center">{selectedModalProduct.description}</p>
                 ) : (
                   <p className="italic text-slate-400 text-center py-4">এই মডেলটির জন্য কোনো অতিরিক্ত বিবরণ এখনো এন্ট্রি করা হয়নি।</p>
                 )}
