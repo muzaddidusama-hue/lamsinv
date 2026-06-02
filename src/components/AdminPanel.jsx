@@ -12,6 +12,7 @@ import StockManagement from './StockManagement';
 import FrontEndCustom from './FrontEndCustom';
 import SmartUpload from "./SmartUpload";
 import ServiceManager from "./ServiceManager"; // 🛠️ ভুল সংশোধন ও নতুন ইম্পোর্ট
+import UserManagement from "./UserManagement";
 
 const AdminPanel = ({ onLogout }) => {
   const [view, setView] = useState('dashboard');
