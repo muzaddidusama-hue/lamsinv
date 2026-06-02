@@ -1,6 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
+// স্পেশাল সর্টিং ফাংশন: VA এবং kW ক্যালকুলেট করে ছোট থেকে বড় সাজাবে
+const sortModelsByCapacity = (modelsArray) => {
+  const parseCapacity = (modelName) => {
+    const match = modelName.match(/([\d.]+)\s*(va|w|kw)/i);
+    if (!match) return Infinity; 
+
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+
+    if (unit === 'kw') {
+      return value * 1000;
+    }
+    return value;
+  };
+
+  return modelsArray.sort((a, b) => {
+    const capA = parseCapacity(a);
+    const capB = parseCapacity(b);
+
+    if (capA !== capB) {
+      return capA - capB; 
+    }
+    return a.localeCompare(b); 
+  });
+};
+
 const PublicCatalog = ({ onAdminClick }) => {
   const [products, setProducts] = useState([]);
   const [siteSettings, setSiteSettings] = useState({}); 
@@ -23,18 +49,57 @@ const PublicCatalog = ({ onAdminClick }) => {
   
   const getGroupedProducts = (catProds) => {
     const groups = {};
+
     catProds.forEach(p => {
       if (!groups[p.name]) {
-        groups[p.name] = { name: p.name, image_url: p.image_url, inStock: [], outOfStock: [], upcoming: [] };
+        groups[p.name] = { name: p.name, image_url: p.image_url, modelsData: {} };
       }
-      let status = p.availability; 
-      if (p.stock_quantity <= 0) status = 'out of stock';
-      
-      if (status === 'out of stock') groups[p.name].outOfStock.push(p.model);
-      else if (status === 'upcoming') groups[p.name].upcoming.push(p.model);
-      else groups[p.name].inStock.push(p.model);
+
+      if (!groups[p.name].modelsData[p.model]) {
+        groups[p.name].modelsData[p.model] = { 
+            stock_quantity: 0, 
+            hasInStockToggle: false, 
+            isUpcoming: false 
+        };
+      }
+
+      // ১. শুধুমাত্র লিগ্যাল নাম্বার যোগ করবে (যাতে ডাটাবেজের কোনো গার্বেজ স্ট্রিং না আসে)
+      groups[p.name].modelsData[p.model].stock_quantity += (Number(p.stock_quantity) || 0);
+
+      // ২. টগল স্ট্যাটাস চেক
+      const avail = p.availability ? p.availability.trim().toLowerCase() : '';
+      if (avail === 'in stock') {
+          groups[p.name].modelsData[p.model].hasInStockToggle = true;
+      } else if (avail === 'upcoming') {
+          groups[p.name].modelsData[p.model].isUpcoming = true;
+      }
     });
-    return Object.values(groups);
+
+    return Object.values(groups).map(group => {
+      const inStock = [];
+      const outOfStock = [];
+      const upcoming = [];
+
+      Object.entries(group.modelsData).forEach(([modelName, data]) => {
+        // 🔴 মেইন ফিক্স: ইন-স্টক দেখাতে হলে অবশ্যই অ্যাডমিন টগল 'In Stock' থাকতে হবে এবং পরিমাণ ০ এর বেশি হতে হবে
+        if (data.hasInStockToggle && data.stock_quantity > 0) {
+          inStock.push(modelName);
+        } else if (data.isUpcoming) {
+          upcoming.push(modelName);
+        } else {
+          // যদি টগল অফ থাকে অথবা স্টক ০ হয়ে যায়, অটোমেটিক Out of Stock এ চলে যাবে
+          outOfStock.push(modelName);
+        }
+      });
+
+      return {
+        name: group.name,
+        image_url: group.image_url,
+        inStock: sortModelsByCapacity(inStock),
+        outOfStock: sortModelsByCapacity(outOfStock),
+        upcoming: sortModelsByCapacity(upcoming)
+      };
+    });
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-slate-400 italic">লোড হচ্ছে...</div>;
@@ -56,7 +121,13 @@ const PublicCatalog = ({ onAdminClick }) => {
           
           <main className="flex-1 order-1 lg:order-2">
             {categories.map(cat => {
-              const catProds = products.filter(p => p.category === cat && !p.is_hidden);
+              // 🔴 ফিক্স: শুধুমাত্র Head Office এবং Showroom এর ডাটাই ক্যালকুলেট করবে, ডাটাবেজের অন্য কোনো গার্বেজ ডাটা নয়
+              const catProds = products.filter(p => 
+                  p.category === cat && 
+                  !p.is_hidden && 
+                  (p.house === 'Head Office' || p.house === 'Showroom')
+              );
+
               const grouped = getGroupedProducts(catProds);
               if (grouped.length === 0) return null;
 

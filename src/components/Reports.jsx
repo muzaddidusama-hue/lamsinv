@@ -18,15 +18,17 @@ const Reports = () => {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // 🔴 নতুন স্টেট: কাস্টমারের বিল ডিটেইলস মডাল দেখানোর জন্য
+  const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
+
   useEffect(() => {
     generateReport();
   }, [reportType]);
 
   useEffect(() => {
-    fetchAllCustomers(); // পেজ লোড হলেই ড্রপডাউনের জন্য সব কাস্টমার আনবে
+    fetchAllCustomers(); 
   }, []);
 
-  // ডাটাবেজ থেকে সব রেজিস্টার্ড কাস্টমার আনা
   const fetchAllCustomers = async () => {
     const { data } = await supabase.from('customers').select('id, name, phone').order('name', { ascending: true });
     if (data) setAllCustomers(data);
@@ -94,9 +96,13 @@ const Reports = () => {
         const custKey = `${custName}_${custPhone}`; 
 
         if (!data.customerStats[custKey]) {
-          data.customerStats[custKey] = { name: custName, phone: custPhone, amount: 0, items: [] };
+          // 🔴 আপডেট: bills: [] যুক্ত করা হয়েছে যাতে প্রতিটি বিল সেভ থাকে
+          data.customerStats[custKey] = { name: custName, phone: custPhone, amount: 0, items: [], bills: [] };
         }
         data.customerStats[custKey].amount += amt;
+        
+        // 🔴 আপডেট: পুরো বিল অবজেক্টটা সেভ করা হচ্ছে
+        data.customerStats[custKey].bills.push(ch);
         
         ch.chalan_items.forEach(item => {
           const pName = `${item.products?.category || ''} ${item.products?.model || ''}`.trim();
@@ -122,7 +128,6 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // স্মার্ট অটো-কমপ্লিট লজিক
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
     setCustomerSearch(val);
@@ -142,16 +147,14 @@ const Reports = () => {
   };
 
   const selectCustomer = (cust) => {
-    setCustomerSearch(cust.name); // নাম দিয়ে ফিল্টার হবে
+    setCustomerSearch(cust.name); 
     setShowSuggestions(false);
   };
 
-  // ড্রপডাউন থেকে সিলেক্ট করার লজিক
   const handleDropdownSelect = (e) => {
     setCustomerSearch(e.target.value);
   };
 
-  // সার্চকৃত কাস্টমার ফিল্টার করার লজিক
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
@@ -216,7 +219,7 @@ const Reports = () => {
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
                 <div className="bg-slate-50 p-4 border-b border-slate-200">
-                  <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">এই সময়ের ক্রেতাগণ (Purchasing Customers)</h3>
+                  <h3 className="text-sm font-black text-slate-600 uppercase tracking-widest">এই সময়ের ক্রেতাগণ (Purchasing Customers)</h3>
                 </div>
                 <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
                   <table className="w-full text-left">
@@ -236,7 +239,7 @@ const Reports = () => {
                         </tr>
                       ))}
                       {Object.keys(reportData.customerStats).length === 0 && (
-                        <tr><td colSpan="3" className="p-4 text-center font-bold text-slate-400">এই তারিখে কোনো বিক্রয় নেই</td></tr>
+                        <tr><td colSpan="3" className="p-4 text-center font-bold text-slate-400">এই তারিখে কোনো বিক্রয় নেই</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -252,11 +255,11 @@ const Reports = () => {
                 <div key={idx} className="border border-slate-200 p-6 rounded-2xl bg-slate-50">
                   <h3 className="text-xl font-black text-slate-800 mb-4 pb-2 border-b border-slate-200">{house}</h3>
                   <div className="flex justify-between items-center mb-2">
-                    <span className="font-bold text-slate-500">মোট ক্লিয়ার বিল:</span>
+                    <span className="font-bold text-slate-500">মোট ক্লিয়ার বিল:</span>
                     <span className="font-black text-slate-900 text-lg">{reportData.houseStats[house].bills} টি</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="font-bold text-slate-500">মোট বিক্রয়:</span>
+                    <span className="font-bold text-slate-500">মোট বিক্রয়:</span>
                     <span className="font-black text-blue-600 text-xl">{reportData.houseStats[house].amount} ৳</span>
                   </div>
                 </div>
@@ -301,11 +304,9 @@ const Reports = () => {
           {reportType === 'customer' && (
             <div className="space-y-6 bg-slate-50 p-6 rounded-xl border border-slate-200">
               
-              {/* কাস্টমার ফিল্টার সেকশন (সার্চ + ড্রপডাউন) */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                
                 {/* স্মার্ট সার্চ বক্স */}
-                <div className="relative z-50">
+                <div className="relative z-40">
                   <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 block">🔍 সার্চ করে খুঁজুন</label>
                   <input 
                     type="text" 
@@ -345,27 +346,33 @@ const Reports = () => {
                     ))}
                   </select>
                 </div>
-
               </div>
 
               {/* কাস্টমার রেজাল্ট লিস্ট */}
-              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 mt-4">
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2 mt-4 custom-scrollbar">
                 {filteredCustomers.length === 0 ? (
                   <div className="text-center bg-white border border-slate-200 rounded-xl p-10">
                     <span className="text-4xl block mb-2">🕵️</span>
-                    <p className="text-slate-400 font-bold">এই নির্দিষ্ট তারিখে উক্ত কাস্টমারের কোনো ক্রয়ের রেকর্ড নেই।</p>
+                    <p className="text-slate-400 font-bold">এই নির্দিষ্ট তারিখে উক্ত কাস্টমারের কোনো ক্রয়ের রেকর্ড নেই।</p>
                   </div>
                 ) : (
                   filteredCustomers.map((cust, idx) => (
-                    <div key={idx} className="border border-slate-200 p-5 rounded-xl bg-white hover:border-blue-300 transition-colors shadow-sm">
+                    <div 
+                      key={idx} 
+                      onClick={() => setSelectedCustomerBills(cust)} // 🔴 মডাল ওপেন করার লজিক
+                      className="border border-slate-200 p-5 rounded-xl bg-white hover:border-blue-500 transition-all shadow-sm cursor-pointer relative group"
+                    >
                       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-2 mb-3">
                         <div>
-                          <h3 className="font-black text-lg text-slate-900">{cust.name}</h3>
+                          <h3 className="font-black text-lg text-slate-900 group-hover:text-blue-600 transition-colors">{cust.name}</h3>
                           <p className="text-xs font-bold text-slate-400">{cust.phone}</p>
                         </div>
-                        <span className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-black text-sm text-center">
-                          Total Purchased: {cust.amount} ৳
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest hidden md:block">Click to view bills ➔</span>
+                          <span className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-black text-sm text-center">
+                            Total Purchased: {cust.amount} ৳
+                          </span>
+                        </div>
                       </div>
                       <div className="bg-slate-50 p-3 rounded-lg text-sm font-medium text-slate-600">
                         <span className="font-bold text-slate-800">Items: </span>
@@ -378,6 +385,73 @@ const Reports = () => {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* 🔴 কাস্টমার বিল ডিটেইলস মডাল */}
+      {selectedCustomerBills && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
+            
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+              <div>
+                <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">Customer History</p>
+                <h3 className="text-2xl font-black text-slate-800">{selectedCustomerBills.name}</h3>
+                <p className="text-sm font-bold text-slate-500 mt-1">{selectedCustomerBills.phone}</p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <button onClick={() => setSelectedCustomerBills(null)} className="w-10 h-10 bg-slate-100 rounded-full hover:bg-red-500 hover:text-white font-bold transition-all flex items-center justify-center">✕</button>
+                <span className="text-xs font-black text-green-600 bg-green-50 px-3 py-1 rounded-md">Total: {selectedCustomerBills.amount} ৳</span>
+              </div>
+            </div>
+
+            {/* Bills List */}
+            <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-6">
+              {selectedCustomerBills.bills.map((bill, i) => (
+                <div key={i} className="bg-slate-50 border border-slate-200 p-5 md:p-6 rounded-3xl">
+                  
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="bg-green-600 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-full">Paid</span>
+                        <p className="font-black text-slate-900 text-lg">#{bill.bill_no || 'N/A'}</p>
+                      </div>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">Ref Chalan: {bill.chalan_no}</p>
+                    </div>
+                    <div className="md:text-right">
+                      <p className="font-black text-slate-800 text-xl">{bill.total_amount} ৳</p>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(bill.created_at).toLocaleDateString()} • via {bill.payment_method}</p>
+                    </div>
+                  </div>
+
+                  <table className="w-full text-left text-sm bg-white border border-slate-100 rounded-2xl overflow-hidden">
+                    <thead className="bg-slate-100/50 text-[10px] uppercase font-black text-slate-400">
+                      <tr>
+                        <th className="p-3">Item Details</th>
+                        <th className="p-3 text-center">Qty</th>
+                        <th className="p-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {bill.chalan_items.map((item, j) => (
+                        <tr key={j}>
+                          <td className="p-3 font-bold text-slate-700">
+                            {item.products?.name} 
+                            <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model}</span>
+                          </td>
+                          <td className="p-3 text-center font-black text-slate-600">{item.quantity}</td>
+                          <td className="p-3 text-right font-black text-slate-800">{item.total_price} ৳</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                </div>
+              ))}
+            </div>
+
+          </div>
         </div>
       )}
     </div>

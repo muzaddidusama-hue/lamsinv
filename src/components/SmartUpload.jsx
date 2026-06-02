@@ -70,7 +70,14 @@ const SmartUpload = () => {
       const responseText = result.response.text();
       let cleanedJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(cleanedJson.substring(cleanedJson.indexOf('{'), cleanedJson.lastIndexOf('}') + 1));
-      setExtractedData(parsedData);
+      
+      // 🔴 এআই থেকে ডাটা আসার পর, যদি কোনো ফিল্ড মিসিং থাকে তবে সেটাকে খালি স্ট্রিং হিসেবে সেট করে দিচ্ছি, যাতে ইউজার এডিট করতে পারে
+      setExtractedData({
+        ...parsedData,
+        bill_no: parsedData.bill_no || '',
+        chalan_no: parsedData.chalan_no || ''
+      });
+
     } catch (error) {
       console.error(error);
       alert("স্ক্যানিং এরর! ২-৩ সেকেন্ড পর আবার চেষ্টা করুন।");
@@ -97,38 +104,58 @@ const SmartUpload = () => {
   const handleFinalConfirm = async () => {
     setIsSaving(true);
     try {
+      let rawPhone = extractedData.customer_phone ? extractedData.customer_phone.trim() : '';
+      let cPhone = rawPhone.replace(/[^0-9+]/g, ''); 
+      if (cPhone.length < 5) cPhone = null; 
+
+      let cName = extractedData.customer_name ? extractedData.customer_name.trim() : '';
+      if (!cName || cName.toLowerCase() === 'n/a') cName = 'Walk-in';
+
+      let cAddress = extractedData.customer_address ? extractedData.customer_address.trim() : '';
+      if (!cAddress || cAddress.toLowerCase() === 'n/a') cAddress = null;
+
       let customerId = null;
-      if (extractedData.customer_phone) {
-        const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', extractedData.customer_phone).maybeSingle();
+
+      if (cPhone) {
+        const { data: existingCust, error: searchErr } = await supabase.from('customers').select('id').eq('phone', cPhone).maybeSingle();
+        
         if (existingCust) {
           customerId = existingCust.id;
-          await supabase.from('customers').update({ address: extractedData.customer_address }).eq('id', customerId);
+          await supabase.from('customers').update({ name: cName, address: cAddress }).eq('id', customerId);
         } else {
-          const { data: newCust, error: custErr } = await supabase.from('customers').insert([{
-            name: extractedData.customer_name || 'Walk-in',
-            phone: extractedData.customer_phone,
-            address: extractedData.customer_address
+          const { data: newCust, error: insertErr } = await supabase.from('customers').insert([{
+            name: cName, phone: cPhone, address: cAddress
           }]).select().single();
-          if (custErr) throw custErr;
+          
+          if (insertErr) throw new Error("কাস্টমার সেভ এরর: " + insertErr.message);
           customerId = newCust.id;
         }
+      } else {
+        const fakePhone = `N/A-${Date.now().toString().slice(-6)}`;
+        const { data: newCust, error: insertErr } = await supabase.from('customers').insert([{
+          name: cName, phone: fakePhone, address: cAddress
+        }]).select().single();
+
+        if (insertErr) throw new Error("কাস্টমার সেভ এরর (No Phone): " + insertErr.message);
+        customerId = newCust.id;
       }
 
+      // 🔴 'chalans' টেবিলে ডাটা ইনসার্ট করার সময় ইউজারের দেওয়া বা এডিট করা Bill No এবং Chalan No ব্যবহার করা হবে
       const chalanPayload = {
         bill_no: extractedData.bill_no || "N/A",
         chalan_no: extractedData.chalan_no || `AUTO-${Date.now().toString().slice(-6)}`,
-        customer_id: customerId,
-        customer_name: extractedData.customer_name || 'Walk-in',
-        phone: extractedData.customer_phone || null,
-        address: extractedData.customer_address || null,
+        customer_id: customerId, 
+        customer_name: cName,
+        phone: cPhone || null,
+        address: cAddress,
         total_amount: extractedData.items.reduce((acc, item) => acc + (parseFloat(item.total_price) || 0), 0),
-        status: uploadMode === 'Bill' ? 'paid' : 'completed',
+        status: uploadMode === 'Bill' ? 'paid' : 'hold', 
         payment_method: uploadMode === 'Bill' ? 'Cash' : null,
-        house: selectedHouse // 🔴 ডাইনামিক হাউজ সিলেকশন
+        house: selectedHouse
       };
 
       const { data: insertedChalan, error: docError } = await supabase.from('chalans').insert([chalanPayload]).select().single();
-      if (docError) throw docError;
+      if (docError) throw new Error("চালান সেভ এরর: " + docError.message);
 
       for (const match of matchedItems) {
         if (match.matchedProduct) {
@@ -140,18 +167,19 @@ const SmartUpload = () => {
             total_price: Number(match.totalPrice)
           }]);
 
-          // 🔴 স্টক কমানো (শুধুমাত্র সিলেক্ট করা হাউজের স্টক কমবে)
           const currentStock = match.matchedProduct.stock_quantity || 0;
           const newStock = currentStock - Number(match.quantity);
-          await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id);
+          await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id).eq('house', selectedHouse);
         }
       }
 
-      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার তথ্য সেভ হয়েছে!`);
+      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
       setExtractedData(null); setImageFile(null); setPreview(null); setShowConfirmModal(false);
-      fetchProducts();
+      fetchProducts(); 
+
     } catch (error) {
-      alert("সেভ এরর: " + error.message);
+      console.error("Save Error:", error);
+      alert("❌ " + error.message); 
     } finally {
       setIsSaving(false);
     }
@@ -183,6 +211,7 @@ const SmartUpload = () => {
         {extractedData && extractedData.items && (
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-orange-100 animate-in fade-in zoom-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              
               <div className="space-y-4">
                 <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
                     <label className="text-[10px] font-black text-orange-500 uppercase block mb-1">সোর্স হাউজ (Stock Source)</label>
@@ -191,25 +220,51 @@ const SmartUpload = () => {
                         <option value="Showroom">Showroom</option>
                     </select>
                 </div>
+                
+                {/* 🔴 Bill No ফিল্ড সবসময় দেখাবে */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Bill / Chalan No</label>
-                    <input type="text" value={extractedData.bill_no || extractedData.chalan_no || ''} onChange={(e) => setExtractedData({...extractedData, bill_no: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
+                      Bill No {uploadMode === 'Challan' && <span className="text-orange-500">(Optional for Challan)</span>}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={extractedData.bill_no || ''} 
+                      onChange={(e) => setExtractedData({...extractedData, bill_no: e.target.value})} 
+                      className="w-full bg-transparent font-bold text-slate-800 outline-none" 
+                      placeholder="Enter Bill No" 
+                    />
                 </div>
+                
+                {/* 🔴 Chalan No ফিল্ড সবসময় দেখাবে */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Customer Name</label>
-                    <input type="text" value={extractedData.customer_name || ''} onChange={(e) => setExtractedData({...extractedData, customer_name: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
+                      Chalan No {uploadMode === 'Bill' && <span className="text-orange-500">(Required for reference)</span>}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={extractedData.chalan_no || ''} 
+                      onChange={(e) => setExtractedData({...extractedData, chalan_no: e.target.value})} 
+                      className="w-full bg-transparent font-bold text-slate-800 outline-none" 
+                      placeholder="Enter Chalan No" 
+                    />
                 </div>
               </div>
+
               <div className="space-y-4">
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Mobile</label>
-                    <input type="text" value={extractedData.customer_phone || ''} onChange={(e) => setExtractedData({...extractedData, customer_phone: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" />
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Customer Name</label>
+                    <input type="text" value={extractedData.customer_name || ''} onChange={(e) => setExtractedData({...extractedData, customer_name: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Customer Name" />
                 </div>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 h-full min-h-[140px]">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Mobile</label>
+                    <input type="text" value={extractedData.customer_phone || ''} onChange={(e) => setExtractedData({...extractedData, customer_phone: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Mobile No" />
+                </div>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">Address</label>
-                    <textarea value={extractedData.customer_address || ''} onChange={(e) => setExtractedData({...extractedData, customer_address: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none h-24 resize-none" />
+                    <input type="text" value={extractedData.customer_address || ''} onChange={(e) => setExtractedData({...extractedData, customer_address: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Full Address" />
                 </div>
               </div>
+
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-100 mb-8">

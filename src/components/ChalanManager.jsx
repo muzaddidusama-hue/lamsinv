@@ -45,8 +45,18 @@ const ChalanManager = () => {
       
       setItems(itemData || []);
       setSearchNo(cNo); 
-    } catch (error) { alert("চালান খুঁজে পাওয়া যায়নি!"); }
+    } catch (error) { alert("চালান খুঁজে পাওয়া যায়নি!"); }
     setLoading(false);
+  };
+
+  // 🔴 কালপ্রিট ফিক্স: সঠিক কাস্টমার ডাটা বের করার ফাংশন
+  const getCustomerData = (record) => {
+    if (!record) return { name: 'Walk-in', phone: '', address: '' };
+    return {
+      name: record.customer_name || record.customers?.name || (record.is_in_house ? 'Transfer' : 'Walk-in'),
+      phone: record.phone || record.customers?.phone || '',
+      address: record.address || record.customers?.address || ''
+    };
   };
 
   const handlePaymentConfirm = async () => {
@@ -55,10 +65,8 @@ const ChalanManager = () => {
     
     setProcessingPayment(true);
     try {
-      // ১. বিল নম্বর নির্ধারণ (ম্যানুয়াল বা অটো)
       const billNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
       
-      // ২. ডাটাবেজ আপডেট (স্ট্যাটাস 'paid' করা)
       const { error } = await supabase
         .from('chalans')
         .update({ 
@@ -70,12 +78,11 @@ const ChalanManager = () => {
 
       if (error) throw error;
 
-      // ৩. প্রিন্ট এর জন্য ডাটা প্রিপেয়ার করা
       const billData = { 
         ...chalan, 
         bill_no: billNo, 
         payment_method: paymentMethod,
-        created_at: new Date().toISOString() // কারেন্ট টাইম
+        created_at: new Date().toISOString() 
       };
 
       const printItems = items.map(item => ({
@@ -87,16 +94,15 @@ const ChalanManager = () => {
 
       alert(`✅ পেমেন্ট সফল! বিল নং: ${billNo}`);
 
-      // ৪. অটোমেটিক বিল প্রিন্টিং উইন্ডো ওপেন হবে
-      printBill(billData, chalan.customers, printItems);
+      // 🔴 ফিক্স: প্রিন্টে সঠিক কাস্টমার ডাটা পাঠানো
+      printBill(billData, getCustomerData(chalan), printItems);
 
-      // ৫. স্টেট রিসেট
       setChalan(null); 
       setIsManualBill(false); 
       setManualBillNo(''); 
       fetchPendingChalans();
     } catch (error) { 
-      alert('পেমেন্ট আপডেট করতে সমস্যা হয়েছে!'); 
+      alert('পেমেন্ট আপডেট করতে সমস্যা হয়েছে!'); 
       console.error(error);
     }
     setProcessingPayment(false);
@@ -120,7 +126,8 @@ const ChalanManager = () => {
                 <span className="text-[10px] font-bold text-slate-400">{new Date(pc.created_at).toLocaleDateString()}</span>
               </div>
               <h4 className="font-black text-slate-900 text-xl group-hover:text-orange-600">{pc.chalan_no}</h4>
-              <p className="text-sm font-bold text-slate-500 mt-1">{pc.customers?.name || 'Unknown Customer'}</p>
+              {/* 🔴 ফিক্স: কার্ডে সঠিক নাম দেখানো */}
+              <p className="text-sm font-bold text-slate-500 mt-1">{getCustomerData(pc).name}</p>
               <div className="mt-6 pt-4 border-t flex justify-between items-center">
                 <span className="text-[10px] font-bold text-slate-400 uppercase">Amount</span>
                 <span className="font-black text-slate-800 text-lg">{pc.total_amount} ৳</span>
@@ -137,13 +144,20 @@ const ChalanManager = () => {
                 <h2 className="text-2xl font-black">{chalan.chalan_no}</h2>
                 <p className="text-xs text-slate-400">Date: {new Date(chalan.created_at).toLocaleDateString()}</p>
               </div>
-              <button onClick={() => printChallan(chalan, chalan.customers, items.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price})))} className="bg-slate-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200">🖨️ প্রিন্ট চালান</button>
+              <button onClick={() => printChallan(chalan, getCustomerData(chalan), items.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price})))} className="bg-slate-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200">🖨️ প্রিন্ট চালান</button>
             </div>
             <table className="w-full text-left mb-6">
               <thead className="text-[10px] uppercase font-black text-slate-400 border-b"><tr><th className="pb-4">Product</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Price</th><th className="pb-4 text-right">Total</th></tr></thead>
               <tbody>{items.map((item, idx) => (<tr key={idx} className="border-b last:border-0"><td className="py-4 font-bold">{item.products?.name} <br/><span className="text-xs text-slate-400">{item.products?.model}</span></td><td className="text-center font-black">{item.quantity}</td><td className="text-right font-medium">{item.unit_price} ৳</td><td className="text-right font-black">{item.total_price} ৳</td></tr>))}</tbody>
             </table>
-            <div className="flex justify-between items-end border-t pt-6"><div><p className="font-black text-slate-800">{chalan.customers?.name}</p><p className="text-xs text-slate-400 italic">📍 {chalan.customers?.address || 'No Address'}</p></div><p className="text-4xl font-black text-slate-900">{chalan.total_amount} ৳</p></div>
+            <div className="flex justify-between items-end border-t pt-6">
+              <div>
+                {/* 🔴 ফিক্স: ডিটেইলসে সঠিক নাম ও ঠিকানা দেখানো */}
+                <p className="font-black text-slate-800">{getCustomerData(chalan).name}</p>
+                <p className="text-xs text-slate-400 italic">📍 {getCustomerData(chalan).address || 'No Address'}</p>
+              </div>
+              <p className="text-4xl font-black text-slate-900">{chalan.total_amount} ৳</p>
+            </div>
           </div>
 
           <div className="lg:col-span-4 bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl flex flex-col justify-between">
