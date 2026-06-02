@@ -95,7 +95,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">লোড হচ্ছে...</div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-black text-slate-500 text-xl italic">로드 হচ্ছে...</div>;
 
   return (
     <div className="min-h-screen bg-[#F4F5F7] relative" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -151,44 +151,50 @@ const PublicCatalog = ({ onAdminClick }) => {
                           
                           {/* 🟢 ইন স্টক কন্ডিশন সেকশন */}
                           {brand.inStock.length > 0 && (
-                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm flex flex-col items-center justify-center">
+                            <div className="w-full bg-[#009A66] text-white p-4 rounded-2xl font-bold border shadow-sm">
                               <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black text-center">✓ In Stock</p>
                               
-                              {/* 🛠️ ফিক্স: flex flex-wrap justify-center ম্যাজিক ব্যবহার করা হয়েছে, যা ১টি আইটেমকে অটোমেটিক মাঝে রাখবে এবং লেখাগুলো মিডল অ্যালাইন করবে */}
-                              <div className="flex flex-wrap justify-center gap-2 w-full">
-                                {brand.inStock.map(model => (
-                                  <button 
-                                    key={model} 
-                                    onClick={() => handleModelClick(brand.name, model)} 
-                                    className={`bg-white text-[#009A66] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate ${
-                                      brand.inStock.length === 1 ? 'w-48 mx-auto' : 'w-[48%]'
-                                    }`}
-                                  >
-                                    {model}
-                                  </button>
-                                ))}
+                              {/* 🛠️ ফিক্সড গ্রিড: ২-কলাম হবে এবং আইটেমগুলো সেন্টারে জাস্টিফাই হবে */}
+                              <div className="grid grid-cols-2 gap-2 justify-items-center justify-center w-full">
+                                {brand.inStock.map((model, idx) => {
+                                  // যদি টোটাল বাটন বিজোড় হয় (যেমন ৩ বা ৫ টা) এবং এটিই শেষ বাটন হয়
+                                  const isLastOdd = brand.inStock.length % 2 !== 0 && idx === brand.inStock.length - 1;
+                                  return (
+                                    <button 
+                                      key={model} 
+                                      onClick={() => handleModelClick(brand.name, model)} 
+                                      className={`bg-white text-[#009A66] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate h-11 flex items-center justify-center ${
+                                        isLastOdd ? 'col-span-2 w-44 mx-auto' : 'w-full'
+                                      }`}
+                                    >
+                                      {model}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
                           
                           {/* 🟡 আপকামিং সেকশন */}
                           {brand.upcoming.length > 0 && (
-                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold border shadow-sm flex flex-col items-center justify-center">
+                            <div className="w-full bg-[#deb100] text-white p-4 rounded-2xl font-bold border shadow-sm">
                               <p className="opacity-90 mb-3 uppercase tracking-wider text-[11px] font-black text-center">⏳ Coming Soon</p>
                               
-                              {/* 🛠️ ফিক্স: এখানেও ১টি আইটেম থাকলে উইডথ লিমিট করে সেন্টারে এলাইন করা হয়েছে */}
-                              <div className="flex flex-wrap justify-center gap-2 w-full">
-                                {brand.upcoming.map(model => (
-                                  <button 
-                                    key={model} 
-                                    onClick={() => handleModelClick(brand.name, model)} 
-                                    className={`bg-white text-[#b38f00] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate ${
-                                      brand.upcoming.length === 1 ? 'w-48 mx-auto' : 'w-[48%]'
-                                    }`}
-                                  >
-                                    {model}
-                                  </button>
-                                ))}
+                              <div className="grid grid-cols-2 gap-2 justify-items-center justify-center w-full">
+                                {brand.upcoming.map((model, idx) => {
+                                  const isLastOdd = brand.upcoming.length % 2 !== 0 && idx === brand.upcoming.length - 1;
+                                  return (
+                                    <button 
+                                      key={model} 
+                                      onClick={() => handleModelClick(brand.name, model)} 
+                                      className={`bg-white text-[#b38f00] hover:bg-slate-100 p-2.5 rounded-xl text-sm font-black transition-all shadow-sm active:scale-95 text-center truncate h-11 flex items-center justify-center ${
+                                        isLastOdd ? 'col-span-2 w-44 mx-auto' : 'w-full'
+                                      }`}
+                                    >
+                                      {model}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
