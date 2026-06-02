@@ -3,10 +3,12 @@ import { supabase } from '../supabaseClient';
 
 const ServiceManager = () => {
   const [searchNo, setSearchNo] = useState('');
-  const [record, setRecord] = useState(null); // চালান বা বিলের ডাটা
-  const [inverterItem, setInverterItem] = useState(null); // শুধুমাত্র ইনভার্টার আইটেম
-  const [serialNo, setSerialNo] = useState(''); // ইনভার্টার সিরিয়াল নম্বর
-  const [serviceHistory, setServiceHistory] = useState([]); // সার্ভিসের তথ্য
+  const [record, setRecord] = useState(null); 
+  const [inverterItem, setInverterItem] = useState(null); 
+  
+  // ৫টি বা যত পিস থাকবে, সবগুলোর সিরিয়াল অ্যারে হিসেবে সেভ করার জন্য স্টেট
+  const [serialNumbers, setSerialNumbers] = useState([]); 
+  const [serviceHistory, setServiceHistory] = useState([]); 
   const [loading, setLoading] = useState(false);
   const [serviceLoading, setServiceLoading] = useState(false);
 
@@ -18,13 +20,12 @@ const ServiceManager = () => {
     setLoading(true);
     setRecord(null);
     setInverterItem(null);
-    setSerialNo('');
+    setSerialNumbers([]);
     setServiceHistory([]);
 
     const queryText = searchNo.trim().toUpperCase();
 
     try {
-      // বিল বা চালান খুঁজে বের করা
       const { data: mainData, error: mainErr } = await supabase
         .from('chalans')
         .select(`*, customers (*)`)
@@ -40,7 +41,6 @@ const ServiceManager = () => {
 
       setRecord(mainData);
 
-      // ওই চালানের আন্ডারে থাকা আইটেমগুলো নিয়ে আসা
       const { data: itemData, error: itemErr } = await supabase
         .from('chalan_items')
         .select(`*, products (*)`)
@@ -48,7 +48,7 @@ const ServiceManager = () => {
 
       if (itemErr) throw itemErr;
 
-      // 🔍 শুধুমাত্র ইনভার্টার ফিল্টার করা (ক্যাটাগরি বা নামের মধ্যে 'Inverter' চেক করে)
+      // ইনভার্টার ফিল্টার করা
       const inverter = itemData?.find(item => 
         item.products?.category?.toLowerCase().includes('inverter') || 
         item.products?.name?.toLowerCase().includes('inverter')
@@ -56,8 +56,11 @@ const ServiceManager = () => {
 
       if (inverter) {
         setInverterItem(inverter);
+        // 🔄 কোয়ান্টিটি অনুযায়ী (যেমন: ৫টি) ফাঁকা সিরিয়াল নম্বরের অ্যারে তৈরি করা
+        const emptySerials = Array.from({ length: inverter.quantity }, () => "");
+        setSerialNumbers(emptySerials);
       } else {
-        setInverterItem(null); // বিলে কোনো ইনভার্টার নেই
+        setInverterItem(null);
       }
 
     } catch (error) {
@@ -67,28 +70,37 @@ const ServiceManager = () => {
     setLoading(false);
   };
 
-  // ২. ইনভার্টারের সিরিয়াল নম্বর দিয়ে সার্ভিসের তথ্য খোঁজা
-  const handleSerialSearch = async (e) => {
+  // সিরিয়াল ইনপুট চেঞ্জ হ্যান্ডলার
+  const handleSerialChange = (index, value) => {
+    const updatedSerials = [...serialNumbers];
+    updatedSerials[index] = value;
+    setSerialNumbers(updatedSerials);
+  };
+
+  // ২. ইনপুট করা সবগুলো সিরিয়াল নম্বর দিয়ে সার্ভিসের তথ্য খোঁজা
+  const handleAllSerialsSubmit = async (e) => {
     e.preventDefault();
-    if (!serialNo.trim()) return alert("ইনভার্টারের সিরিয়াল নম্বর দিন!");
+    
+    // চেক করা হচ্ছে কোনো ফিল্ড ফাঁকা আছে কিনা
+    const filledSerials = serialNumbers.map(s => s.trim().toUpperCase()).filter(s => s !== "");
+    if (filledSerials.length === 0) return alert("কমপক্ষে একটি সিরিয়াল নম্বর ইনপুট দিন!");
 
     setServiceLoading(true);
     setServiceHistory([]);
 
     try {
-      // আপনার ডেটাবেসের 'services' বা 'service_history' টেবিল থেকে সিরিয়াল অনুযায়ী ডাটা কুয়েরি
-      // (এখানে টেবিলের নাম 'services' এবং কলাম 'serial_no' ধরে করা হয়েছে, আপনার টেবিল অনুযায়ী পরিবর্তন করে নিতে পারেন)
+      // ডেটাবেসের 'services' টেবিল থেকে সবগুলো সিরিয়ালের ডাটা একসাথে খোঁজা (.in ফিল্টার ব্যবহার করে)
       const { data: sData, error: sErr } = await supabase
         .from('services') 
         .select('*')
-        .eq('serial_no', serialNo.trim().toUpperCase())
+        .in('serial_no', filledSerials)
         .order('created_at', { ascending: false });
 
       if (sErr) throw sErr;
 
       setServiceHistory(sData || []);
       if (sData?.length === 0) {
-        alert("এই সিরিয়াল নম্বরের কোনো সার্ভিসের তথ্য পাওয়া যায়নি!");
+        alert("ইনপুট করা সিরিয়াল নম্বরগুলোর কোনো সার্ভিসের তথ্য পাওয়া যায়নি!");
       }
 
     } catch (error) {
@@ -120,13 +132,12 @@ const ServiceManager = () => {
       {record && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in zoom-in-95">
           
-          {/* 📋 সেকশন ১: ইনভার্টার ডিটেইলস এবং সিরিয়াল নম্বর ইনপুট */}
+          {/* 📋 সেকশন ১: ইনভার্টার বিবরণ ও ডায়নামিক মাল্টিপল সিরিয়াল ইনপুট */}
           <div className="lg:col-span-5 space-y-6">
             <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">১. ইনভার্টারের বিবরণ</h3>
               
               {inverterItem ? (
-                // ইনভার্টার পাওয়া গেলে এই অংশটি দেখাবে
                 <div className="space-y-4">
                   <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
                     <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার মডেল</p>
@@ -136,57 +147,70 @@ const ServiceManager = () => {
                   
                   <div className="grid grid-cols-2 gap-2 text-sm bg-slate-50 p-3 rounded-xl">
                     <div>
-                      <span className="text-xs text-slate-400 block">পরিমাণ</span>
-                      <span className="font-black text-slate-700">{inverterItem.quantity} Pcs</span>
+                      <span className="text-xs text-slate-400 block">মোট পরিমাণ</span>
+                      <span className="font-black text-slate-700 text-base">{inverterItem.quantity} Pcs</span>
                     </div>
                     <div>
                       <span className="text-xs text-slate-400 block">ওয়ারেন্টি কাল</span>
-                      <span className="font-black text-slate-700">{inverterItem.products?.warranty || '১ বছর'}</span>
+                      <span className="font-black text-slate-700 text-base">{inverterItem.products?.warranty || '১ বছর'}</span>
                     </div>
                   </div>
 
-                  {/* 🔌 সিরিয়াল নম্বর ইনপুট করার ফরম */}
-                  <form onSubmit={handleSerialSearch} className="pt-4 border-t border-dashed space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase block">ইনভার্টার সিরিয়াল নম্বর ইনপুট করুন</label>
-                    <div className="flex gap-2">
-                      <input 
-                        type="text"
-                        value={serialNo}
-                        onChange={(e) => setSerialNo(e.target.value)}
-                        placeholder="যেমন: INV-SR-2026"
-                        className="flex-1 p-3 bg-slate-50 border rounded-xl font-bold uppercase outline-none focus:border-blue-600"
-                      />
-                      <button type="submit" disabled={serviceLoading} className="bg-blue-600 hover:bg-blue-700 text-white px-4 rounded-xl font-bold text-xs">
-                        {serviceLoading ? 'চেকিং...' : 'সাবমিট'}
-                      </button>
+                  {/* 🔌 কোয়ান্টিটি অনুযায়ী ডায়নামিক সিরিয়াল নম্বর ইনপুট লিস্ট */}
+                  <form onSubmit={handleAllSerialsSubmit} className="pt-4 border-t border-dashed space-y-4">
+                    <label className="text-xs font-black text-slate-500 uppercase block">
+                      প্রতিটি ইনভার্টারের সিরিয়াল নম্বর এন্ট্রি করুন ({inverterItem.quantity} পিস):
+                    </label>
+                    
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                      {serialNumbers.map((serial, index) => (
+                        <div key={index} className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border">
+                          <span className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center font-black text-xs text-slate-600">
+                            #{index + 1}
+                          </span>
+                          <input 
+                            type="text"
+                            value={serial}
+                            onChange={(e) => handleSerialChange(index, e.target.value)}
+                            placeholder={`সিরিয়াল নম্বর দিন`}
+                            className="flex-1 p-2 bg-white border rounded-lg font-bold uppercase text-sm outline-none focus:border-blue-600"
+                          />
+                        </div>
+                      ))}
                     </div>
+
+                    <button type="submit" disabled={serviceLoading} className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm transition-all shadow-md">
+                      {serviceLoading ? 'সার্ভিস তথ্য খোঁজা হচ্ছে...' : 'সবগুলো সিরিয়াল সাবমিট করুন'}
+                    </button>
                   </form>
                 </div>
               ) : (
-                // ইনভার্টার না পাওয়া গেলে এই নোটিশ শো করবে
                 <div className="p-6 text-center bg-red-50 border border-red-100 rounded-2xl">
                   <p className="font-black text-red-600 text-base">⚠️ এই বিলে কোন ইনভার্টার নেই</p>
-                  <p className="text-xs text-slate-400 mt-1">সার্চকৃত চালান/বিলে কোনো ইনভার্টার প্রোডাক্ট পাওয়া যায়নি।</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* 🛠️ সেকশন ২: সার্ভিসের তথ্য প্রদর্শন */}
+          {/* 🛠️ সেকশন ২: সাবমিট করা সিরিয়ালগুলোর সার্ভিসের তথ্য প্রদর্শন */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="bg-white p-6 rounded-3xl border shadow-sm h-full min-h-[300px] flex flex-col">
+            <div className="bg-white p-6 rounded-3xl border shadow-sm h-full min-h-[400px] flex flex-col">
               <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-3 mb-4">
                 ২. সার্ভিসের তথ্য (Service & Repair History)
               </h3>
 
-              {serialNo && serviceHistory.length > 0 ? (
-                // সিরিয়াল সাবমিট করার পর ডাটা থাকলে তা লিস্ট আকারে দেখাবে
-                <div className="space-y-4 flex-1 overflow-y-auto max-h-[400px] pr-2">
-                  <p className="text-xs font-bold text-green-600">✓ সিরিয়াল নম্বর {serialNo} এর জন্য {serviceHistory.length}টি রেকর্ড পাওয়া গেছে:</p>
+              {serviceHistory.length > 0 ? (
+                <div className="space-y-4 flex-1 overflow-y-auto max-h-[500px] pr-2">
+                  <p className="text-xs font-bold text-green-600">✓ ইনপুটকৃত সিরিয়ালগুলোর জন্য {serviceHistory.length}টি সার্ভিসের রেকর্ড পাওয়া গেছে:</p>
                   {serviceHistory.map((service) => (
-                    <div key={service.id} className="p-4 bg-slate-50 border rounded-2xl space-y-2">
+                    <div key={service.id} className="p-4 bg-slate-50 border border-l-4 border-l-blue-500 rounded-2xl space-y-2">
                       <div className="flex justify-between items-center">
-                        <span className="font-black text-slate-800 text-sm">Job ID: {service.job_no || service.id}</span>
+                        <div>
+                          <span className="font-black text-slate-800 text-sm block">Job ID: {service.job_no || service.id}</span>
+                          <span className="text-[10px] font-black bg-blue-100 text-blue-700 px-2 py-0.5 rounded uppercase">
+                            S/N: {service.serial_no}
+                          </span>
+                        </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${service.status === 'Done' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                           {service.status || 'Pending'}
                         </span>
@@ -200,15 +224,13 @@ const ServiceManager = () => {
                     </div>
                   ))}
                 </div>
-              ) : serialNo && !serviceLoading ? (
-                // সিরিয়াল দেওয়া হয়েছে কিন্তু ডাটা পাওয়া যায়নি
+              ) : serialNumbers.some(s => s !== "") && !serviceLoading ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400 italic">
-                  <p>এই সিরিয়ালের কোনো সার্ভিসের ইতিহাস পাওয়া যায়নি।</p>
+                  <p>এই সিরিয়াল নম্বরগুলোর কোনো সার্ভিসের ইতিহাস এখনও নেই।</p>
                 </div>
               ) : (
-                // শুরুতে যখন কোনো সিরিয়াল ইনপুট দেওয়া হয়নি
                 <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-300 italic border border-dashed rounded-2xl">
-                  <p>সেকশন ১ এ ইনভার্টারের সিরিয়াল নম্বর ইনপুট দিয়ে সাবমিট করলে সার্ভিসের যাবতীয় তথ্য এখানে দেখা যাবে।</p>
+                  <p>সেকশন ১ এর সিরিয়াল নম্বরগুলো এন্ট্রি দিয়ে সাবমিট করলে তাদের ওয়ান-বাই-ওয়ান সার্ভিসের তথ্য এখানে তালিকাভুক্ত হবে।</p>
                 </div>
               )}
             </div>
