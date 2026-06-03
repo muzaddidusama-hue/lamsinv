@@ -8,7 +8,7 @@ const StockManagement = () => {
   const [updateQty, setUpdateQty] = useState('');
   const [newPrice, setNewPrice] = useState(''); 
   const [type, setType] = useState('in');
-  const [purchaseSource, setPurchaseSource] = useState('Import'); // 🔴 নতুন: সোর্স স্টেট
+  const [purchaseSource, setPurchaseSource] = useState('Import'); // 🔴 লেজারের জন্য সোর্স স্টেট
 
   useEffect(() => {
     fetchProducts();
@@ -59,7 +59,7 @@ const StockManagement = () => {
       .eq('id', selectedProduct);
 
     if (!error) {
-      // 🔴 ফিক্সড লজিক: টাইপ 'in' (যোগ) হলে নির্বাচিত সোর্স সহ লেজার টেবিলে ডাটা পুশ হবে
+      // 🔴 লেজার লজিক: শুধুমাত্র যখনই স্টক 'in' (যোগ) হবে, তখনই লেজার টেবিলে ডাটা এন্ট্রি হবে
       if (type === 'in' && updateQty && parseInt(updateQty) > 0) {
         const { error: ledgerError } = await supabase.from('ledger').insert([
           {
@@ -67,7 +67,7 @@ const StockManagement = () => {
             quantity: parseInt(updateQty),
             date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
             in: new Date().toISOString(), // টাইমস্ট্যাম্প
-            source: purchaseSource // ইউজারের সিলেক্ট করা রিয়েল-টাইম সোর্স
+            source: purchaseSource // আপনার নির্বাচিত সোর্স
           }
         ]);
         if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
@@ -83,86 +83,91 @@ const StockManagement = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-10 p-4 font-['Inter']" style={{fontFamily: "'Hind Siliguri', sans-serif"}}>
+    <div className="max-w-6xl mx-auto space-y-10" style={{fontFamily: "'Hind Siliguri', sans-serif"}}>
       
       {/* আপডেট ফর্ম */}
       <div className="bg-white p-8 lg:p-12 rounded-[3rem] shadow-xl border-4 border-orange-100">
         <h2 className="text-3xl font-black text-slate-800 mb-8 border-b pb-4">🔄 স্টক ও প্রাইস ম্যানেজমেন্ট</h2>
         
-        <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
+        <form onSubmit={handleUpdate} className="space-y-6">
           
-          {/* প্রোডাক্ট সিলেকশন */}
-          <div className="md:col-span-3">
-            <label className="block text-sm font-bold text-slate-500 mb-2">প্রোডাক্ট সিলেক্ট করুন</label>
-            <select 
-              value={selectedProduct} 
-              onChange={(e) => handleProductChange(e.target.value)}
-              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold cursor-pointer"
-            >
-              <option value="">বাছাই করুন...</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id}>📦 {p.name} — {p.model} [{p.house}]</option>
-              ))}
-            </select>
-          </div>
-
-          {/* প্রাইস ইনপুট */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-bold text-orange-600 mb-2">নতুন ইউনিট প্রাইস</label>
-            <input 
-              type="number" 
-              value={newPrice} 
-              onChange={(e) => setNewPrice(e.target.value)}
-              placeholder="দাম"
-              className="w-full p-4 bg-orange-50 border-2 border-orange-200 rounded-2xl outline-none focus:border-orange-500 font-black text-xl text-orange-700"
-            />
-          </div>
-
-          {/* 🔴 নতুন ঘর: মাল আসার সোর্স (Source Selector) */}
-          <div className="md:col-span-3">
+          {/* 🔴 সোর্স সিলেক্টর: আপনার মেইন রো এর উপরে ক্লিন ভাবে প্লেস করা হয়েছে */}
+          <div className="max-w-xs">
             <label className="block text-sm font-bold text-slate-500 mb-2">মাল আসার সোর্স (Source)</label>
             <select 
               value={purchaseSource} 
               onChange={(e) => setPurchaseSource(e.target.value)}
               disabled={type !== 'in'} // শুধু স্টক যোগ করার সময়ই একটিভ থাকবে
-              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold cursor-pointer disabled:opacity-50"
+              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold cursor-pointer disabled:opacity-50"
             >
-              <option value="Import">Import (🚢)</option>
-              <option value="Out Purchase">Out Purchase (🛒)</option>
+              <option value="Import">Import</option>
+              <option value="Out Purchase">Out Purchase</option>
             </select>
           </div>
 
-          {/* স্টক আপডেট */}
-          <div className="md:col-span-2">
-            <label className="block text-sm font-bold text-slate-500 mb-2">স্টক ইন/আউট</label>
-            <div className="flex gap-2">
-              <input 
-                type="number" 
-                value={updateQty} 
-                onChange={(e) => setUpdateQty(e.target.value)}
-                placeholder="0"
-                className="w-1/2 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
-              />
+          {/* আপনার অরিজিনাল গ্রিড লেআউট (৪, ৩, ৩, ২) হুবহু অপরিবর্তিত রাখা হয়েছে */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-end">
+            
+            {/* প্রোডাক্ট সিলেকশন */}
+            <div className="md:col-span-4">
+              <label className="block text-sm font-bold text-slate-500 mb-2">প্রোডাক্ট সিলেক্ট করুন</label>
               <select 
-                value={type} 
-                onChange={(e) => setType(e.target.value)}
-                className="w-1/2 p-2 bg-slate-200 rounded-2xl font-black text-xs cursor-pointer"
+                value={selectedProduct} 
+                onChange={(e) => handleProductChange(e.target.value)}
+                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold cursor-pointer"
               >
-                <option value="in">যোগ (+)</option>
-                <option value="out">বিয়োগ (-)</option>
+                <option value="">বাছাই করুন...</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} - {p.model}</option>
+                ))}
               </select>
             </div>
-          </div>
 
-          {/* সাবমিট বাটন */}
-          <div className="md:col-span-2">
-            <button 
-              type="submit" 
-              disabled={loading}
-              className="w-full bg-slate-900 h-[62px] text-white py-4 rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg active:scale-95"
-            >
-              {loading ? '...' : 'সেভ করুন'}
-            </button>
+            {/* প্রাইস ইনপুট */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-bold text-orange-600 mb-2">নতুন ইউনিট প্রাইস (BDT)</label>
+              <input 
+                type="number" 
+                value={newPrice} 
+                onChange={(e) => setNewPrice(e.target.value)}
+                placeholder="দাম লিখুন"
+                className="w-full p-4 bg-orange-50 border-2 border-orange-200 rounded-2xl outline-none focus:border-orange-500 font-black text-xl text-orange-700"
+              />
+            </div>
+
+            {/* স্টক আপডেট */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-bold text-slate-500 mb-2">স্টক ইন/আউট</label>
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  value={updateQty} 
+                  onChange={(e) => setUpdateQty(e.target.value)}
+                  placeholder="0"
+                  className="w-1/2 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+                />
+                <select 
+                  value={type} 
+                  onChange={(e) => setType(e.target.value)}
+                  className="w-1/2 p-2 bg-slate-200 rounded-2xl font-black text-xs cursor-pointer"
+                >
+                  <option value="in">যোগ (+)</option>
+                  <option value="out">বিয়োগ (-)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* সাবমিট বাটন */}
+            <div className="md:col-span-2">
+              <button 
+                type="submit" 
+                disabled={loading}
+                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg active:scale-95"
+              >
+                {loading ? '...' : 'সেভ'}
+              </button>
+            </div>
+
           </div>
         </form>
       </div>
@@ -181,7 +186,7 @@ const StockManagement = () => {
             {products.map(p => (
               <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-8 py-6 font-bold text-slate-800">
-                  {p.name} <span className="block text-xs font-medium text-slate-400">{p.model} [{p.house}]</span>
+                  {p.name} <span className="block text-xs font-medium text-slate-400">{p.model}</span>
                 </td>
                 <td className="px-8 py-6 font-black text-slate-700">{p.unit_price} BDT</td>
                 <td className="px-8 py-6 text-center font-black">{p.stock_quantity || 0}</td>

@@ -502,7 +502,7 @@ const Reports = () => {
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টোমার ড্রপডাউন সিলেকশন</label>
                   <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">لিস্টের সকল কাস্টোমার (All Active)</option>
+                    <option value=""> লিস্টের সকল কাস্টোমার (All Active)</option>
                     {allCustomers.map(c => (<option key={c.id} value={c.name}>{c.name} — {c.phone}</option>))}
                   </select>
                 </div>
