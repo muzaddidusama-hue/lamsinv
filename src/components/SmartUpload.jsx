@@ -24,11 +24,39 @@ const SmartUpload = () => {
     if (!error && data) setDbProducts(data);
   };
 
-  // 🔴 স্মার্ট এবং ওয়েটেড ম্যাচিং অ্যালগরিদম ফিক্স
+  // 🔴 আল্ট্রা-স্মার্ট টাইপো-টলারেন্ট এবং টোকেনাইজড ম্যাচিং অ্যালগরিদম ফিক্স
   const findBestMatch = (aiDesc) => {
     if (!aiDesc) return null;
-    
-    const cleanDesc = aiDesc.toLowerCase().trim();
+
+    // হাইফেন, স্পেস ও স্পেশাল ক্যারেক্টার ক্লিন করার হেল্পার
+    const stripSpecial = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // বানানের আংশিক মিল বা টাইপো ধরার জন্য লেভেনস্টাইন সিমিলারিটি ক্যালকুলেটর (Fuzzy Match)
+    const getSimilarity = (s1, s2) => {
+      const len1 = s1.length;
+      const len2 = s2.length;
+      if (len1 === 0 || len2 === 0) return 0;
+      
+      const matrix = Array(len2 + 1).fill(null).map(() => Array(len1 + 1).fill(0));
+      for (let i = 0; i <= len1; i++) matrix[0][i] = i;
+      for (let j = 0; j <= len2; j++) matrix[j][0] = j;
+
+      for (let j = 1; j <= len2; j++) {
+        for (let i = 1; i <= len1; i++) {
+          const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          matrix[j][i] = Math.min(
+            matrix[j - 1][i] + 1,     // deletion
+            matrix[j][i - 1] + 1,     // insertion
+            matrix[j - 1][i - 1] + cost // substitution
+          );
+        }
+      }
+      return 1 - (matrix[len2][len1] / Math.max(len1, len2));
+    };
+
+    // এআই ডেসক্রিপশনকে ভেঙে আলাদা আলাদা শব্দে (Tokens) রূপান্তর
+    const aiTokens = aiDesc.toLowerCase().split(/[\s\-,_/\+]+/).filter(t => t.length > 1);
+
     let bestMatch = null;
     let maxScore = 0;
 
@@ -37,39 +65,48 @@ const SmartUpload = () => {
       const model = (product.model || '').toLowerCase().trim();
       const category = (product.category || '').toLowerCase().trim();
       
+      const cleanBrand = stripSpecial(brand);
+      const cleanModel = stripSpecial(model);
+
       let currentScore = 0;
 
-      // ১. যদি এক্সাক্ট মডেল নম্বরটি এআই টেক্সটের ভেতর পাওয়া যায় (সবচেয়ে গুরুত্বপূর্ণ)
-      if (model && cleanDesc.includes(model)) {
-        currentScore += 25;
-      }
+      aiTokens.forEach(token => {
+        const cleanToken = stripSpecial(token);
+        if (!cleanToken) return;
 
-      // ২. যদি এক্সাক্ট ব্র্যান্ড/কোম্পানির নামটি এআই টেক্সটের ভেতর পাওয়া যায়
-      if (brand && cleanDesc.includes(brand)) {
-        currentScore += 15;
-      }
+        // ১. মডেল নম্বরের স্মার্ট ম্যাচিং (যেমন: si3kt2 এর সাথে 3kt2 আংশিক বা পুর্ণাঙ্গ মিললে বড় স্কোর)
+        if (cleanModel && cleanToken) {
+          if (cleanModel === cleanToken) {
+            currentScore += 30; // শতভাগ মিল
+          } else if (cleanModel.includes(cleanToken) && cleanToken.length >= 3) {
+            currentScore += 22; // আংশিক মিল (যেমন ডাটাবেজের si3kt2 এর ভেতর ইনভয়েসের 3kt2 আছে)
+          } else if (cleanToken.includes(cleanModel) && cleanModel.length >= 3) {
+            currentScore += 22;
+          }
+        }
 
-      // ৩. ক্যাটাগরির সাধারণ শব্দগুলোর আংশিক মিলের জন্য ছোট বোনাস
-      const catWords = category.split(' ').filter(word => word.length > 1);
-      catWords.forEach(word => {
-        if (cleanDesc.includes(word)) currentScore += 2;
+        // ২. ব্র্যান্ড/কোম্পানি নামের টাইপো-টলারেন্ট ম্যাচিং (যেমন: Inkenergy vs Inhenergy)
+        if (cleanBrand) {
+          const brandSim = getSimilarity(cleanBrand, cleanToken);
+          if (brandSim >= 0.75) { // ৭৫% বা তার বেশি অক্ষরের মিল থাকলে টাইপো কাউন্ট হবে
+            currentScore += (brandSim * 15);
+          }
+        }
+
+        // ৩. ক্যাটাগরি ম্যাচিং বোনাস
+        if (category && category.includes(cleanToken)) {
+          currentScore += 2;
+        }
       });
 
-      // ৪. ব্র্যান্ড ও মডেলের টুকরো শব্দের মিলের জন্য অতিরিক্ত সেফটি চেক
-      const combinedWords = `${brand} ${model}`.split(' ').filter(word => word.length > 1);
-      combinedWords.forEach(word => {
-        if (cleanDesc.includes(word)) currentScore += 3;
-      });
-
-      // সর্বোচ্চ স্কোর ট্র্যাকিং
       if (currentScore > maxScore) {
         maxScore = currentScore;
         bestMatch = product;
       }
     });
 
-    // ⛔ থ্রেশহোল্ড ফিল্টার: ব্র্যান্ড বা মডেলের মিল না থাকলে (স্কোর ১৫ এর কম হলে) ভুল প্রোডাক্ট পিক করবে না
-    if (maxScore < 15) {
+    // মিনিমাম স্কোর থ্রেশহোল্ড সেফটি চেক (একেবারে কোনো মিল না থাকলে নো ম্যাচ দেখাবে)
+    if (maxScore < 10) {
       return null;
     }
 
@@ -209,7 +246,7 @@ const SmartUpload = () => {
     } catch (error) {
       console.error("Save Error:", error);
       alert("❌ " + error.message); 
-    } {
+    } finally {
       setIsSaving(false);
     }
   };
