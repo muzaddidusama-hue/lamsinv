@@ -90,54 +90,57 @@ const Reports = () => {
   const productWiseStats = getProductWiseStats();
 
   // 🔴 ফিক্সড লজিক: ইনভয়েস নাম ফরমেট ও লেজার নাম উলটপালট থাকলেও স্মার্টলি একই রো-তে মার্জ করার অ্যালগরিদম
+// 🔴 সমাধান: নতুন ও শক্তিশালী লেজার সামারি মেকানিজম
   const getLedgerSummary = () => {
-    const summaryArray = [];
+    const summaryMap = new Map();
 
-    // ১. প্রথমে সব স্টক ইন (Ledger) ডাটা প্রসেস করি
+    // সব প্রোডাক্টের একটি ইউনিক ম্যাপ তৈরি করি আইডি অনুযায়ী
+    allProducts.forEach(p => {
+      summaryMap.set(p.id, { product: `${p.name} - ${p.model}`, totalIn: 0, totalOut: 0 });
+    });
+
+    // স্টক ইন (Ledger) ডাটা যোগ করি
     ledgerData.forEach(item => {
-      if (!item.product) return;
-      
-      // অলরেডি অ্যারেতে থাকা কোনো প্রোডাক্টের সাথে ফাজি ম্যাচিং মেলে কিনা চেক করি
-      const existing = summaryArray.find(s => isSameProductFuzzy(s.product, item.product));
-      
-      if (existing) {
-        existing.totalIn += parseInt(item.quantity) || 0;
-      } else {
-        summaryArray.push({ product: item.product, totalIn: parseInt(item.quantity) || 0, totalOut: 0 });
+      // এখানে যদি product_id না থাকে, তবে নামের ওপর ভিত্তি করে ফাজি ম্যাচিং করবো
+      const p = allProducts.find(prod => 
+        (prod.name + ' ' + prod.model).toLowerCase().includes(item.product.toLowerCase()) || 
+        item.product.toLowerCase().includes(prod.name.toLowerCase())
+      );
+      if (p) {
+        const entry = summaryMap.get(p.id);
+        if (entry) entry.totalIn += parseInt(item.quantity) || 0;
       }
     });
 
-    // ২. এবার সেলস আউটের ডাটাগুলো মিলিয়ে অ্যারেতে যোগ বা ইনক্রিমেন্ট করি
+    // সেলস আউট (Chalans) ডাটা যোগ করি
     salesOutData.forEach(item => {
-      if (!item.product) return;
-
-      const existing = summaryArray.find(s => isSameProductFuzzy(s.product, item.product));
-      
-      if (existing) {
-        existing.totalOut += parseInt(item.quantity) || 0;
-      } else {
-        // যদি ইনপুট হিস্ট্রি না থাকে, তবে নতুন রো তৈরি হবে ও আউট যোগ হবে
-        summaryArray.push({ product: item.product, totalIn: 0, totalOut: parseInt(item.quantity) || 0 });
+      const p = allProducts.find(prod => 
+        (prod.name + ' ' + prod.model).toLowerCase().includes(item.product.toLowerCase()) || 
+        item.product.toLowerCase().includes(prod.name.toLowerCase())
+      );
+      if (p) {
+        const entry = summaryMap.get(p.id);
+        if (entry) entry.totalOut += parseInt(item.quantity) || 0;
       }
     });
 
-    return summaryArray;
+    return Array.from(summaryMap.values()).filter(s => s.totalIn > 0 || s.totalOut > 0);
   };
 
   const ledgerSummaryList = getLedgerSummary();
 
-  // 🔴 ফিক্সড লজিক: ইন্ডিভিজুয়াল প্রোডাক্ট ভিউতেও নামের ফরম্যাট দুই রকম হলেও যেন সম্পূর্ণ ইন-আউট হিস্ট্রি লোড হয়
   const getIndividualLedgerHistory = () => {
     const history = [];
     if (!ledgerSearch) return history;
 
+    // একই logic এ ডাটা ফিল্টার করি
     ledgerData.forEach(l => {
-      if (l.product && (l.product.toLowerCase() === ledgerSearch.toLowerCase() || isSameProductFuzzy(l.product, ledgerSearch))) {
+      if (l.product && (l.product.toLowerCase().includes(ledgerSearch.toLowerCase()) || ledgerSearch.toLowerCase().includes(l.product.toLowerCase()))) {
         history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
     salesOutData.forEach(s => {
-      if (s.product && (s.product.toLowerCase() === ledgerSearch.toLowerCase() || isSameProductFuzzy(s.product, ledgerSearch))) {
+      if (s.product && (s.product.toLowerCase().includes(ledgerSearch.toLowerCase()) || ledgerSearch.toLowerCase().includes(s.product.toLowerCase()))) {
         history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
