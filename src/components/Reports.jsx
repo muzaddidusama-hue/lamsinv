@@ -82,13 +82,13 @@ const Reports = () => {
       if (error) throw error;
       processReportData(chalans || []);
 
-      // 🔴 ফিক্স: সেলস আউট ডাটা নির্ভুলভাবে এক্সট্র্যাক্ট করে কাস্টমার নেম বাইন্ডিং
       const extractedOutItems = [];
       if (chalans) {
         chalans.forEach(ch => {
           if (ch.status === 'paid') {
             ch.chalan_items.forEach(item => {
-              const pKey = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
+              // 🔴 ফিক্স: ভ্যারিয়েবল নেম স্কোপ ফিক্স করা হয়েছে (pName)
+              const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
               extractedOutItems.push({
                 product: pName,
@@ -104,7 +104,6 @@ const Reports = () => {
       }
       setSalesOutData(extractedOutItems);
 
-      // লেজার টেবিল থেকে ডাটা লোড (তারিখ রেঞ্জ অনুযায়ী)
       const { data: ledger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -240,7 +239,7 @@ const Reports = () => {
     setLedgerSearch(val);
 
     if (val.length >= 1) {
-      const allUniqueNames = [...new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)])];
+      const allUniqueNames = [...new Set([...ledgerData.map(l => l.product || ''), ...salesOutData.map(s => s.product || '')])].filter(Boolean);
       const filtered = allUniqueNames.filter(name => name.toLowerCase().includes(val.toLowerCase()));
       setLedgerSuggestions(filtered.slice(0, 10));
       setShowLedgerSuggestions(true);
@@ -249,32 +248,12 @@ const Reports = () => {
     }
   };
 
-  const calculateTotals = () => {
-    let q = 0, m = 0, s = 0;
-    if (reportData && reportData.productStats) {
-      Object.values(reportData.productStats).forEach(stat => {
-        const pKey = `${stat.name}_${stat.house}`;
-        const currentMrp = parseFloat(mrps[pKey]) || 0;
-        q += stat.qty;
-        m += (currentMrp * stat.qty);
-        s += stat.total;
-      });
-    }
-    return { totalQty: q, totalMinAllowed: m, totalActualSold: s, totalSurplus: s - m };
-  };
-
-  const totals = calculateTotals();
-
-  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
-    .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
-    .sort((a, b) => b.amount - a.amount) : [];
-
-  const productWiseData = () => {
+  const getProductWiseStats = () => {
     if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
     let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
 
     Object.values(reportData.productStats).forEach(stat => {
-      if (stat.name.toLowerCase() === productSearch.toLowerCase()) {
+      if (stat.name && stat.name.toLowerCase() === productSearch.toLowerCase()) {
         totalQty += stat.qty;
         totalAmount += stat.total;
         if (stat.house === 'Head Office') { hoQty += stat.qty; hoAmount += stat.total; } 
@@ -284,15 +263,17 @@ const Reports = () => {
     return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
   };
 
-  const productWiseStats = productWiseData();
+  const productWiseStats = getProductWiseStats();
 
   const getLedgerSummary = () => {
     const summary = {};
     ledgerData.forEach(item => {
+      if (!item.product) return;
       if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
       summary[item.product].totalIn += parseInt(item.quantity) || 0;
     });
     salesOutData.forEach(item => {
+      if (!item.product) return;
       if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
       summary[item.product].totalOut += parseInt(item.quantity) || 0;
     });
@@ -304,12 +285,12 @@ const Reports = () => {
   const getIndividualLedgerHistory = () => {
     const history = [];
     ledgerData.forEach(l => {
-      if (l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+      if (l.product && l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
         history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
     salesOutData.forEach(s => {
-      if (s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+      if (s.product && s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
         history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
@@ -557,6 +538,7 @@ const Reports = () => {
               {productSearch ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 🔴 ফিক্স: productWiseStats অবজেক্ট থেকে প্রোপার্টি রিড করা হচ্ছে */}
                     <div className="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between">
                       <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
                       <h3 className="text-3xl font-black">{productWiseStats.totalQty} pcs</h3>
@@ -566,9 +548,25 @@ const Reports = () => {
                       <h3 className="text-3xl font-black">{productWiseStats.totalAmount} ৳</h3>
                     </div>
                   </div>
+
+                  <div className="border rounded-2xl overflow-hidden bg-white shadow-sm">
+                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢  হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
+                      <div className="p-6 space-y-2">
+                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.hoQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseStats.hoAmount} ৳</span></p>
+                      </div>
+                      <div className="p-6 space-y-2">
+                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏪 Showroom</p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.showroomQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseStats.showroomAmount} ৳</span></p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">প্রোডাক্ট সিলেক্ট করুন।</div>
+                <div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">সার্চ করে প্রোডাক্ট সিলেক্ট করুন।</div>
               )}
             </div>
           )}
@@ -586,10 +584,10 @@ const Reports = () => {
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋  লেজার ড্রপডাউন সিলেকশন</label>
                   <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
                     <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
-                    {[...new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)])].map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                    {[...new Set([...ledgerData.map(l => l.product || ''), ...salesOutData.map(s => s.product || '')])].filter(Boolean).map((name, i) => (<option key={i} value={name}>{name}</option>))}
                   </select>
                 </div>
               </div>
@@ -602,7 +600,7 @@ const Reports = () => {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
-                        <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও модель)</th>
+                        <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও মডেল)</th>
                         <th className="p-4 text-center w-40 text-emerald-600 bg-emerald-50/40">মোট স্টক ইন (+)</th>
                         <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
                       </tr>
@@ -624,32 +622,36 @@ const Reports = () => {
                     <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
+                  {/* 🔴 ফিক্স: ইন্ডিভিজুয়াল উইন্ডোতে কাস্টমার ডিটেইলস সহ ইন ও বিক্রয় আউটের লাইভ টাইমলাইন */}
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead>
                       <tr className="bg-slate-900 text-white text-[10px] uppercase">
                         <th className="p-4">তারিখ (Date)</th>
                         <th className="p-4 text-center">লেনদেনের ধরন</th>
-                        <th className="p-4 text-center">রেফারেন্স / সোর্স (Source/Ref)</th>
+                        <th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th>
                         <th className="p-4 text-right pr-12">পরিমাণ (Qty)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
                       {combinedLedgerHistory.map((l, i) => (
-                        <tr key={i}>
-                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4 font-mono text-slate-600">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                               {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
                             </span>
                           </td>
-                          <td className="p-4 text-center text-slate-500">{l.source}</td>
-                          <td className="p-4 text-right pr-12 font-black">
+                          <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
+                          <td className="p-4 text-right pr-12 font-black text-sm">
                             <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
                               {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
                             </span>
                           </td>
                         </tr>
                       ))}
+                      {combinedLedgerHistory.length === 0 && (
+                        <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -660,7 +662,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 ফিক্সড আল্ট্রা-মিনিমাল এ৪ পোর্ট্রেট ফরমাল PDF কন্টেন্ট - ট্যাব অনুযায়ী ডাইনামিক ইউআই */}
+      {/* 🔴 ফিক্সড আল্ট্রা-মিনিমাল এ৪ পোর্ট্রেট ফরমাল PDF কন্টেন্ট - ট্যাব অনুযায়ী সম্পূর্ণ ডাইনামিক পিডিএফ */}
       <div 
         id="formal-corporate-portrait-pdf" 
         className="hidden bg-white text-slate-900 mx-auto" 
@@ -679,18 +681,17 @@ const Reports = () => {
           </div>
         </div>
 
-        {/* সামারি কার্ড প্যানেল */}
         <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50">
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span>{totals.totalMinAllowed} ৳</span></div>
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Revenue</span><span>{totals.totalActualSold} ৳</span></div>
           <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span>+{totals.totalSurplus} ৳</span></div>
         </div>
 
-        {/* 🔴 ডাইনামিক টেবিল রেন্ডারার (ট্যাব ভিত্তিক পিডিএফ এক্সপোর্ট মেকানিজম) */}
+        {/* ডাইনামিক টেবিল রেন্ডারার */}
         <div className="mt-6">
           <table className="w-full text-left text-[10px] border-collapse">
             
-            {/* ক) summary এবং product ট্যাব এর পিডিএফ রেন্ডার */}
+            {/* ১. summary এবং product ট্যাব এর পিডিএফ */}
             {(reportType === 'summary' || reportType === 'product') && (
               <>
                 <thead>
@@ -720,7 +721,7 @@ const Reports = () => {
               </>
             )}
 
-            {/* খ) house ট্যাবের পিডিএফ রেন্ডার */}
+            {/* ২. house ট্যাবের পিডিএফ */}
             {reportType === 'house' && (
               <>
                 <thead>
@@ -742,7 +743,7 @@ const Reports = () => {
               </>
             )}
 
-            {/* গ) customer ট্যাবের পিডিএফ রেন্ডার */}
+            {/* ৩. customer ট্যাবের পিডিএফ */}
             {reportType === 'customer' && (
               <>
                 <thead>
@@ -764,7 +765,7 @@ const Reports = () => {
               </>
             )}
 
-            {/* ঘ) ledger_report (স্টক ইন-আউট খতিয়ান) ট্যাবের পিডিএফ রেন্ডার */}
+            {/* ৪. ledger_report (ইন এবং আউট খতিয়ান) ট্যাবের পিডিএফ */}
             {reportType === 'ledger_report' && (
               <>
                 {(!ledgerSearch) ? (
