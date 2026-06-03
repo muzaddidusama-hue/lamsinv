@@ -92,56 +92,64 @@ const Reports = () => {
   // 🔴 ফিক্সড লজিক: ইনভয়েস নাম ফরমেট ও লেজার নাম উলটপালট থাকলেও স্মার্টলি একই রো-তে মার্জ করার অ্যালগরিদম
 // 🔴 সমাধান: নতুন ও শক্তিশালী লেজার সামারি মেকানিজম
 // 🔴 নতুন স্মার্ট লজিক: ব্র্যান্ড এবং মডেলের কি-ওয়ার্ড মিলিয়ে ইউনিক প্রোডাক্ট হিসেবে ধরবে
-// 1. Declare your functions FIRST
-  const fetchAllCustomers = async () => {
-    const { data } = await supabase.from('customers').select('id, name, phone').order('name', { ascending: true });
-    if (data) setAllCustomers(data);
+// 🔴 ব্র্যান্ড এবং মডেল কি-ওয়ার্ড ম্যাচিং লজিক (AE Solar, LEFN, Inhenergy + 550W, 700W ইত্যাদি)
+  const getStandardKey = (name) => {
+    if (!name) return 'unknown';
+    const t = name.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+    const brands = ['ae solar', 'ae', 'solar', 'lefn', 'inhenergy', 'deye'];
+    const models = ['550w', '700w', 'si3kt2', '10k', '500w', '3ks2', '1000va'];
+    
+    const b = brands.find(brand => t.includes(brand)) || 'other';
+    const m = models.find(model => t.includes(model)) || 'gen';
+    
+    return `${b}_${m}`;
   };
 
-  const fetchAllProducts = async () => {
-    const { data } = await supabase.from('products').select('id, name, model, category').order('name', { ascending: true });
-    if (data) {
-      const uniqueProds = [];
-      const keys = new Set();
-      data.forEach(p => {
-        const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
-        if (!keys.has(fullName)) {
-          keys.add(fullName);
-          uniqueProds.push({ ...p, fullName });
-        }
-      });
-      setAllProducts(uniqueProds);
-    }
+  const getLedgerSummary = () => {
+    const summaryMap = new Map();
+
+    ledgerData.forEach(item => {
+      const key = getStandardKey(item.product);
+      if (!key || key === 'other_gen') return;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
+      }
+      summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
+    });
+
+    salesOutData.forEach(item => {
+      const key = getStandardKey(item.product);
+      if (!key || key === 'other_gen') return;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
+      }
+      summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
+    });
+
+    return Array.from(summaryMap.values());
   };
 
-  const generateReport = async () => {
-    setLoading(true);
-    // ... (rest of your generateReport logic)
+  const ledgerSummaryList = getLedgerSummary();
+
+  const getIndividualLedgerHistory = () => {
+    if (!ledgerSearch) return [];
+    const searchKey = getStandardKey(ledgerSearch);
+    
+    const history = [];
+    ledgerData.forEach(l => {
+      if (getStandardKey(l.product) === searchKey) {
+        history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
+      }
+    });
+    salesOutData.forEach(s => {
+      if (getStandardKey(s.product) === searchKey) {
+        history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
+      }
+    });
+    return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
-  // 2. Place your useEffects AFTER the functions are defined
-  useEffect(() => {
-    fetchAllCustomers(); 
-    fetchAllProducts(); 
-  }, []);
-
-  useEffect(() => {
-    generateReport();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]); 
-  // Note: If you don't use exhaustive-deps disable, you will need to wrap generateReport in useCallback.
-
-  // 3. Keep your helper variables and derived state at the bottom
   const combinedLedgerHistory = getIndividualLedgerHistory();
-
-  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
-    .filter(c => {
-      const nameStr = c.name ? String(c.name).toLowerCase() : '';
-      const phoneStr = c.phone ? String(c.phone) : '';
-      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
-      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
-    })
-    .sort((a, b) => b.amount - a.amount) : [];
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
