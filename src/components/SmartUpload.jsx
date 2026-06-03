@@ -24,24 +24,55 @@ const SmartUpload = () => {
     if (!error && data) setDbProducts(data);
   };
 
+  // 🔴 স্মার্ট এবং ওয়েটেড ম্যাচিং অ্যালগরিদম ফিক্স
   const findBestMatch = (aiDesc) => {
     if (!aiDesc) return null;
-    const cleanDesc = aiDesc.toLowerCase().replace(/[^a-z0-9]/g, ' '); 
-    const aiKeywords = cleanDesc.split(' ').filter(word => word.length > 1);
+    
+    const cleanDesc = aiDesc.toLowerCase().trim();
     let bestMatch = null;
-    let maxMatchCount = 0;
+    let maxScore = 0;
 
     dbProducts.forEach(product => {
-      const dbFullName = `${product.category || ''} ${product.model || ''} ${product.name || ''}`.toLowerCase();
-      let currentMatches = 0;
-      aiKeywords.forEach(word => {
-        if (dbFullName.includes(word)) currentMatches++;
+      const brand = (product.name || '').toLowerCase().trim();
+      const model = (product.model || '').toLowerCase().trim();
+      const category = (product.category || '').toLowerCase().trim();
+      
+      let currentScore = 0;
+
+      // ১. যদি এক্সাক্ট মডেল নম্বরটি এআই টেক্সটের ভেতর পাওয়া যায় (সবচেয়ে গুরুত্বপূর্ণ)
+      if (model && cleanDesc.includes(model)) {
+        currentScore += 25;
+      }
+
+      // ২. যদি এক্সাক্ট ব্র্যান্ড/কোম্পানির নামটি এআই টেক্সটের ভেতর পাওয়া যায়
+      if (brand && cleanDesc.includes(brand)) {
+        currentScore += 15;
+      }
+
+      // ৩. ক্যাটাগরির সাধারণ শব্দগুলোর আংশিক মিলের জন্য ছোট বোনাস
+      const catWords = category.split(' ').filter(word => word.length > 1);
+      catWords.forEach(word => {
+        if (cleanDesc.includes(word)) currentScore += 2;
       });
-      if (currentMatches > maxMatchCount) {
-        maxMatchCount = currentMatches;
+
+      // ৪. ব্র্যান্ড ও মডেলের টুকরো শব্দের মিলের জন্য অতিরিক্ত সেফটি চেক
+      const combinedWords = `${brand} ${model}`.split(' ').filter(word => word.length > 1);
+      combinedWords.forEach(word => {
+        if (cleanDesc.includes(word)) currentScore += 3;
+      });
+
+      // সর্বোচ্চ স্কোর ট্র্যাকিং
+      if (currentScore > maxScore) {
+        maxScore = currentScore;
         bestMatch = product;
       }
     });
+
+    // ⛔ থ্রেশহোল্ড ফিল্টার: ব্র্যান্ড বা মডেলের মিল না থাকলে (স্কোর ১৫ এর কম হলে) ভুল প্রোডাক্ট পিক করবে না
+    if (maxScore < 15) {
+      return null;
+    }
+
     return bestMatch;
   };
 
@@ -71,7 +102,6 @@ const SmartUpload = () => {
       let cleanedJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
       const parsedData = JSON.parse(cleanedJson.substring(cleanedJson.indexOf('{'), cleanedJson.lastIndexOf('}') + 1));
       
-      // 🔴 এআই থেকে ডাটা আসার পর, যদি কোনো ফিল্ড মিসিং থাকে তবে সেটাকে খালি স্ট্রিং হিসেবে সেট করে দিচ্ছি, যাতে ইউজার এডিট করতে পারে
       setExtractedData({
         ...parsedData,
         bill_no: parsedData.bill_no || '',
@@ -117,7 +147,7 @@ const SmartUpload = () => {
       let customerId = null;
 
       if (cPhone) {
-        const { data: existingCust, error: searchErr } = await supabase.from('customers').select('id').eq('phone', cPhone).maybeSingle();
+        const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', cPhone).maybeSingle();
         
         if (existingCust) {
           customerId = existingCust.id;
@@ -140,7 +170,6 @@ const SmartUpload = () => {
         customerId = newCust.id;
       }
 
-      // 🔴 'chalans' টেবিলে ডাটা ইনসার্ট করার সময় ইউজারের দেওয়া বা এডিট করা Bill No এবং Chalan No ব্যবহার করা হবে
       const chalanPayload = {
         bill_no: extractedData.bill_no || "N/A",
         chalan_no: extractedData.chalan_no || `AUTO-${Date.now().toString().slice(-6)}`,
@@ -173,14 +202,14 @@ const SmartUpload = () => {
         }
       }
 
-      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
+      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
       setExtractedData(null); setImageFile(null); setPreview(null); setShowConfirmModal(false);
       fetchProducts(); 
 
     } catch (error) {
       console.error("Save Error:", error);
       alert("❌ " + error.message); 
-    } finally {
+    } {
       setIsSaving(false);
     }
   };
@@ -204,14 +233,13 @@ const SmartUpload = () => {
           }} className="mb-6 block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-8 file:rounded-2xl file:border-0 file:bg-orange-50 file:text-orange-700 font-bold cursor-pointer" />
           {preview && <img src={preview} alt="Preview" className="max-h-72 rounded-3xl mb-6 shadow-xl border-8 border-slate-50" />}
           <button onClick={handleScanImage} disabled={isLoading || !imageFile} className="w-full bg-orange-600 text-white py-5 rounded-[1.5rem] font-black text-xl hover:bg-slate-900 transition-all shadow-xl disabled:bg-slate-200">
-            {isLoading ? '🤖 AI দিয়ে স্ক্যান হচ্ছে...' : `${uploadMode} স্ক্যান করুন`}
+            {isLoading ? '🤖 AI দিয়ে স্ক্যান হচ্ছে...' : `${uploadMode} স্ক্যান করুন`}
           </button>
         </div>
 
         {extractedData && extractedData.items && (
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-orange-100 animate-in fade-in zoom-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              
               <div className="space-y-4">
                 <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
                     <label className="text-[10px] font-black text-orange-500 uppercase block mb-1">সোর্স হাউজ (Stock Source)</label>
@@ -220,33 +248,17 @@ const SmartUpload = () => {
                         <option value="Showroom">Showroom</option>
                     </select>
                 </div>
-                
-                {/* 🔴 Bill No ফিল্ড সবসময় দেখাবে */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
                       Bill No {uploadMode === 'Challan' && <span className="text-orange-500">(Optional for Challan)</span>}
                     </label>
-                    <input 
-                      type="text" 
-                      value={extractedData.bill_no || ''} 
-                      onChange={(e) => setExtractedData({...extractedData, bill_no: e.target.value})} 
-                      className="w-full bg-transparent font-bold text-slate-800 outline-none" 
-                      placeholder="Enter Bill No" 
-                    />
+                    <input type="text" value={extractedData.bill_no || ''} onChange={(e) => setExtractedData({...extractedData, bill_no: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Bill No" />
                 </div>
-                
-                {/* 🔴 Chalan No ফিল্ড সবসময় দেখাবে */}
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
                       Chalan No {uploadMode === 'Bill' && <span className="text-orange-500">(Required for reference)</span>}
                     </label>
-                    <input 
-                      type="text" 
-                      value={extractedData.chalan_no || ''} 
-                      onChange={(e) => setExtractedData({...extractedData, chalan_no: e.target.value})} 
-                      className="w-full bg-transparent font-bold text-slate-800 outline-none" 
-                      placeholder="Enter Chalan No" 
-                    />
+                    <input type="text" value={extractedData.chalan_no || ''} onChange={(e) => setExtractedData({...extractedData, chalan_no: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Chalan No" />
                 </div>
               </div>
 
@@ -264,7 +276,6 @@ const SmartUpload = () => {
                     <input type="text" value={extractedData.customer_address || ''} onChange={(e) => setExtractedData({...extractedData, customer_address: e.target.value})} className="w-full bg-transparent font-bold text-slate-800 outline-none" placeholder="Enter Full Address" />
                 </div>
               </div>
-
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-100 mb-8">
@@ -325,7 +336,7 @@ const SmartUpload = () => {
                   <div key={idx} className="p-5 rounded-3xl bg-slate-50 border border-slate-100 flex justify-between items-center">
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Matched Product</p>
-                      <p className="font-black text-slate-800">{match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}</p>
+                      <p className="font-black text-slate-800">{match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}</p>
                       <p className="text-xs text-slate-400 italic">Extracted: {match.aiDescription}</p>
                     </div>
                     <div className="text-right">
