@@ -85,9 +85,8 @@ const Reports = () => {
       const extractedOutItems = [];
       if (chalans) {
         chalans.forEach(ch => {
-          if (ch.status === 'paid') {
+          if (ch.status === 'paid' && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              // 🔴 ফিক্স: ভ্যারিয়েবল নেম স্কোপ ফিক্স করা হয়েছে (pName)
               const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
               extractedOutItems.push({
@@ -150,7 +149,7 @@ const Reports = () => {
       }
 
       if (isPaid && ch.customers) {
-        const custName = ch.customers.name;
+        const custName = ch.customers.name || 'Walk-in';
         const custPhone = ch.customers.phone || '';
         const custKey = `${custName}_${custPhone}`; 
 
@@ -160,13 +159,15 @@ const Reports = () => {
         data.customerStats[custKey].amount += amt;
         data.customerStats[custKey].bills.push(ch);
         
-        ch.chalan_items.forEach(item => {
-          const pName = `${item.products?.category || ''} ${item.products?.model || ''}`.trim();
-          data.customerStats[custKey].items.push(`${pName} (${item.quantity} pcs)`);
-        });
+        if (ch.chalan_items) {
+          ch.chalan_items.forEach(item => {
+            const pName = `${item.products?.category || ''} ${item.products?.model || ''}`.trim();
+            data.customerStats[custKey].items.push(`${pName} (${item.quantity} pcs)`);
+          });
+        }
       }
 
-      if (isPaid) {
+      if (isPaid && ch.chalan_items) {
         ch.chalan_items.forEach(item => {
           const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
           const pKey = `${pName}_${house}`; 
@@ -194,6 +195,16 @@ const Reports = () => {
 
     setReportData(data);
   };
+
+  // 🔴 ফিক্স: কাস্টোমার ফিল্টারিং করার সময় নাল চেক কন্ডিশন সেফ করা হয়েছে
+  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
+    .filter(c => {
+      const nameStr = c.name ? String(c.name).toLowerCase() : '';
+      const phoneStr = c.phone ? String(c.phone) : '';
+      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
+      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+    })
+    .sort((a, b) => b.amount - a.amount) : [];
 
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
@@ -226,7 +237,7 @@ const Reports = () => {
     setProductSearch(val);
 
     if (val.length >= 1) {
-      const filtered = allProducts.filter(p => p.fullName.toLowerCase().includes(val.toLowerCase()));
+      const filtered = allProducts.filter(p => p.fullName?.toLowerCase().includes(val.toLowerCase()));
       setProductSuggestions(filtered.slice(0, 10));
       setShowProductSuggestions(true);
     } else {
@@ -538,7 +549,6 @@ const Reports = () => {
               {productSearch ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* 🔴 ফিক্স: productWiseStats অবজেক্ট থেকে প্রোপার্টি রিড করা হচ্ছে */}
                     <div className="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between">
                       <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
                       <h3 className="text-3xl font-black">{productWiseStats.totalQty} pcs</h3>
@@ -554,7 +564,7 @@ const Reports = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
                       <div className="p-6 space-y-2">
                         <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
-                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.hoQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">بীর বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.hoQty} pcs</span></p>
                         <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseStats.hoAmount} ৳</span></p>
                       </div>
                       <div className="p-6 space-y-2">
@@ -622,7 +632,7 @@ const Reports = () => {
                     <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
-                  {/* 🔴 ফিক্স: ইন্ডিভিজুয়াল উইন্ডোতে কাস্টমার ডিটেইলস সহ ইন ও বিক্রয় আউটের লাইভ টাইমলাইন */}
+                  
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead>
                       <tr className="bg-slate-900 text-white text-[10px] uppercase">
@@ -635,7 +645,7 @@ const Reports = () => {
                     <tbody className="divide-y font-bold text-slate-700">
                       {combinedLedgerHistory.map((l, i) => (
                         <tr key={i} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4 font-mono text-slate-600">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                               {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
@@ -662,7 +672,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 ফিক্সড আল্ট্রা-মিনিমাল এ৪ পোর্ট্রেট ফরমাল PDF কন্টেন্ট - ট্যাব অনুযায়ী সম্পূর্ণ ডাইনামিক পিডিএফ */}
+      {/* 🔴 ডাইনামিক এবং ক্র্যাশ-প্রুফ এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
       <div 
         id="formal-corporate-portrait-pdf" 
         className="hidden bg-white text-slate-900 mx-auto" 
@@ -687,17 +697,14 @@ const Reports = () => {
           <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span>+{totals.totalSurplus} ৳</span></div>
         </div>
 
-        {/* ডাইনামিক টেবিল রেন্ডারার */}
         <div className="mt-6">
           <table className="w-full text-left text-[10px] border-collapse">
             
-            {/* ১. summary এবং product ট্যাব এর পিডিএফ */}
             {(reportType === 'summary' || reportType === 'product') && (
               <>
                 <thead>
                   <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
                     <th className="pb-2 w-2/5">Product Description Specification</th>
-                    <th className="pb-2 text-center">House</th>
                     <th className="pb-2 text-center">Volume</th>
                     <th className="pb-2 text-right">Actual Sold</th>
                   </tr>
@@ -705,14 +712,13 @@ const Reports = () => {
                 <tbody className="divide-y divide-slate-200">
                   {reportType === 'product' ? Object.values(reportData?.productStats || {}).map((stat, idx) => (
                     <tr key={idx}>
-                      <td className="py-2 font-semibold">{stat.name}</td>
-                      <td className="py-2 text-center uppercase">{stat.house}</td>
+                      <td className="py-2 font-semibold">{stat.name} ({stat.house})</td>
                       <td className="py-2 text-center font-bold">{stat.qty} pcs</td>
                       <td className="py-2 text-right font-bold">{stat.total} ৳</td>
                     </tr>
                   )) : Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
                     <tr key={idx}>
-                      <td className="py-2 font-semibold" colSpan="2">{prod.name}</td>
+                      <td className="py-2 font-semibold">{prod.name}</td>
                       <td className="py-2 text-center font-bold">{prod.qty} pcs</td>
                       <td className="py-2 text-right font-bold">{prod.total} ৳</td>
                     </tr>
@@ -721,7 +727,6 @@ const Reports = () => {
               </>
             )}
 
-            {/* ২. house ট্যাবের পিডিএফ */}
             {reportType === 'house' && (
               <>
                 <thead>
@@ -735,15 +740,14 @@ const Reports = () => {
                   {Object.keys(reportData?.houseStats || {}).map((house, idx) => (
                     <tr key={idx}>
                       <td className="py-3 font-semibold">🏢 {house}</td>
-                      <td className="py-3 text-center font-bold">{reportData.houseStats[house].bills} Bills</td>
-                      <td className="py-3 text-right font-black text-blue-900">{reportData.houseStats[house].amount} ৳</td>
+                      <td className="py-3 text-center font-bold">{reportData?.houseStats?.[house]?.bills || 0} Bills</td>
+                      <td className="py-3 text-right font-black text-blue-900">{reportData?.houseStats?.[house]?.amount || 0} ৳</td>
                     </tr>
                   ))}
                 </tbody>
               </>
             )}
 
-            {/* ৩. customer ট্যাবের পিডিএফ */}
             {reportType === 'customer' && (
               <>
                 <thead>
@@ -765,7 +769,6 @@ const Reports = () => {
               </>
             )}
 
-            {/* ৪. ledger_report (ইন এবং আউট খতিয়ান) ট্যাবের পিডিএফ */}
             {reportType === 'ledger_report' && (
               <>
                 {(!ledgerSearch) ? (
@@ -823,7 +826,6 @@ const Reports = () => {
           </table>
         </div>
 
-        {/* সিগনেচার বার */}
         <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[8px] uppercase tracking-wider text-slate-400 font-bold">
           <div><div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By (Accounts)</div></div>
           <div><div className="border-t border-slate-300 pt-1.5 mx-4">Verified By (Auditor)</div></div>
@@ -831,7 +833,7 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* কাস্টোমার স্পেসিফিক বিল পপ-আপ মডাল উইন্ডো */}
+      {/* কাস্টোমার বিল পপ-আপ মডাল */}
       {selectedCustomerBills && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
@@ -867,7 +869,7 @@ const Reports = () => {
                       <tr><th className="p-3">Item Details</th><th className="p-3 text-center">Qty</th><th className="p-3 text-right">Total</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 font-bold">
-                      {bill.chalan_items.map((item, j) => (
+                      {bill.chalan_items?.map((item, j) => (
                         <tr key={j}>
                           <td className="p-3 text-slate-700">{item.products?.name} <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model} ({item.products?.category})</span></td>
                           <td className="p-3 text-center text-blue-600">{item.quantity} pcs</td>
