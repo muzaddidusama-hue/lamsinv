@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { printChallan } from '../utils/printChalan';
+import { printChallan } from '../utils/printChallan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 
@@ -16,6 +16,7 @@ const Dashboard = () => {
   const [modalType, setModalType] = useState(''); 
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [billNo, setBillNo] = useState('');
 
   useEffect(() => { fetchDashboardData(); }, []);
 
@@ -29,6 +30,7 @@ const Dashboard = () => {
       const { data: tChalans } = await supabase.from('chalans').select('*, customers(*)').gte('created_at', todayISO).order('created_at', { ascending: false });
       const { data: tBills } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', todayISO).order('created_at', { ascending: false });
       const { data: stock } = await supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true });
+      
       setHoldChalans(hold || []);
       setTodayChalans(tChalans || []);
       setTodayBills(tBills || []);
@@ -38,7 +40,7 @@ const Dashboard = () => {
   };
 
   const handleViewDetails = async (item, type) => {
-    setSelectedItem(item); setModalType(type); setPaymentMethod('');
+    setSelectedItem(item); setModalType(type); setPaymentMethod(''); setBillNo('');
     if (type !== 'product') {
         const { data } = await supabase.from('chalan_items').select('*, products(*)').eq('chalan_id', item.id);
         setModalItems(data || []);
@@ -46,138 +48,98 @@ const Dashboard = () => {
   };
 
   const handleAction = async () => {
+    if (!selectedItem.is_in_house && (!paymentMethod || !billNo)) return alert('বিল নম্বর ও পেমেন্ট মেথড জরুরি!');
+    
     setProcessing(true);
     try {
       if (selectedItem.is_in_house) {
-        // ইন-হাউজ ট্রান্সফার: স্টক মাইনাস ও প্লাস
         for (let itm of modalItems) {
-          const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
-          if (sourceP) await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
-          
+          await supabase.from('products').update({ stock_quantity: itm.products.stock_quantity - itm.quantity }).eq('id', itm.product_id);
           const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('model', itm.products.model).eq('house', selectedItem.transfer_to).maybeSingle();
           if (targetP) await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
           else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: selectedItem.transfer_to }]);
         }
         await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
       } else {
-        // সেলস পেমেন্ট ও স্টক আপডেট
         for (let itm of modalItems) {
-          const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
-          if (p) await supabase.from('products').update({ stock_quantity: p.stock_quantity - itm.quantity }).eq('id', p.id);
+          await supabase.from('products').update({ stock_quantity: itm.products.stock_quantity - itm.quantity }).eq('id', itm.product_id);
         }
-        const bNo = `BLL-${Date.now().toString().slice(-6)}`;
-        await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: bNo }).eq('id', selectedItem.id);
-        
-        // বিল প্রিন্ট করার লজিক
-        const billData = { ...selectedItem, bill_no: bNo, payment_method: paymentMethod };
-        const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-        printBill(billData, getCustomerData(selectedItem), printItems);
+        await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: billNo }).eq('id', selectedItem.id);
       }
       alert('সফল হয়েছে!'); setSelectedItem(null); fetchDashboardData();
     } catch (e) { alert('ত্রুটি: ' + e.message); }
     setProcessing(false);
   };
 
-  const getCustomerData = (item) => {
-    return {
-      name: item.customer_name || item.customers?.name || (item.is_in_house ? 'Transfer' : 'Walk-in'),
-      phone: item.phone || item.customers?.phone || '',
-      address: item.address || item.customers?.address || ''
-    };
-  };
+  const getCustomerData = (item) => ({
+    name: item.customer_name || item.customers?.name || (item.is_in_house ? 'Transfer' : 'Walk-in'),
+    phone: item.phone || item.customers?.phone || '',
+    address: item.address || item.customers?.address || ''
+  });
 
-  const handlePrint = () => {
-    const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    const customerData = getCustomerData(selectedItem); 
-    if (modalType === 'bill') printBill(selectedItem, customerData, printItems);
-    else printChallan(selectedItem, customerData, printItems);
-  };
-
-  const handleDownload = () => {
-    const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    const customerData = getCustomerData(selectedItem); 
-    downloadPDF(selectedItem, customerData, printItems, modalType === 'bill' ? 'Bill' : 'Challan');
-  };
-
-  if (loading) return <div className="flex justify-center items-center h-screen text-slate-400 font-black animate-pulse uppercase tracking-widest text-xs">Loading LAMS System...</div>;
+  if (loading) return <div className="flex justify-center items-center h-screen font-black animate-pulse">Loading...</div>;
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 font-['Inter'] pb-20">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Pending Action', val: holdChalans.length, color: 'bg-orange-500', icon: '⏳' },
-          { label: "Today's Chalans", val: todayChalans.length, color: 'bg-blue-600', icon: '📦' },
-          { label: "Today's Sales", val: todayBills.length, color: 'bg-green-600', icon: '🧾' },
-          { label: 'Low Stock Alert', val: lowStockProducts.length, color: 'bg-red-500', icon: '⚠️' }
-        ].map((s, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between overflow-hidden relative group">
-            <div className="absolute -right-2 -bottom-2 text-6xl opacity-5">{s.icon}</div>
-            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p><h3 className="text-3xl font-black text-slate-800 mt-1">{s.val}</h3></div>
+    <div className="w-full max-w-[1600px] mx-auto p-8 space-y-8 pb-20">
+      {/* স্ট্যাটাস কার্ডস */}
+      <div className="grid grid-cols-4 gap-4">
+        {[ { label: 'Pending Action', val: holdChalans.length, color: 'bg-orange-500', icon: '⏳' }, { label: "Today's Chalans", val: todayChalans.length, color: 'bg-blue-600', icon: '📦' }, { label: "Today's Sales", val: todayBills.length, color: 'bg-green-600', icon: '🧾' }, { label: 'Low Stock Alert', val: lowStockProducts.length, color: 'bg-red-500', icon: '⚠️' } ].map((s, i) => (
+          <div key={i} className="bg-white p-6 rounded-[2rem] border shadow-sm flex justify-between items-center">
+            <div><p className="text-[10px] font-black uppercase tracking-widest">{s.label}</p><h3 className="text-3xl font-black">{s.val}</h3></div>
             <div className={`w-3 h-3 rounded-full ${s.color}`}></div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-3 space-y-4">
-          <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Pending Action</h2>
-          <div className="space-y-3">
-            {holdChalans.map(c => (
-              <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover:border-orange-400 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${c.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{c.is_in_house ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
-                <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
-                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (c.is_in_house ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
-                <div className="mt-4 flex justify-between items-center"><span className="text-lg font-black text-slate-700">{c.total_amount} ৳</span></div>
-              </div>
-            ))}
-          </div>
+      <div className="grid grid-cols-12 gap-8">
+        {/* পেন্ডিং সেকশন */}
+        <div className="col-span-3 space-y-4">
+          <h2 className="text-xs font-black uppercase">Pending Action</h2>
+          {holdChalans.map(c => (
+            <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border cursor-pointer hover:border-orange-400">
+               <h4 className="font-black text-lg">{c.chalan_no}</h4>
+               <p className="text-xs font-bold text-slate-400">{getCustomerData(c).name}</p>
+               <p className="text-lg font-black mt-2">{c.total_amount} ৳</p>
+            </div>
+          ))}
         </div>
 
-        <div className="xl:col-span-9 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
-              <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Chalans</h2>
-              <div className="space-y-2 overflow-y-auto pr-2">{todayChalans.map(tc => (<div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-blue-50 cursor-pointer transition-all"><div className="flex justify-between items-start"><div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p></div><span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span></div></div>))}</div>
-           </div>
-           {/* অন্যান্য সেকশন... */}
+        {/* টুডেস চালান ও বিল এবং স্টক এলার্ট */}
+        <div className="col-span-9 grid grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-[2.5rem] border h-[500px] overflow-y-auto">
+             <h2 className="text-xs font-black uppercase mb-4">Today's Chalans</h2>
+             {todayChalans.map(tc => <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="p-4 bg-slate-50 rounded-xl mb-2 cursor-pointer">{tc.chalan_no} - {getCustomerData(tc).name}</div>)}
+          </div>
+          <div className="bg-white p-6 rounded-[2.5rem] border h-[500px] overflow-y-auto">
+             <h2 className="text-xs font-black uppercase mb-4">Today's Bills</h2>
+             {todayBills.map(tb => <div key={tb.id} onClick={() => handleViewDetails(tb, 'bill')} className="p-4 bg-slate-50 rounded-xl mb-2 cursor-pointer">#{tb.bill_no} - {getCustomerData(tb).name}</div>)}
+          </div>
+          <div className="bg-red-50 p-6 rounded-[2.5rem] border h-[500px] overflow-y-auto">
+             <h2 className="text-xs font-black uppercase mb-4">Critical Stock</h2>
+             {lowStockProducts.map(p => <div key={p.id} className="p-4 bg-white rounded-xl mb-2 flex justify-between">{p.name} <span className="font-black text-red-500">{p.stock_quantity}</span></div>)}
+          </div>
         </div>
       </div>
 
-      {/* মডাল কোডটি এখানে সঠিকভাবে ক্লোজিং সহ বসিয়ে দিন */}
+      {/* মডাল */}
       {selectedItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-             <div className="p-8 bg-slate-50 border-b flex justify-between items-start">
-               <div>
-                  <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
-                  <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
-               </div>
-               <div className="flex gap-2">
-                 {modalType !== 'product' && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4">
+          <div className="bg-white rounded-[3rem] w-full max-w-2xl p-8">
+            <h2 className="text-2xl font-black">{selectedItem.chalan_no || selectedItem.bill_no}</h2>
+            {modalItems.map((itm, i) => <div key={i} className="flex justify-between py-2">{itm.products?.name} x {itm.quantity} <span>{itm.total_price} ৳</span></div>)}
+            
+            {selectedItem.status === 'hold' ? (
+              <div className="mt-6 space-y-4">
+                 {!selectedItem.is_in_house && (
                     <>
-                      <button onClick={handlePrint} className="w-10 h-10 bg-white border rounded-full hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center">🖨️</button>
-                      <button onClick={handleDownload} className="w-10 h-10 bg-white border rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center">📥</button>
+                      <input type="text" placeholder="বিল নম্বর দিন" onChange={(e) => setBillNo(e.target.value)} className="w-full p-4 border rounded-xl font-bold" />
+                      <select onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 border rounded-xl font-bold"><option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash</option><option value="bKash">bKash</option></select>
                     </>
                  )}
-                 <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border rounded-full hover:bg-red-500 hover:text-white font-bold">✕</button>
-               </div>
-             </div>
-             {/* ...মডালের ভেতরের কন্টেন্ট... */}
-             <div className="p-8 bg-slate-50 border-t">
-              {selectedItem.status === 'hold' ? (
-                <div className="space-y-4">
-                  {selectedItem.is_in_house ? (
-                    <button onClick={handleAction} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase hover:bg-blue-700">Confirm Transfer</button>
-                  ) : (
-                    <div className="space-y-3">
-                       <select onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 border rounded-xl font-bold"><option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash</option><option value="bKash">bKash</option></select>
-                       <button onClick={handleAction} disabled={processing || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase hover:bg-green-700">Receive Payment & Confirm</button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center font-black text-green-600 bg-green-50 p-4 rounded-xl">✓ সম্পন্ন হয়েছে</div>
-              )}
-            </div>
+                 <button onClick={handleAction} className="w-full bg-green-600 text-white py-4 rounded-xl font-black uppercase">Confirm & Finalize</button>
+              </div>
+            ) : <div className="mt-6 text-center text-green-600 font-black">✓ বিল সম্পন্ন</div>}
+            <button onClick={() => setSelectedItem(null)} className="w-full mt-4 text-slate-400 font-bold">বন্ধ করুন</button>
           </div>
         </div>
       )}
