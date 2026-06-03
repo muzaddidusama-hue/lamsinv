@@ -235,18 +235,30 @@ const BillingSystem = () => {
              )}
           </div>
           
-          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
-            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900">
-              <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
-              {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
-            </select>
-            <div className="flex gap-3">
-              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="flex-1 p-4 bg-slate-50 border rounded-2xl font-bold outline-none" />
-              <button onClick={addToCart} className="bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all">Add</button>
-            </div>
-          </div>
-        </div>
+<div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+  <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
+  <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900">
+    <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
+    {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
+  </select>
+  <div className="flex gap-3">
+    {/* 🔴 ফিক্স: flex-1 সরিয়ে w-36 করা হয়েছে যাতে ট্যাবে ইনপুট বক্সটি সাইড থেকে ছোট ও ফিক্সড থাকে */}
+    <input 
+      type="number" 
+      value={qty} 
+      onChange={(e) => setQty(e.target.value)} 
+      placeholder="পরিমাণ" 
+      className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" 
+    />
+    {/* 🔴 ফিক্স: flex-1 এবং whitespace-nowrap দেওয়ার ফলে বাটনটি বাকি খালি জায়গা সুন্দরভাবে দখল করবে এবং কখনো হাইড হবে না */}
+    <button 
+      onClick={addToCart} 
+      className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap"
+    >
+      Add
+    </button>
+  </div>
+</div>
 
         <div className="lg:col-span-8">
           <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col h-full min-h-[500px]">
