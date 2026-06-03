@@ -15,15 +15,17 @@ const ServiceManager = () => {
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // 📝 সেকশন ৩ (ডাইরেক্ট সিরিয়াল এন্ট্রি) এর জন্য নতুন স্টেটস
+  // 📝 সেকশন ৩ (ডাইরেক্ট সিরিয়াল এন্ট্রি) এর জন্য স্টেটস
   const [standaloneSerial, setStandaloneSerial] = useState('');
   const [standaloneInvType, setStandaloneInvType] = useState('Hybrid');
+  const [standaloneInvModel, setStandaloneInvModel] = useState(''); // 🔴 নতুন: মডেল স্টেট
   const [standaloneCustName, setStandaloneCustName] = useState('');
   const [standaloneAddress, setStandaloneAddress] = useState('');
+  const [showStandaloneForm, setShowStandaloneForm] = useState(false); // 🔴 নতুন: টগল স্টেট
 
   // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট
   const [dbRowData, setDbRowData] = useState({
-    bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '', customer_name: '', address: '',
+    bill_no: '', chalan_no: '', inv_type: 'Hybrid', inv_model: '', sl_no: '', customer_name: '', address: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
     serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
     serv_3_date: '', serv_3_problem: '', serv_3_amount: '', remarks3: '',
@@ -46,7 +48,6 @@ const ServiceManager = () => {
     resetServiceForm();
 
     try {
-      // প্রথমে চেক করি ইনপুটটি কোনো ইনভার্টারের একক সিরিয়াল নম্বর (sl_no) কি না
       const { data: slData } = await supabase.from('inv_sl').select('*').eq('sl_no', queryText).maybeSingle();
       
       let targetChalanNo = queryText;
@@ -115,6 +116,7 @@ const ServiceManager = () => {
           bill_no: record?.bill_no || 'N/A',
           chalan_no: record?.chalan_no || 'N/A',
           inv_type: inverterItem?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
+          inv_model: inverterItem?.products?.model || 'N/A',
           sl_no: currentSerial,
           customer_name: record?.customers?.name || 'Walk-in',
           address: record?.customers?.address || 'N/A'
@@ -131,14 +133,16 @@ const ServiceManager = () => {
     setServiceLoading(false);
   };
 
-  // 📥 সেকশন ৩: ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে কাস্টোমার ডাটা সহ)
+  // 📥 সেকশন ৩: ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে কাস্টোমার ও মডেল ডাটা সহ)
   const handleStandaloneSerialSubmit = async (e) => {
     e.preventDefault();
     const sl = standaloneSerial.trim().toUpperCase();
+    const invModel = standaloneInvModel.trim();
     const custName = standaloneCustName.trim();
     const custAddr = standaloneAddress.trim();
 
     if (!sl) return alert("সিরিয়াল নম্বর দিন!");
+    if (!invModel) return alert("ইনভার্টার মডেল মেনশন করুন!");
     if (!custName) return alert("কাস্টোমারের নাম দিন!");
 
     setLoading(true);
@@ -154,11 +158,12 @@ const ServiceManager = () => {
         determineNextAvailableSlot(data);
         alert("ℹ️ এই সিরিয়াল নম্বরের রেকর্ড অলরেডি ডাটাবেজে বিদ্যমান রয়েছে!");
       } else {
-        // 💾 নতুন কাস্টোমার ইনফো সহ পে-লোড ডিফাইন
+        // 💾 নতুন কাস্টোমার ও ইনভার্টার মডেল সহ পে-লোড
         const freshRow = {
           bill_no: 'N/A', 
           chalan_no: 'N/A', 
           inv_type: standaloneInvType,
+          inv_model: invModel, // কাস্টম মডেল সেভ হবে
           sl_no: sl,
           customer_name: custName,
           address: custAddr || 'N/A'
@@ -173,6 +178,7 @@ const ServiceManager = () => {
     } catch (err) { console.error(err); alert("ত্রুটি হয়েছে!"); }
     setLoading(false);
     setStandaloneSerial('');
+    setStandaloneInvModel('');
     setStandaloneCustName('');
     setStandaloneAddress('');
   };
@@ -251,7 +257,7 @@ const ServiceManager = () => {
 
       if (updateErr) throw updateErr;
 
-      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সেভ হয়েছে!`);
+      alert(`✅ 서비스 রেকর্ড-০${slot} সফলভাবে সেভ হয়েছে!`);
       setDbRowData(updatedDbRow);
       resetServiceForm();
       determineNextAvailableSlot(updatedDbRow);
@@ -302,7 +308,12 @@ const ServiceManager = () => {
                   <p className="text-base font-black">
                     {inverterItem?.products?.name || `${dbRowData.inv_type} Inverter`}
                   </p>
-                  {inverterItem?.products?.model && <p className="text-xs font-medium text-blue-600">মডেল: {inverterItem.products.model}</p>}
+                  {/* 🔴 ফিক্স: রেগুলার প্রোডাক্টের মডেল অথবা ৩ নং সেকশনের ম্যানুয়াল মডেল দুইটাই এখানে ডাইনামিকালি শো করবে */}
+                  {(inverterItem?.products?.model || dbRowData.inv_model) && (
+                    <p className="text-xs font-medium text-blue-600">
+                      মডেল: {inverterItem?.products?.model || dbRowData.inv_model}
+                    </p>
+                  )}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border">
@@ -310,7 +321,6 @@ const ServiceManager = () => {
                   <div><span className="text-slate-400 block">ওয়ারেন্টি কাল</span><span className="font-black text-slate-700 text-sm">{inverterItem?.products?.warranty || '১ বছর'}</span></div>
                   <div className="pt-2 border-t col-span-2">
                     <span className="text-slate-400 block">গ্রাহকের নাম</span>
-                    {/* 💡 স্মার্ট ফিক্স: রেগুলার চালান অথবা স্ট্যান্ডঅ্যালোন এন্ট্রি দুই জায়গার নামই ট্র্যাক করবে */}
                     <span className="font-black text-slate-800">{record?.customers?.name || dbRowData?.customer_name || 'Walk-in'}</span>
                   </div>
                   <div className="pt-2 border-t col-span-2">
@@ -358,62 +368,68 @@ const ServiceManager = () => {
             )}
           </div>
 
-          {/* 🛠️ ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (কাস্টোমার ডিটেইলস সহ) */}
+          {/* 🔴 ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (কলালাক্সিবল ও মডেল ফিল্ড সহ) */}
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-            <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">
-              ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে)
+            <h3 
+              onClick={() => setShowStandaloneForm(!showStandaloneForm)} 
+              className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2 flex justify-between items-center cursor-pointer select-none hover:text-slate-600 transition-colors"
+            >
+              <span>৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে)</span>
+              <span className="text-xs bg-slate-100 px-2 py-1 rounded-md text-slate-500 font-bold">
+                {showStandaloneForm ? 'বন্ধ করুন 🔼' : 'খুলুন 🔽'}
+              </span>
             </h3>
-            <form onSubmit={handleStandaloneSerialSubmit} className="space-y-3.5">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার টাইপ</label>
-                <select value={standaloneInvType} onChange={(e) => setStandaloneInvType(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none">
-                  <option value="Hybrid">Hybrid Inverter</option>
-                  <option value="On-Grid">On-Grid Inverter</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">সিরিয়াল নম্বর (S/N)</label>
-                <input 
-                  type="text" value={standaloneSerial} onChange={(e) => setStandaloneSerial(e.target.value)} 
-                  placeholder="যেমন: SN-998877" 
-                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs uppercase outline-none focus:border-blue-600" 
-                  required 
-                />
-              </div>
-
-                            <div>
-                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার মডেল</label>
-                <input 
-                  type="text" value={standaloneModel} onChange={(e) => setStandaloneModel(e.target.value)} 
-                  placeholder="ইনভার্টারের মডেল লিখুন" 
-                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
-                  required 
-                />
-              </div>
-              
-              {/* 🔴 নতুন ইনপুট ফিল্ড: কাস্টোমারের নাম */}
-              <div>
-                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">কাস্টোমারের নাম</label>
-                <input 
-                  type="text" value={standaloneCustName} onChange={(e) => setStandaloneCustName(e.target.value)} 
-                  placeholder="নাম লিখুন" 
-                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
-                  required 
-                />
-              </div>
-              {/* 🔴 নতুন ইনপুট ফিল্ড: কাস্টোমারের ঠিকানা */}
-              <div>
-                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ঠিকানা (Address)</label>
-                <input 
-                  type="text" value={standaloneAddress} onChange={(e) => setStandaloneAddress(e.target.value)} 
-                  placeholder="ঠিকানা লিখুন" 
-                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
-                />
-              </div>
-              <button type="submit" disabled={loading} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs rounded-xl transition-all shadow-sm">
-                {loading ? 'প্রসেসিং...' : '➕ সরাসরি ডাটাবেজে যুক্ত করুন'}
-              </button>
-            </form>
+            
+            {showStandaloneForm && (
+              <form onSubmit={handleStandaloneSerialSubmit} className="space-y-3.5 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার টাইপ</label>
+                  <select value={standaloneInvType} onChange={(e) => setStandaloneInvType(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none">
+                    <option value="Hybrid">Hybrid Inverter</option>
+                    <option value="On-Grid">On-Grid Inverter</option>
+                  </select>
+                </div>
+                {/* 🔴 নতুন ইনপুট ফিল্ড: ইনভার্টার মডেল */}
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার মডেল</label>
+                  <input 
+                    type="text" value={standaloneInvModel} onChange={(e) => setStandaloneInvModel(e.target.value)} 
+                    placeholder="যেমন: Talegent V IV 5.6KW" 
+                    className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">সিরিয়াল নম্বর (S/N)</label>
+                  <input 
+                    type="text" value={standaloneSerial} onChange={(e) => setStandaloneSerial(e.target.value)} 
+                    placeholder="যেমন: SN-998877" 
+                    className="w-full p-3 bg-white border rounded-xl font-bold text-xs uppercase outline-none focus:border-blue-600" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">কাস্টোমারের নাম</label>
+                  <input 
+                    type="text" value={standaloneCustName} onChange={(e) => setStandaloneCustName(e.target.value)} 
+                    placeholder="নাম লিখুন" 
+                    className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ঠিকানা (Address)</label>
+                  <input 
+                    type="text" value={standaloneAddress} onChange={(e) => setStandaloneAddress(e.target.value)} 
+                    placeholder="ঠিকানা লিখুন" 
+                    className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                  />
+                </div>
+                <button type="submit" disabled={loading} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs rounded-xl transition-all shadow-sm">
+                  {loading ? 'প্রসেসিং...' : '➕ সরাসরি ডাটাবেজে যুক্ত করুন'}
+                </button>
+              </form>
+            )}
           </div>
 
         </div>
@@ -446,7 +462,7 @@ const ServiceManager = () => {
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-slate-500">রেকর্ড স্লট:</label>
                     <select value={selectedServiceSlot} onChange={handleSlotChange} disabled={isEditing} className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none">
-                      <option value="1">সার্ভিস রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option>
+                      <option value="1">সার্ভिस রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option>
                       <option value="2">সার্ভিস রেকর্ড ০২ {isSlotLocked('2') ? '🔒 (Locked)' : ''}</option>
                       <option value="3">সার্ভিস রেকর্ড ০৩ {isSlotLocked('3') ? '🔒 (Locked)' : ''}</option>
                       <option value="4">সার্ভিস রেকর্ড ০৪ {isSlotLocked('4') ? '🔒 (Locked)' : ''}</option>
@@ -493,7 +509,7 @@ const ServiceManager = () => {
               </div>
             ) : (
               <div className="text-center py-20 text-slate-300 italic text-sm">
-                প্রথমে বাম পাশ বা নিচে থেকে কোনো সিরিয়াল নম্বর লোড করুন।
+                প্রথমে বাম পাশ বা ৩ নং সেকশন থেকে কোনো সিরিয়াল নম্বর লোড করুন।
               </div>
             )}
 
