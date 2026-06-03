@@ -380,6 +380,17 @@ const ServiceManager = () => {
                   required 
                 />
               </div>
+
+                            <div>
+                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার মডেল</label>
+                <input 
+                  type="text" value={standaloneModel} onChange={(e) => setStandaloneModel(e.target.value)} 
+                  placeholder="ইনভার্টারের মডেল লিখুন" 
+                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                  required 
+                />
+              </div>
+              
               {/* 🔴 নতুন ইনপুট ফিল্ড: কাস্টোমারের নাম */}
               <div>
                 <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">কাস্টোমারের নাম</label>
