@@ -26,6 +26,7 @@ const Reports = () => {
 
   // 📝 লেজার (Ledger) রিপোর্টের জন্য স্টেটস
   const [ledgerData, setLedgerData] = useState([]);
+  const [salesOutData, setSalesOutData] = useState([]); // 🔴 নতুন: বিক্রয় আউটের ডাটা ট্র্যাকিং স্টেট
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
   const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
@@ -81,7 +82,28 @@ const Reports = () => {
       if (error) throw error;
       processReportData(chalans || []);
 
-      // ২. লেজার টেবিল থেকে ডাটা লোড করা হচ্ছে (তারিখ রেঞ্জ অনুযায়ী)
+      // 🔴 নতুন লজিক: চালানের ভেতরের পেইড বিলগুলো থেকে প্রোডাক্ট সেলস আউট (Out) ডাটা এক্সট্র্যাক্ট করা
+      const extractedOutItems = [];
+      if (chalans) {
+        chalans.forEach(ch => {
+          if (ch.status === 'paid') {
+            ch.chalan_items.forEach(item => {
+              const pKey = `${item.products?.name || ''} - ${item.products?.model || ''}`;
+              extractedOutItems.push({
+                product: pKey,
+                quantity: item.quantity,
+                date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                timestamp: ch.created_at,
+                type: 'out',
+                source: `Bill: #${ch.bill_no || 'N/A'}`
+              });
+            });
+          }
+        });
+      }
+      setSalesOutData(extractedOutItems);
+
+      // ২. লেজার টেবিল থেকে ডাটা লোড করা হচ্ছে (তারিখ রেঞ্জ অনুযায়ী)
       const { data: ledger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -93,7 +115,7 @@ const Reports = () => {
 
     } catch (error) {
       console.error(error);
-      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
+      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
     }
     setLoading(false);
   };
@@ -213,13 +235,14 @@ const Reports = () => {
     }
   };
 
+  // 🔴 নতুন ফিক্স: ইনপুট ও সেলস আউট উভয় তালিকা মিলিয়ে স্মার্ট সাজেশন লিস্ট বিল্ড করা
   const handleLedgerSearchAction = (e) => {
     const val = e.target.value;
     setLedgerSearch(val);
 
     if (val.length >= 1) {
-      const uniqueLedgerNames = [...new Set(ledgerData.map(l => l.product))];
-      const filtered = uniqueLedgerNames.filter(name => name.toLowerCase().includes(val.toLowerCase()));
+      const allUniqueNames = [...new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)])];
+      const filtered = allUniqueNames.filter(name => name.toLowerCase().includes(val.toLowerCase()));
       setLedgerSuggestions(filtered.slice(0, 10));
       setShowLedgerSuggestions(true);
     } else {
@@ -306,19 +329,55 @@ const Reports = () => {
 
   const productWiseData = getProductWiseStats();
 
+  // 🔴 নতুন লজিক: সার্বিক টেবিলে ইন এবং আউটের টোটাল ডাটা পাশাপাশি সাজানো (হিজিবিজি মুক্ত সামারি)
   const getLedgerSummary = () => {
     const summary = {};
     ledgerData.forEach(item => {
       if (!summary[item.product]) {
-        summary[item.product] = { product: item.product, totalQty: 0 };
+        summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
       }
-      summary[item.product].totalQty += parseInt(item.quantity) || 0;
+      summary[item.product].totalIn += parseInt(item.quantity) || 0;
     });
-    return Object.values(summary).sort((a, b) => b.totalQty - a.totalQty);
+    salesOutData.forEach(item => {
+      if (!summary[item.product]) {
+        summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
+      }
+      summary[item.product].totalOut += parseInt(item.quantity) || 0;
+    });
+    return Object.values(summary);
   };
 
   const ledgerSummaryList = getLedgerSummary();
-  const filteredLedgerHistory = ledgerData.filter(l => l.product.toLowerCase() === ledgerSearch.toLowerCase());
+
+  // 🔴 নতুন লজিক: সুনির্দিষ্ট প্রোডাক্টের ইন ও আউট হিস্ট্রি একসাথে এক টাইমলাইনে ক্রোনোলজিক্যালি মার্চ করা
+  const getIndividualLedgerHistory = () => {
+    const history = [];
+    ledgerData.forEach(l => {
+      if (l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+        history.push({
+          date: l.date,
+          timestamp: l.in || l.date,
+          type: 'in',
+          source: l.source || 'Import',
+          quantity: l.quantity
+        });
+      }
+    });
+    salesOutData.forEach(s => {
+      if (s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+        history.push({
+          date: s.date,
+          timestamp: s.timestamp,
+          type: 'out',
+          source: s.source,
+          quantity: s.quantity
+        });
+      }
+    });
+    return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  };
+
+  const combinedLedgerHistory = getIndividualLedgerHistory();
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -349,7 +408,7 @@ const Reports = () => {
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
             { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
             { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' },
-            { id: 'ledger_report', label: 'লেজার রিপোর্ট (Stock In)' }
+            { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' } // ট্যাব রিনেম করা হয়েছে
           ].map(tab => (
             <button 
               key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); }}
@@ -502,7 +561,7 @@ const Reports = () => {
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টোমার ড্রপডাউন সিলেকশন</label>
                   <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value=""> লিস্টের সকল কাস্টোমার (All Active)</option>
+                    <option value="">লিস্টের সকল কাস্টোমার (All Active)</option>
                     {allCustomers.map(c => (<option key={c.id} value={c.name}>{c.name} — {c.phone}</option>))}
                   </select>
                 </div>
@@ -556,7 +615,7 @@ const Reports = () => {
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 প্রোডাক্ট ড্রপডাউন সিলেকশন</label>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋  প্রোডাক্ট ড্রপডাউন সিলেকশন</label>
                   <select value={productSearch} onChange={(e) => setProductSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
                     <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
                     {allProducts.map((p, i) => (<option key={i} value={p.fullName}>{p.fullName}</option>))}
@@ -578,7 +637,7 @@ const Reports = () => {
                   </div>
 
                   <div className="border rounded-2xl overflow-hidden bg-white shadow-sm">
-                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢 হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
+                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢  হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
                       <div className="p-6 space-y-2">
                         <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
@@ -601,13 +660,13 @@ const Reports = () => {
             </div>
           )}
 
-          {/* 📝 লেজার রিপোর্ট (Stock In) এরিয়া ইউআই */}
+          {/* 📝 ৬. আপডেট করা ইন ও আউট সম্বলিত লেজার রিপোর্ট এরিয়া ইউআই */}
           {reportType === 'ledger_report' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 ইনপুট প্রোডাক্ট সার্চ (লেজার)</label>
-                  <input type="text" value={ledgerSearch} onChange={handleLedgerSearchAction} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  <input type="text" value={ledgerSearch} onChange={handleLedgerSearchAction} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="যেমন: Inhenergy..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showLedgerSuggestions && ledgerSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
                       {ledgerSuggestions.map((name, i) => (<div key={i} onClick={() => { setLedgerSearch(name); setShowLedgerSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {name}</div>))}
@@ -617,80 +676,84 @@ const Reports = () => {
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
                   <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">লিস্টের সকল ইনপুট প্রোডাক্ট সামারি</option>
-                    {[...new Set(ledgerData.map(l => l.product))].map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                    <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
+                    {[...new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)])].map((name, i) => (<option key={i} value={name}>{name}</option>))}
                   </select>
                 </div>
               </div>
 
               {!ledgerSearch ? (
+                // ক) সার্বিক সামারি ভিউ (ইন এবং আউট কলাম পাশাপাশি)
                 <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5 flex justify-between">
-                    <span>স্টক ইন সার্বিক সামারি তালিকা</span>
-                    <span className="text-orange-400">Total Entries: {ledgerSummaryList.length}</span>
+                    <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা</span>
+                    <span className="text-orange-400">Total Unique Items: {ledgerSummaryList.length}</span>
                   </div>
                   <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
-                          <th className="p-4">প্রোডাক্ট এর বিবরণ (মডেল সহ)</th>
-                          <th className="p-4 text-center w-40">মোট ইনপুট পরিমাণ</th>
+                          <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও মডেল)</th>
+                          <th className="p-4 text-center w-40 text-emerald-600 bg-emerald-50/40">মোট স্টক ইন (+)</th>
+                          <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y font-bold text-slate-700">
                         {ledgerSummaryList.map((item, i) => (
-                          <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
-                            <td className="p-4 text-slate-900 font-black">📦 {item.product}</td>
-                            <td className="p-4 text-center text-blue-600 font-black text-sm bg-slate-50/50">{item.totalQty} PCS</td>
+                          <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors group">
+                            <td className="p-4 text-slate-900 font-black group-hover:text-blue-600 transition-colors">📦 {item.product}</td>
+                            <td className="p-4 text-center text-emerald-600 font-black text-sm bg-emerald-50/10">{item.totalIn} PCS</td>
+                            <td className="p-4 text-center text-rose-600 font-black text-sm bg-rose-50/10">{item.totalOut} PCS</td>
                           </tr>
                         ))}
                         {ledgerSummaryList.length === 0 && (
-                          <tr><td colSpan="2" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ রেঞ্জে কোনো নতুন মালামাল ইনপুট হয়নি</td></tr>
+                          <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ রেঞ্জে কোনো প্রকার স্টক আদানপ্রদান হয়নি</td></tr>
                         )}
                       </tbody>
                     </table>
                   </div>
                 </div>
               ) : (
+                // খ) সুনির্দিষ্ট প্রোডাক্টের ক্রোনোলজিক্যাল ইন-আউট স্টেটমেন্ট টাইমলাইন হিস্ট্রি
                 <div className="space-y-4">
                   <div className="flex justify-between items-center bg-orange-50 border border-orange-100 p-4 rounded-xl">
-                    <p className="text-xs font-black text-orange-700">🎯 সিলেক্টেড প্রোডাক্ট: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
-                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg hover:text-red-500">← ব্যাক টু সামারি</button>
+                    <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
+                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg hover:text-red-500">← সার্বিক তালিকায় ফিরুন</button>
                   </div>
                   
                   <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead>
-                        {/* 🔴 ফিক্সড: সোর্স হেডার রেন্ডারিং */}
                         <tr className="bg-slate-900 text-white font-black text-[10px] uppercase">
-                          <th className="p-4">স্টক ইন এর তারিখ (Date)</th>
-                          <th className="p-4 text-center">সোর্স (Source)</th>
-                          <th className="p-4 text-right pr-12">পরিমাণ (Quantity)</th>
+                          <th className="p-4">তারিখ (Date)</th>
+                          <th className="p-4 text-center">লেনদেনের ধরন (Type)</th>
+                          <th className="p-4 text-center">রেফারেন্স / সোর্স (Source/Ref)</th>
+                          <th className="p-4 text-right pr-12">পরিমাণ (Qty)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y font-bold text-slate-700">
-                        {filteredLedgerHistory.map((l, i) => (
+                        {combinedLedgerHistory.map((l, i) => (
                           <tr key={i} className="hover:bg-slate-50">
                             <td className="p-4 font-mono text-slate-600">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
-                            {/* 🔴 নতুন কলাম: সোর্স ডাটা ডিসপ্লে */}
                             <td className="p-4 text-center">
-                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${l.source === 'Import' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
-                                {l.source || 'Form Input'}
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
                               </span>
                             </td>
-                            <td className="p-4 text-right pr-12 text-blue-600 font-black text-sm bg-slate-50/40">{l.quantity} PCS</td>
+                            <td className="p-4 text-center">
+                              <span className="text-slate-500 font-bold text-xs">{l.source}</span>
+                            </td>
+                            <td className="p-4 text-right pr-12 font-black text-sm">
+                              <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
+                                {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
+                              </span>
+                            </td>
                           </tr>
                         ))}
-                        {filteredLedgerHistory.length === 0 && (
-                          <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+                        {combinedLedgerHistory.length === 0 && (
+                          <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
                         )}
                       </tbody>
-                      <tfoot className="bg-slate-50 border-t font-black">
-                        <tr>
-                          <td colSpan="2" className="p-4 text-right text-slate-500 uppercase">Grand Total:</td>
-                          <td className="p-4 text-right pr-12 text-slate-900 text-sm font-black">{filteredLedgerHistory.reduce((sum, curr) => sum + (parseInt(curr.quantity) || 0), 0)} PCS</td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
                 </div>
