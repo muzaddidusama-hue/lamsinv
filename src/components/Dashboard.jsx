@@ -45,25 +45,32 @@ const Dashboard = () => {
     }
   };
 
-  const handleAction = async (actionType) => {
-    setProcessing(true);
-    try {
-      if (actionType === 'transfer') {
-        for (let itm of modalItems) {
-          const target = selectedItem.transfer_to;
-          const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('model', itm.products.model).eq('house', target).maybeSingle();
-          if (p) await supabase.from('products').update({ stock_quantity: p.stock_quantity + itm.quantity }).eq('id', p.id);
-          else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: target }]);
-        }
-        await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
-      } else {
-        const bNo = `BLL-${Date.now().toString().slice(-6)}`;
-        await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: bNo }).eq('id', selectedItem.id);
+// Dashboard.jsx এর handleAction আপডেট
+const handleAction = async (actionType) => {
+  setProcessing(true);
+  try {
+    if (selectedItem.is_in_house) {
+      // ইন-হাউজ ট্রান্সফার লজিক
+      for (let itm of modalItems) {
+        // ১. সোর্স হাউজ থেকে মাইনাস
+        const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('house', selectedItem.house).single();
+        if (sourceP) await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
+        
+        // ২. গন্তব্য হাউজে প্লাস
+        const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('house', selectedItem.transfer_to).maybeSingle();
+        if (targetP) await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
+        else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: selectedItem.transfer_to }]);
       }
-      alert('সফল হয়েছে!'); setSelectedItem(null); fetchDashboardData();
-    } catch (e) { alert('ত্রুটি হয়েছে'); }
-    setProcessing(false);
-  };
+      await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
+    } else {
+      // সেলস পেমেন্ট লজিক
+      const bNo = `BLL-${Date.now().toString().slice(-6)}`;
+      await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: bNo }).eq('id', selectedItem.id);
+    }
+    alert('সফল হয়েছে!'); setSelectedItem(null); fetchDashboardData();
+  } catch (e) { alert('ত্রুটি: ' + e.message); console.error(e); }
+  setProcessing(false);
+};
 
   const getCustomerData = (item) => {
     return {
@@ -204,23 +211,23 @@ const Dashboard = () => {
                 </table>
               )}
             </div>
-            <div className="p-8 bg-slate-50 border-t">
-               {selectedItem.status === 'hold' ? (
-                 <div className="space-y-4">
-                    {selectedItem.is_in_house ? (
-                      <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 uppercase tracking-widest">{processing ? 'Processing...' : 'Confirm Transfer'}</button>
-                    ) : (
-                      <div className="flex gap-3">
-                        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="flex-1 p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm"><option value="">Method...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option></select>
-                        <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="bg-green-600 hover:bg-green-700 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-md">{processing ? '...' : 'Receive Payment'}</button>
-                      </div>
-                    )}
-                 </div>
-               ) : (
-                 <div className="mt-4 flex justify-between items-center bg-white p-6 rounded-3xl border shadow-sm">
-                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction Status</p><p className="text-xl font-black text-slate-800 mt-1 uppercase">{selectedItem.status} via {selectedItem.payment_method || 'System'}</p></div>
-                    <p className="text-3xl font-black text-green-600">{selectedItem.total_amount} ৳</p>
-                 </div>
+{/* মডালের নিচের অ্যাকশন বাটন এরিয়া */}
+<div className="p-8 bg-slate-50 border-t">
+  {selectedItem.status === 'hold' ? (
+    <div className="space-y-4">
+      {selectedItem.is_in_house ? (
+        <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700">Confirm Transfer</button>
+      ) : (
+        <div className="space-y-3">
+           <select onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 border rounded-xl font-bold"><option value="">পেমেন্ট মেথড সিলেক্ট করুন...</option><option value="Cash">Cash</option><option value="bKash">bKash</option></select>
+           <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-green-700">Receive Payment & Confirm</button>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className="text-center font-black text-green-600 bg-green-50 p-4 rounded-xl">✓ এই চালানটি সফলভাবে সম্পন্ন হয়েছে</div>
+  )}
+</div>
                )}
             </div>
           </div>
