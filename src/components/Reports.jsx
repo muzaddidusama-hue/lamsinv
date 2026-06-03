@@ -91,56 +91,59 @@ const Reports = () => {
 
   // 🔴 ফিক্সড লজিক: ইনভয়েস নাম ফরমেট ও লেজার নাম উলটপালট থাকলেও স্মার্টলি একই রো-তে মার্জ করার অ্যালগরিদম
 // 🔴 সমাধান: নতুন ও শক্তিশালী লেজার সামারি মেকানিজম
+// 🔴 নতুন স্মার্ট লজিক: ব্র্যান্ড এবং মডেলের কি-ওয়ার্ড মিলিয়ে ইউনিক প্রোডাক্ট হিসেবে ধরবে
+  const getStandardKey = (productName) => {
+    // এখানে আপনার প্রোডাক্টের নামের ধরণ অনুযায়ী ব্র্যান্ড ও মডেল আলাদা করার লজিক
+    // উদাহরণ: "AE Solar - 550W Mono" থেকে "ae solar 550w" কি বের করা
+    const cleaned = productName.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+    const tokens = cleaned.split(/\s+/);
+    
+    // কি-ওয়ার্ড ফিল্টার: এখানে মডেল এবং ব্র্যান্ডের নির্দিষ্ট কি-ওয়ার্ডগুলো রাখা হচ্ছে
+    const modelKeywords = ['550w', '700w', 'si3kt2', '10k', '500w', '3ks2']; 
+    const brandKeywords = ['ae', 'solar', 'deye', 'lefn', 'inhenergy'];
+    
+    const brand = tokens.find(t => brandKeywords.includes(t)) || '';
+    const model = tokens.find(t => modelKeywords.includes(t)) || '';
+    
+    return `${brand}_${model}`.trim(); // ইউনিক কি তৈরি
+  };
+
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    // সব প্রোডাক্টের একটি ইউনিক ম্যাপ তৈরি করি আইডি অনুযায়ী
-    allProducts.forEach(p => {
-      summaryMap.set(p.id, { product: `${p.name} - ${p.model}`, totalIn: 0, totalOut: 0 });
-    });
-
-    // স্টক ইন (Ledger) ডাটা যোগ করি
     ledgerData.forEach(item => {
-      // এখানে যদি product_id না থাকে, তবে নামের ওপর ভিত্তি করে ফাজি ম্যাচিং করবো
-      const p = allProducts.find(prod => 
-        (prod.name + ' ' + prod.model).toLowerCase().includes(item.product.toLowerCase()) || 
-        item.product.toLowerCase().includes(prod.name.toLowerCase())
-      );
-      if (p) {
-        const entry = summaryMap.get(p.id);
-        if (entry) entry.totalIn += parseInt(item.quantity) || 0;
+      const key = getStandardKey(item.product);
+      if (!key || key === '_') return;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
       }
+      summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
     });
 
-    // সেলস আউট (Chalans) ডাটা যোগ করি
     salesOutData.forEach(item => {
-      const p = allProducts.find(prod => 
-        (prod.name + ' ' + prod.model).toLowerCase().includes(item.product.toLowerCase()) || 
-        item.product.toLowerCase().includes(prod.name.toLowerCase())
-      );
-      if (p) {
-        const entry = summaryMap.get(p.id);
-        if (entry) entry.totalOut += parseInt(item.quantity) || 0;
+      const key = getStandardKey(item.product);
+      if (!key || key === '_') return;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
       }
+      summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
     });
 
-    return Array.from(summaryMap.values()).filter(s => s.totalIn > 0 || s.totalOut > 0);
+    return Array.from(summaryMap.values());
   };
 
-  const ledgerSummaryList = getLedgerSummary();
-
   const getIndividualLedgerHistory = () => {
+    if (!ledgerSearch) return [];
+    const searchKey = getStandardKey(ledgerSearch);
+    
     const history = [];
-    if (!ledgerSearch) return history;
-
-    // একই logic এ ডাটা ফিল্টার করি
     ledgerData.forEach(l => {
-      if (l.product && (l.product.toLowerCase().includes(ledgerSearch.toLowerCase()) || ledgerSearch.toLowerCase().includes(l.product.toLowerCase()))) {
+      if (getStandardKey(l.product) === searchKey) {
         history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
     salesOutData.forEach(s => {
-      if (s.product && (s.product.toLowerCase().includes(ledgerSearch.toLowerCase()) || ledgerSearch.toLowerCase().includes(s.product.toLowerCase()))) {
+      if (getStandardKey(s.product) === searchKey) {
         history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
