@@ -462,7 +462,7 @@ const ServiceManager = () => {
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-slate-500">রেকর্ড স্লট:</label>
                     <select value={selectedServiceSlot} onChange={handleSlotChange} disabled={isEditing} className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none">
-                      <option value="1">সার্ভिस রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option>
+                      <option value="1">সার্ভিস রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option> 
                       <option value="2">সার্ভিস রেকর্ড ০২ {isSlotLocked('2') ? '🔒 (Locked)' : ''}</option>
                       <option value="3">সার্ভিস রেকর্ড ০৩ {isSlotLocked('3') ? '🔒 (Locked)' : ''}</option>
                       <option value="4">সার্ভিস রেকর্ড ০৪ {isSlotLocked('4') ? '🔒 (Locked)' : ''}</option>

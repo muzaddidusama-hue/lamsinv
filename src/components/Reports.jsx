@@ -18,6 +18,12 @@ const Reports = () => {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // 📦 প্রোডাক্ট ওয়াইজ রিপোর্টের জন্য নতুন স্টেটস
+  const [allProducts, setAllProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [productSuggestions, setProductSuggestions] = useState([]);
+  const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+
   // কাস্টোমারের বিল ডিটেইলস মডাল দেখানোর জন্য
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
   const [mrps, setMrps] = useState({});
@@ -25,15 +31,33 @@ const Reports = () => {
 
   useEffect(() => {
     generateReport();
-  }, [reportType, startDate, endDate]); // ডেট চেঞ্জ হলেও যেন অটো জেনারেট হয়
+  }, [reportType, startDate, endDate]); 
 
   useEffect(() => {
     fetchAllCustomers(); 
+    fetchAllProducts(); // প্রোডাক্ট লোড করা হচ্ছে
   }, []);
 
   const fetchAllCustomers = async () => {
     const { data } = await supabase.from('customers').select('id, name, phone').order('name', { ascending: true });
     if (data) setAllCustomers(data);
+  };
+
+  const fetchAllProducts = async () => {
+    const { data } = await supabase.from('products').select('id, name, model, category').order('name', { ascending: true });
+    if (data) {
+      // ইউনিক প্রোডাক্ট লিস্ট ফিল্টার করা (ক্যাটাগরি + মডেল + নাম কম্বিনেশনে)
+      const uniqueProds = [];
+      const keys = new Set();
+      data.forEach(p => {
+        const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
+        if (!keys.has(fullName)) {
+          keys.add(fullName);
+          uniqueProds.push({ ...p, fullName });
+        }
+      });
+      setAllProducts(uniqueProds);
+    }
   };
 
   const generateReport = async () => {
@@ -133,9 +157,9 @@ const Reports = () => {
     setReportData(data);
   };
 
+  // 🔴 ফিক্সড: টাইপো এরর মুছে দেওয়া হয়েছে, এখন কাস্টোমার সার্চ বক্সে টাইপ করা যাবে
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
-    customerSearch(val);
     setCustomerSearch(val);
     
     if (val.length >= 2) {
@@ -159,6 +183,20 @@ const Reports = () => {
 
   const handleDropdownSelect = (e) => {
     setCustomerSearch(e.target.value);
+  };
+
+  // 📦 নতুন: প্রোডাক্ট লাইভ সার্চ হ্যান্ডলার
+  const handleProductSearchAction = (e) => {
+    const val = e.target.value;
+    setProductSearch(val);
+
+    if (val.length >= 1) {
+      const filtered = allProducts.filter(p => p.fullName.toLowerCase().includes(val.toLowerCase()));
+      setProductSuggestions(filtered.slice(0, 10));
+      setShowProductSuggestions(true);
+    } else {
+      setShowProductSuggestions(false);
+    }
   };
 
   const downloadReportPDF = () => {
@@ -214,10 +252,35 @@ const Reports = () => {
 
   const totals = calculateTotals();
 
-  // 🔍 ফিল্টারিং লজিক: কাস্টোমার সার্চ ফিল্ড ফাঁকা থাকলে সব কাস্টোমার দেখাবে, টাইপ/সিলেক্ট করলে শুধু নির্দিষ্ট কাস্টোমার দেখাবে
+  // ফিল্টারিং কাস্টোমার তালিকা
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
+
+  // 📦 নতুন: প্রোডাক্ট ওয়াইজ ক্যালকুলেশন ফিল্টারিং লজিক
+  const getProductWiseStats = () => {
+    if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
+    
+    let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
+
+    Object.values(reportData.productStats).forEach(stat => {
+      if (stat.name.toLowerCase() === productSearch.toLowerCase()) {
+        totalQty += stat.qty;
+        totalAmount += stat.total;
+        if (stat.house === 'Head Office') {
+          hoQty += stat.qty;
+          hoAmount += stat.total;
+        } else if (stat.house === 'Showroom') {
+          showroomQty += stat.qty;
+          showroomAmount += stat.total;
+        }
+      }
+    });
+
+    return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
+  };
+
+  const productWiseData = getProductWiseStats();
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -239,18 +302,19 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* নেভিগেশন ট্যাব */}
+      {/* নেভিগেশন ট্যাব বার */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-100 p-2 rounded-xl border border-slate-200">
         <div className="flex flex-wrap gap-2 flex-1">
           {[
             { id: 'summary', label: 'সার্বিক হিসাব (Summary)' },
             { id: 'house', label: 'হাউজ রিপোর্ট (HO vs Showroom)' },
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
-            { id: 'customer', label: 'কাস্টোমার রিপোর্ট' } // ফিক্সড নাম
+            { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
+            { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' } // 📦 নতুন ট্যাব সংযোজন
           ].map(tab => (
             <button 
-              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); }}
-              className={`flex-1 min-w-[150px] py-3 px-4 rounded-lg font-bold text-sm transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); }}
+              className={`flex-1 min-w-[140px] py-3 px-3 rounded-lg font-bold text-xs transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
             >
               {tab.label}
             </button>
@@ -325,7 +389,7 @@ const Reports = () => {
                             </tr>
                           ))}
                           {Object.keys(reportData.houseStats[house].products).length === 0 && (
-                            <tr><td colSpan="3" className="p-3 text-center text-slate-400 italic">কোনো মালামাল বিক্রয় হয়নি</td></tr>
+                            <tr><td colSpan="3" className="p-3 text-center text-slate-400 italic">কোনো মালামাল বিক্রয় হয়নি</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -383,13 +447,13 @@ const Reports = () => {
             </div>
           )}
 
-          {/* 👥 ৪. কাস্টোমার রিপোর্ট (স্মার্ট ফিল্টারিং এবং অটো-লিস্ট ডিসপ্লে) */}
+          {/* ৪. কাস্টোমার রিপোর্ট */}
           {reportType === 'customer' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 কাস্টোমার সার্চ (নাম/মোবাইল)</label>
-                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} onValueChange={(val) => setCustomerSearch(val)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showSuggestions && customerSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
                       {customerSuggestions.map(c => (<div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer">{c.name} — {c.phone}</div>))}
@@ -405,7 +469,6 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* কাস্টোমার ডেট-রেঞ্জ পারচেজ লিস্ট */}
               <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                 <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5">
                   নির্ধারিত তারিখের কেনাকাটার তালিকা ({startDate} থেকে {endDate})
@@ -421,11 +484,7 @@ const Reports = () => {
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
                       {filteredCustomers.map((cust, i) => (
-                        <tr 
-                          key={i} 
-                          onClick={() => setSelectedCustomerBills(cust)} // নামের উপর ক্লিকে বিল ইনভয়েস ব্রেকডাউন পপ-আপ চালু হবে
-                          className="hover:bg-blue-50/40 cursor-pointer transition-colors group"
-                        >
+                        <tr key={i} onClick={() => setSelectedCustomerBills(cust)} className="hover:bg-blue-50/40 cursor-pointer transition-colors group">
                           <td className="p-4 text-slate-900 font-black group-hover:text-blue-600 transition-colors flex items-center gap-2">
                             <span>👤 {cust.name}</span>
                             <span className="text-[9px] font-black uppercase text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity ml-1">Detail ➔</span>
@@ -441,6 +500,67 @@ const Reports = () => {
                   </table>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* 📦 ৫. নতুন: প্রোডাক্ট ওয়াইজ রিপোর্ট ট্যাব */}
+          {reportType === 'product_wise' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
+                <div className="relative">
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 প্রোডাক্ট সার্চ (নাম/মডেল)</label>
+                  <input type="text" value={productSearch} onChange={handleProductSearchAction} onFocus={() => productSearch && setShowProductSuggestions(true)} onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)} placeholder="যেমন: Solar Panel..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  {showProductSuggestions && productSuggestions.length > 0 && (
+                    <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
+                      {productSuggestions.map((p, i) => (<div key={i} onClick={() => { setProductSearch(p.fullName); setShowProductSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {p.fullName}</div>))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 প্রোডাক্ট ড্রপডাউন সিলেকশন</label>
+                  <select value={productSearch} onChange={(e) => setProductSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
+                    <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
+                    {allProducts.map((p, i) => (<option key={i} value={p.fullName}>{p.fullName}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              {/* প্রোডাক্ট সেলস ডিটেইলস কার্ডস গ্রিড */}
+              {productSearch ? (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between">
+                      <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
+                      <h3 className="text-3xl font-black">{productWiseData.totalQty} pcs</h3>
+                    </div>
+                    <div className="bg-blue-600 text-white p-6 rounded-2xl flex flex-col justify-between">
+                      <p className="text-blue-100 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় মূল্য (Gross Revenue)</p>
+                      <h3 className="text-3xl font-black">{productWiseData.totalAmount} ৳</h3>
+                    </div>
+                  </div>
+
+                  {/* হাউজ ব্রেকডাউন সামারি উইন্ডো */}
+                  <div className="border rounded-2xl overflow-hidden bg-white shadow-sm">
+                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢 হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
+                      <div className="p-6 space-y-2">
+                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.hoQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.hoAmount} ৳</span></p>
+                      </div>
+                      <div className="p-6 space-y-2">
+                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏪 Showroom</p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.showroomQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.showroomAmount} ৳</span></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">
+                  সার্চ বক্সে নাম টাইপ করুন অথবা ড্রপডাউন থেকে প্রোডাক্ট সিলেক্ট করলে বিস্তারিত বিবরণ এখানে লোড হবে।
+                </div>
+              )}
             </div>
           )}
 
@@ -477,7 +597,7 @@ const Reports = () => {
           </div>
         </div>
 
-        {/* এক্সিকিউটিভ ফিন্যান্সিয়াল ওভারভিউ সামারি */}
+        {/* এক্সিকিউティブ ফিন্যান্সিয়াল ওভারভিউ সামারি */}
         <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50/50">
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span className="text-slate-900 text-xs font-black">{totals.totalMinAllowed} ৳</span></div>
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Revenue</span><span className="text-blue-900 text-xs font-black">{totals.totalActualSold} ৳</span></div>
