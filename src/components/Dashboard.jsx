@@ -45,25 +45,38 @@ const Dashboard = () => {
     }
   };
 
-// Dashboard.jsx এর handleAction আপডেট
 const handleAction = async (actionType) => {
   setProcessing(true);
   try {
     if (selectedItem.is_in_house) {
-      // ইন-হাউজ ট্রান্সফার লজিক
+      // ইন-হাউজ ট্রান্সফার: সোর্স থেকে মাইনাস, গন্তব্যে প্লাস
       for (let itm of modalItems) {
-        // ১. সোর্স হাউজ থেকে মাইনাস
-        const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('house', selectedItem.house).single();
-        if (sourceP) await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
-        
-        // ২. গন্তব্য হাউজে প্লাস
-        const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('house', selectedItem.transfer_to).maybeSingle();
+        // সোর্স হাউজ থেকে মাইনাস
+        const { error: sourceErr } = await supabase.from('products')
+          .update({ stock_quantity: itm.products.stock_quantity - itm.quantity })
+          .eq('id', itm.product_id);
+        if (sourceErr) throw sourceErr;
+
+        // গন্তব্য হাউজে প্লাস
+        const { data: targetP } = await supabase.from('products')
+          .select('id, stock_quantity')
+          .eq('name', itm.products.name)
+          .eq('model', itm.products.model)
+          .eq('house', selectedItem.transfer_to)
+          .maybeSingle();
+
         if (targetP) await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
         else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: selectedItem.transfer_to }]);
       }
       await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
     } else {
-      // সেলস পেমেন্ট লজিক
+      // সেলস পেমেন্ট: স্টক মাইনাস এবং স্ট্যাটাস PAID
+      for (let itm of modalItems) {
+        const { error: stockErr } = await supabase.from('products')
+          .update({ stock_quantity: itm.products.stock_quantity - itm.quantity })
+          .eq('id', itm.product_id);
+        if (stockErr) throw stockErr;
+      }
       const bNo = `BLL-${Date.now().toString().slice(-6)}`;
       await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: bNo }).eq('id', selectedItem.id);
     }
@@ -173,67 +186,47 @@ const handleAction = async (actionType) => {
         </div>
       </div>
 
-      {selectedItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="p-8 bg-slate-50 border-b flex justify-between items-start">
-              <div>
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
-                <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
-                <p className="text-sm font-bold text-slate-400 mt-2">
-                  {modalType === 'product' ? `Model: ${selectedItem.model}` : (selectedItem.is_in_house ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                {modalType !== 'product' && (
-                  <>
-                    <button onClick={handlePrint} className="w-10 h-10 bg-white border rounded-full hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center">🖨️</button>
-                    <button onClick={handleDownload} className="w-10 h-10 bg-white border rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center">📥</button>
-                  </>
-                )}
-                <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border rounded-full hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
-              </div>
-            </div>
-            <div className="p-8 max-h-[45vh] overflow-y-auto">
-              {modalType === 'product' ? (
-                <div className="grid grid-cols-2 gap-6 text-center">
-                  <div className="bg-slate-50 p-6 rounded-3xl"><p className="text-xs font-bold text-slate-400 uppercase mb-2">In Stock</p><p className="text-4xl font-black text-slate-800">{selectedItem.stock_quantity}</p></div>
-                  <div className="bg-slate-50 p-6 rounded-3xl"><p className="text-xs font-bold text-slate-400 uppercase mb-2">Price</p><p className="text-4xl font-black text-slate-800">{selectedItem.unit_price}৳</p></div>
-                </div>
-              ) : (
-                <table className="w-full text-left">
-                  <thead><tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2"><th className="pb-4">Product</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Total</th></tr></thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {modalItems.map((itm, i) => (
-                      <tr key={i} className="group"><td className="py-4 font-bold text-slate-700">{itm.products?.name} <span className="text-xs text-slate-400 block">{itm.products?.model}</span></td><td className="py-4 text-center font-black">{itm.quantity}</td><td className="py-4 text-right font-black text-slate-900">{itm.total_price} ৳</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-{/* মডালের নিচের অ্যাকশন বাটন এরিয়া */}
-<div className="p-8 bg-slate-50 border-t">
-  {selectedItem.status === 'hold' ? (
-    <div className="space-y-4">
-      {selectedItem.is_in_house ? (
-        <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700">Confirm Transfer</button>
-      ) : (
-        <div className="space-y-3">
-           <select onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 border rounded-xl font-bold"><option value="">পেমেন্ট মেথড সিলেক্ট করুন...</option><option value="Cash">Cash</option><option value="bKash">bKash</option></select>
-           <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-green-700">Receive Payment & Confirm</button>
+{selectedItem && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4 animate-in fade-in">
+    <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
+      {/* হেডার অংশ অপরিবর্তিত রাখুন... */}
+      <div className="p-8 bg-slate-50 border-b flex justify-between items-start">
+        <div>
+          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
+          <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
         </div>
-      )}
-    </div>
-  ) : (
-    <div className="text-center font-black text-green-600 bg-green-50 p-4 rounded-xl">✓ এই চালানটি সফলভাবে সম্পন্ন হয়েছে</div>
-  )}
-</div>
-               )}
-            </div>
+        <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border rounded-full hover:bg-red-500 hover:text-white font-bold">✕</button>
+      </div>
+
+      <div className="p-8 max-h-[45vh] overflow-y-auto">
+        <table className="w-full text-left">
+          <thead><tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2"><th className="pb-4">Product</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Total</th></tr></thead>
+          <tbody className="divide-y divide-slate-100">
+            {modalItems.map((itm, i) => (
+              <tr key={i}><td className="py-4 font-bold text-slate-700">{itm.products?.name}</td><td className="py-4 text-center font-black">{itm.quantity}</td><td className="py-4 text-right font-black text-slate-900">{itm.total_price} ৳</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* পেমেন্ট বা ট্রান্সফার বাটন এরিয়া */}
+      <div className="p-8 bg-slate-50 border-t">
+        {selectedItem.status === 'hold' ? (
+          <div className="space-y-4">
+            {selectedItem.is_in_house ? (
+              <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase hover:bg-blue-700">Confirm Transfer</button>
+            ) : (
+              <div className="space-y-3">
+                 <select onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 border rounded-xl font-bold"><option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash</option><option value="bKash">bKash</option></select>
+                 <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black uppercase hover:bg-green-700">Receive Payment & Confirm</button>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="text-center font-black text-green-600 bg-green-50 p-4 rounded-xl">✓ সম্পন্ন হয়েছে</div>
+        )}
+      </div>
     </div>
-  );
-};
+  </div>
+)}
 export default Dashboard;
