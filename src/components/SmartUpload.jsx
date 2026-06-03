@@ -57,6 +57,9 @@ const SmartUpload = () => {
     let maxScore = 0;
 
     dbProducts.forEach(product => {
+      // 🔴 ফিক্স লজিক: ইউজার যে হাউজ সিলেক্ট করেছেন, শুধুমাত্র সেই হাউজের প্রোডাক্ট ম্যাচ করানো হবে
+      if (product.house !== selectedHouse) return;
+
       const brand = (product.name || '').toLowerCase().trim();
       const model = (product.model || '').toLowerCase().trim();
       const category = (product.category || '').toLowerCase().trim();
@@ -192,6 +195,7 @@ const SmartUpload = () => {
         customerId = newCust.id;
       }
 
+      // 🔴 রিকোয়েস্ট অনুযায়ী ইউনিক কনস্ট্রেইন বহাল রাখা হয়েছে
       const chalanPayload = {
         bill_no: extractedData.bill_no || "N/A",
         chalan_no: extractedData.chalan_no || `AUTO-${Date.now().toString().slice(-6)}`,
@@ -218,13 +222,14 @@ const SmartUpload = () => {
             total_price: Number(match.totalPrice)
           }]);
 
+          // 💾 স্টক মাইনাস করার সময় সিলেক্টেড হাউজের প্রোডাক্টের স্টক থেকেই মাইনাস হবে
           const currentStock = match.matchedProduct.stock_quantity || 0;
           const newStock = currentStock - Number(match.quantity);
           await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id);
         }
       }
 
-      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
+      alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
       setExtractedData(null); setImageFile(null); setPreview(null); setShowConfirmModal(false);
       fetchProducts(); 
 
@@ -234,14 +239,6 @@ const SmartUpload = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const getCustomerData = (item) => {
-    return {
-      name: item.customer_name || item.customers?.name || 'Walk-in',
-      phone: item.phone || item.customers?.phone || '',
-      address: item.address || item.customers?.address || ''
-    };
   };
 
   return (
@@ -254,6 +251,22 @@ const SmartUpload = () => {
                     <button key={mode} onClick={() => {setUploadMode(mode); setExtractedData(null);}} className={`px-6 py-2 rounded-xl font-bold transition-all ${uploadMode === mode ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}`}>{mode}</button>
                 ))}
             </div>
+        </div>
+
+        {/* সোর্স হাউজ সিলেকশন এরিয়া টপ প্যানেলে নিয়ে আসা হয়েছে */}
+        <div className="bg-white p-6 rounded-2xl border shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <span className="text-sm font-black text-slate-700 uppercase tracking-tight">🏢 স্ক্যান করার পূর্বে সঠিক বিলিং সোর্স সিলেক্ট করুন:</span>
+          <select 
+            value={selectedHouse} 
+            onChange={(e) => {
+              setSelectedHouse(e.target.value);
+              if(extractedData) initiateSave(); // হাউজ চেঞ্জ হলে যেন ম্যাচিং রি-ক্যালকুলেট হয়
+            }} 
+            className="w-full md:w-64 p-3 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-800 outline-none cursor-pointer shadow-sm focus:border-orange-500"
+          >
+              <option value="Head Office">Head Office (HO)</option>
+              <option value="Showroom">Showroom</option>
+          </select>
         </div>
 
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 flex flex-col items-center">
@@ -271,13 +284,6 @@ const SmartUpload = () => {
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-orange-100 animate-in fade-in zoom-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="space-y-4">
-                <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                    <label className="text-[10px] font-black text-orange-500 uppercase block mb-1">সোর্স হাউজ (Stock Source)</label>
-                    <select value={selectedHouse} onChange={(e) => setSelectedHouse(e.target.value)} className="w-full bg-transparent font-black text-slate-800 outline-none cursor-pointer">
-                        <option value="Head Office">Head Office (HO)</option>
-                        <option value="Showroom">Showroom</option>
-                    </select>
-                </div>
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                     <label className="text-[10px] font-black text-slate-400 uppercase block mb-1">
                       Bill No {uploadMode === 'Challan' && <span className="text-orange-500">(Optional for Challan)</span>}
@@ -368,7 +374,7 @@ const SmartUpload = () => {
                       <div>
                         <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Matched Product</p>
                         <p className="font-black text-slate-800">
-                          {match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}
+                          {match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}
                         </p>
                         <p className="text-xs text-slate-400 italic">Extracted: {match.aiDescription}</p>
                       </div>
@@ -379,7 +385,7 @@ const SmartUpload = () => {
                     </div>
 
                     <div className="mt-1">
-                      <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">🛠️ ভুল ম্যাচ হলে এখান থেকে ম্যানুয়ালি মডেল ঠিক করুন:</label>
+                      <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">🛠️ ভুল ম্যাচ হলে এখান থেকে ম্যানুয়াল মডেল ঠিক করুন:</label>
                       <select 
                         value={match.matchedProduct ? match.matchedProduct.id : ''} 
                         onChange={(e) => {
