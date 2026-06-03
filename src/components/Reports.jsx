@@ -36,7 +36,26 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // 🔴 ফিক্স: totals ক্যালকুলেশন মেকানিজম ফাংশনটি সবার উপরে নিয়ে আসা হয়েছে
+  // 🔴 হেল্পার ফাংশন: দুটি নাম আগে-পিছে উলটপালট থাকলেও তারা একই প্রোডাক্ট কিনা তা যাচাই করার জন্য (Fuzzy Token Match)
+  const isSameProductFuzzy = (name1, name2) => {
+    if (!name1 || !name2) return false;
+    const n1 = name1.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+    const n2 = name2.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+    
+    const tokens1 = n1.split(' ').filter(t => t.length > 1);
+    const tokens2 = n2.split(' ').filter(t => t.length > 1);
+    
+    if (tokens1.length === 0 || tokens2.length === 0) return false;
+
+    let matches = 0;
+    tokens1.forEach(t => {
+      if (tokens2.includes(t)) matches++;
+    });
+
+    const matchRatio = matches / Math.max(tokens1.length, tokens2.length);
+    return matchRatio >= 0.70; // ৭০% কিওয়ার্ড মিললেই তারা একই প্রোডাক্ট হিসেবে মার্জ হবে
+  };
+
   const calculateTotals = () => {
     let q = 0, m = 0, s = 0;
     if (reportData && reportData.productStats) {
@@ -70,32 +89,55 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
+  // 🔴 ফিক্সড লজিক: ইনভয়েস নাম ফরমেট ও লেজার নাম উলটপালট থাকলেও স্মার্টলি একই রো-তে মার্জ করার অ্যালগরিদম
   const getLedgerSummary = () => {
-    const summary = {};
+    const summaryArray = [];
+
+    // ১. প্রথমে সব স্টক ইন (Ledger) ডাটা প্রসেস করি
     ledgerData.forEach(item => {
       if (!item.product) return;
-      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      summary[item.product].totalIn += parseInt(item.quantity) || 0;
+      
+      // অলরেডি অ্যারেতে থাকা কোনো প্রোডাক্টের সাথে ফাজি ম্যাচিং মেলে কিনা চেক করি
+      const existing = summaryArray.find(s => isSameProductFuzzy(s.product, item.product));
+      
+      if (existing) {
+        existing.totalIn += parseInt(item.quantity) || 0;
+      } else {
+        summaryArray.push({ product: item.product, totalIn: parseInt(item.quantity) || 0, totalOut: 0 });
+      }
     });
+
+    // ২. এবার সেলস আউটের ডাটাগুলো মিলিয়ে অ্যারেতে যোগ বা ইনক্রিমেন্ট করি
     salesOutData.forEach(item => {
       if (!item.product) return;
-      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      summary[item.product].totalOut += parseInt(item.quantity) || 0;
+
+      const existing = summaryArray.find(s => isSameProductFuzzy(s.product, item.product));
+      
+      if (existing) {
+        existing.totalOut += parseInt(item.quantity) || 0;
+      } else {
+        // যদি ইনপুট হিস্ট্রি না থাকে, তবে নতুন রো তৈরি হবে ও আউট যোগ হবে
+        summaryArray.push({ product: item.product, totalIn: 0, totalOut: parseInt(item.quantity) || 0 });
+      }
     });
-    return Object.values(summary);
+
+    return summaryArray;
   };
 
   const ledgerSummaryList = getLedgerSummary();
 
+  // 🔴 ফিক্সড লজিক: ইন্ডিভিজুয়াল প্রোডাক্ট ভিউতেও নামের ফরম্যাট দুই রকম হলেও যেন সম্পূর্ণ ইন-আউট হিস্ট্রি লোড হয়
   const getIndividualLedgerHistory = () => {
     const history = [];
+    if (!ledgerSearch) return history;
+
     ledgerData.forEach(l => {
-      if (l.product && l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+      if (l.product && (l.product.toLowerCase() === ledgerSearch.toLowerCase() || isSameProductFuzzy(l.product, ledgerSearch))) {
         history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
     salesOutData.forEach(s => {
-      if (s.product && s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+      if (s.product && (s.product.toLowerCase() === ledgerSearch.toLowerCase() || isSameProductFuzzy(s.product, ledgerSearch))) {
         history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
@@ -462,7 +504,7 @@ const Reports = () => {
                         </thead>
                         <tbody className="divide-y font-bold text-slate-700">
                           {Object.values(reportData.houseStats[house].products).map((p, i) => (
-                            <tr key={i}>
+                            <tr key={i} className="hover:bg-slate-50">
                               <td className="p-2 truncate max-w-[150px]">{p.name}</td>
                               <td className="p-2 text-center text-purple-600">{p.qty} pcs</td>
                               <td className="p-2 text-right">{p.total} ৳</td>
@@ -722,7 +764,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🏛️ ডাইনামিক এবং ক্র্যাশ-প্রুফ এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
+      {/* 🏛️ ডাইনামিক এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
       <div 
         id="formal-corporate-portrait-pdf" 
         className="hidden bg-white text-slate-900 mx-auto" 
@@ -761,13 +803,13 @@ const Reports = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {reportType === 'product' ? Object.values(reportData?.productStats || {}).map((stat, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-2 font-semibold">{stat.name} ({stat.house})</td>
                       <td className="py-2 text-center font-bold">{stat.qty} pcs</td>
                       <td className="py-2 text-right font-bold">{stat.total} ৳</td>
                     </tr>
                   )) : Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-2 font-semibold">{prod.name}</td>
                       <td className="py-2 text-center font-bold">{prod.qty} pcs</td>
                       <td className="py-2 text-right font-bold">{prod.total} ৳</td>
@@ -788,7 +830,7 @@ const Reports = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {Object.keys(reportData?.houseStats || {}).map((house, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-3 font-semibold">🏢 {house}</td>
                       <td className="py-3 text-center font-bold">{reportData?.houseStats?.[house]?.bills || 0} Bills</td>
                       <td className="py-3 text-right font-black text-blue-900">{reportData?.houseStats?.[house]?.amount || 0} ৳</td>
@@ -809,7 +851,7 @@ const Reports = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredCustomers.map((cust, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-slate-50">
                       <td className="py-2 font-semibold">👤 {cust.name}</td>
                       <td className="py-2 text-center font-mono">{cust.phone || '—'}</td>
                       <td className="py-2 text-right font-black text-emerald-700">{cust.amount} ৳</td>
@@ -832,7 +874,7 @@ const Reports = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {ledgerSummaryList.map((item, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} className="hover:bg-slate-50">
                           <td className="py-2 font-semibold">📦 {item.product}</td>
                           <td className="py-2 text-center text-green-600 font-bold">{item.totalIn} PCS</td>
                           <td className="py-2 text-center text-red-600 font-bold">{item.totalOut} PCS</td>
@@ -852,7 +894,7 @@ const Reports = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {combinedLedgerHistory.map((l, idx) => (
-                        <tr key={idx}>
+                        <tr key={idx} className="hover:bg-slate-50">
                           <td className="py-2">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="py-2 text-center uppercase font-bold">{l.type === 'in' ? 'STOCK IN' : 'SALES OUT'}</td>
                           <td className="py-2 text-center text-slate-500">{l.source}</td>
