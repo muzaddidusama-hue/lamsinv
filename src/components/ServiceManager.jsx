@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { printChallan } from '../utils/printChalan';
+import { printBill } from '../utils/printBill';
+import { downloadPDF } from '../utils/pdfGenerator';
 
 const ServiceManager = () => {
-  const [searchNo, setSearchNo] = useState(''); // বিল, চালান বা সিরিয়াল নম্বর সার্চ
+  const [searchNo, setSearchNo] = useState(''); // বিল, চালান বা সিরিয়াল নম্বর সার্চ
   const [record, setRecord] = useState(null); 
   const [inverterItem, setInverterItem] = useState(null); 
-  const [serialNumbers, setSerialNumbers] = useState([]); // চালানের সিরিয়াল তালিকা (ডায়নামিক)
+  const [serialNumbers, setSerialNumbers] = useState([]); // চালানের সিরিয়াল তালিকা (ডায়নামিক)
   const [saleDate, setSaleDate] = useState(''); 
+  
+  // 🔴 ফিক্স: ডাটাবেজ থেকে লোড হওয়া আসল সিরিয়ালগুলো ট্র্যাক করার জন্য নতুন স্টেট
+  const [savedSerials, setSavedSerials] = useState([]); 
 
   // সেকশন ২-এর জন্য ফর্ম স্টেট
   const [loading, setLoading] = useState(false);
@@ -15,7 +21,7 @@ const ServiceManager = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isNewRecord, setIsNewRecord] = useState(true); 
 
-  // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট
+  // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট
   const [dbRowData, setDbRowData] = useState({
     bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
@@ -30,21 +36,24 @@ const ServiceManager = () => {
     date: '', problem: '', amount: '', remarks: ''
   });
 
-  // 🔍 অল-ইন-ওয়ান সার্চ (বিল নম্বর / চালান নম্বর / সিরিয়াল নম্বর)
+  const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel", "Lithium Battery", "Accessories"];
+
+  // 🔍 অল-ইন-ওয়ান সার্চ (بیل নম্বর / চালান নম্বর / সিরিয়াল নম্বর)
   const handleAllInOneSearch = async (e) => {
     e.preventDefault();
     const queryText = searchNo.trim().toUpperCase();
-    if (!queryText) return alert("বিল, চালান अथवा সিরিয়াল নম্বর দিন!");
+    if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
 
     setLoading(true);
     setRecord(null);
     setInverterItem(null);
     setSerialNumbers([]);
+    setSavedSerials([]); // রিসেট ট্র্যাকিং
     setSaleDate('');
     resetServiceForm();
 
     try {
-      // ১. প্রথমে চেক করি ইনপুটটি কোনো ইনভার্টারের একক সিরিয়াল নম্বর (sl_no) কি না
+      // ১. প্রথমে চেক করি ইনপুটটি কোনো ইনভার্টারের একক সিরিয়াল নম্বর (sl_no) কি না
       const { data: slData, error: slErr } = await supabase
         .from('inv_sl')
         .select('*')
@@ -75,7 +84,7 @@ const ServiceManager = () => {
 
       if (mainData) {
         setRecord(mainData);
-        setSaleDate(mainData.created_at ? new Date(mainData.created_at).toLocaleDateString('bn-BD') : 'পাওয়া যায়নি');
+        setSaleDate(mainData.created_at ? new Date(mainData.created_at).toLocaleDateString('bn-BD') : 'পাওয়া যায়নি');
 
         // চালানের প্রোডাক্ট আইটেম লোড করা
         const { data: itemData, error: itemErr } = await supabase
@@ -93,7 +102,7 @@ const ServiceManager = () => {
         if (inverter) {
           setInverterItem(inverter);
 
-          // 🧠 স্মার্ট পার্ট: inv_sl টেবিল থেকে এই চালানের আগে থেকে এন্ট্রি করা সব সিরিয়াল নম্বর খুঁজে আনা
+          // inv_sl টেবিল থেকে এই চালানের আগে থেকে এন্ট্রি করা সব সিরিয়াল নম্বর খুঁজে আনা
           const { data: existingSerials, error: existingSerialsErr } = await supabase
             .from('inv_sl')
             .select('sl_no')
@@ -101,17 +110,15 @@ const ServiceManager = () => {
 
           if (existingSerialsErr) throw existingSerialsErr;
 
-          // ডাটাবেজের সিরিয়ালগুলো নিয়ে অ্যারে সাজানো
-          const dbSerials = existingSerials ? existingSerials.map(s => s.sl_no) : [];
+          const dbSerials = existingSerials ? existingSerials.map(s => s.sl_no.toUpperCase()) : [];
+          setSavedSerials(dbSerials); // 🔴 ফিক্স: ডাটাবেজের আসল সিরিয়ালগুলো ট্র্যাকিং স্টেট-এ সংরক্ষণ
           
-          // মোট কোয়ান্টিটি (যেমন: ৫টি) অনুযায়ী অ্যারে তৈরি করা, যেখানে আগের সিরিয়াল থাকলে তা বসে যাবে
           const mergedSerials = Array.from({ length: inverter.quantity }, (_, index) => {
             return dbSerials[index] || ""; 
           });
 
           setSerialNumbers(mergedSerials);
           
-          // যদি ডিরেক্ট সিরিয়াল সার্চের মাধ্যমে নতুন রেকর্ড হয়, তবে মেটাডাটা সেট করি
           if (!slData) {
             const freshRow = {
               bill_no: mainData.bill_no || '',
@@ -134,21 +141,20 @@ const ServiceManager = () => {
           setIsNewRecord(false);
           determineNextAvailableSlot(slData);
         } else {
-          alert("⚠️ এই নম্বর দিয়ে কোনো চালান, বিল বা সিরিয়াল রেকর্ড খুঁজে পাওয়া যায়নি!");
+          alert("⚠️ এই নম্বর দিয়ে কোনো চালান, বিল বা সিরিয়াল রেকর্ড খুঁজে পাওয়া যায়নি!");
         }
       }
 
     } catch (error) {
       console.error(error);
-      alert("তথ্য লোড করতে সমস্যা হয়েছে!");
+      alert("তথ্য লোড করতে সমস্যা হয়েছে!");
     }
     setLoading(false);
   };
 
-  // সেকশন ১-এর তালিকা থেকে নির্দিষ্ট সিরিয়াল নম্বর লোড করা
   const handleRegisterSerial = async (index) => {
     const currentSerial = serialNumbers[index]?.trim().toUpperCase();
-    if (!currentSerial) return alert("অনুগ্রহ করে সিরিয়াল নম্বরটি ইনপুট দিন!");
+    if (!currentSerial) return alert("অনুগ্রহ করে সিরিয়াল নম্বরটি ইনপুট দিন!");
     
     setServiceLoading(true);
     resetServiceForm();
@@ -166,9 +172,8 @@ const ServiceManager = () => {
         setDbRowData(data);
         setIsNewRecord(false);
         determineNextAvailableSlot(data);
-        alert(`ℹ️ সিরিয়াল নম্বর ${currentSerial}-এর তথ্য ও সার্ভিসের ইতিহাস লোড হয়েছে।`);
+        alert(`ℹ️ সিরিয়াল নম্বর ${currentSerial}-এর তথ্য ও সার্ভিসের ইতিহাস লোড হয়েছে।`);
       } else {
-        // নতুন সিরিয়াল নম্বর হলে মেটাডাটা সহ ইনসার্টের জন্য রেডি করা
         const freshRow = {
           bill_no: record?.bill_no || '',
           chalan_no: record?.chalan_no || '',
@@ -182,16 +187,15 @@ const ServiceManager = () => {
         setDbRowData(freshRow);
         setIsNewRecord(true);
         setSelectedServiceSlot('1');
-        alert(`📝 সিরিয়াল নম্বর ${currentSerial} সফলভাবে এন্ট্রি করার জন্য রেডি। নিচে ডাটা ইনপুট দিন।`);
+        alert(`📝 সিরিয়াল নম্বর ${currentSerial} সফলভাবে এন্ট্রি করার জন্য রেডি। নিচে ডাটা ইনপুট দিন।`);
       }
     } catch (error) {
       console.error(error);
-      alert("সিরিয়াল নম্বর প্রসেস করতে সমস্যা হয়েছে!");
+      alert("সিরিয়াল নম্বর প্রসেস করতে সমস্যা হয়েছে!");
     }
     setServiceLoading(false);
   };
 
-  // পরবর্তী খালি সার্ভিস স্লট নির্ধারণ
   const determineNextAvailableSlot = (data) => {
     if (!data.serv_1_date) setSelectedServiceSlot('1');
     else if (!data.serv_2_date) setSelectedServiceSlot('2');
@@ -205,7 +209,6 @@ const ServiceManager = () => {
     setIsEditing(false);
   };
 
-  // টেবিল থেকে এডিট মোডে নেওয়া
   const handleEditClick = (slotNum) => {
     const slotStr = slotNum.toString();
     setIsEditing(true);
@@ -240,10 +243,9 @@ const ServiceManager = () => {
     }
   };
 
-  // 💾 ডাটাবেজে সংরক্ষণ (Insert/Update)
   const handleSaveService = async (e) => {
     e.preventDefault();
-    if (!dbRowData.sl_no?.trim()) return alert("প্রথমে একটি সিরিয়াল নম্বর সার্চ বা লোড করুন!");
+    if (!dbRowData.sl_no?.trim()) return alert("প্রথমে একটি সিরিয়াল নম্বর সার্চ বা লোড করুন!");
     if (!singleInput.date || !singleInput.problem) return alert("তারিখ এবং সমস্যার বিবরণ আবশ্যিক!");
 
     setSubmitting(true);
@@ -275,19 +277,19 @@ const ServiceManager = () => {
         if (updateErr) throw updateErr;
       }
 
-      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সংরক্ষণ করা হয়েছে!`);
+      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সংরক্ষণ করা হয়েছে!`);
       setDbRowData(updatedDbRow);
       resetServiceForm();
       determineNextAvailableSlot(updatedDbRow);
 
-      // সফলভাবে সেভ করার পর বামপাশের লিস্টের সিরিয়ালগুলো রি-সিঙ্ক করা
       const { data: existingSerials } = await supabase
         .from('inv_sl')
         .select('sl_no')
         .eq('chalan_no', updatedDbRow.chalan_no);
         
       if (existingSerials) {
-        const dbSerials = existingSerials.map(s => s.sl_no);
+        const dbSerials = existingSerials.map(s => s.sl_no.toUpperCase());
+        setSavedSerials(dbSerials); // ট্র্যাকিং স্টেট রি-সিঙ্ক
         const mergedSerials = Array.from({ length: inverterItem.quantity }, (_, index) => {
           return dbSerials[index] || ""; 
         });
@@ -296,7 +298,7 @@ const ServiceManager = () => {
 
     } catch (error) {
       console.error(error);
-      alert("সংরক্ষণ করতে ত্রুটি হয়েছে: " + error.message);
+      alert("সংরক্ষণ করতে ত্রুটি হয়েছে: " + error.message);
     }
     setSubmitting(false);
   };
@@ -316,7 +318,7 @@ const ServiceManager = () => {
             type="text" 
             value={searchNo} 
             onChange={(e) => setSearchNo(e.target.value)} 
-            placeholder="বিল, চালান অথবা ইনভার্টারের সিরিয়াল নম্বর (S/N) দিন..." 
+            placeholder="বিল, চালান অথবা ইনভার্টারের সিরিয়াল নম্বর (S/N) দিন..." 
             className="flex-1 h-14 px-6 bg-slate-50 border rounded-2xl font-black text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-600" 
           />
           <button type="submit" disabled={loading} className="h-14 px-10 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-colors">
@@ -337,21 +339,19 @@ const ServiceManager = () => {
             
             {dbRowData.sl_no || record ? (
               <div className="space-y-4">
-                {/* প্রোডাক্ট বেসিক ইনফো */}
                 <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
                   <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার মডেল ও নাম</p>
                   <p className="text-base font-black">{inverterItem?.products?.name || 'ইনভার্টার ডাটা লোড হচ্ছে...'}</p>
                   <p className="text-xs font-medium text-blue-600">মডেল: {inverterItem?.products?.model || '—'}</p>
                 </div>
                 
-                {/* সেলস ও ওয়ারেন্টি মেটাডাটা */}
                 <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border">
                   <div>
                     <span className="text-slate-400 block">বিক্রয়ের তারিখ</span>
                     <span className="font-black text-slate-700 text-sm">{saleDate || '—'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">ওয়ারেন্টি কাল</span>
+                    <span className="text-slate-400 block">ওয়ারেন্টি কাল</span>
                     <span className="font-black text-slate-700 text-sm">{inverterItem?.products?.warranty || '১ বছর'}</span>
                   </div>
                   <div className="pt-2 border-t col-span-2">
@@ -368,12 +368,12 @@ const ServiceManager = () => {
                   </div>
                 </div>
 
-                {/* সিরিয়াল রেজিস্ট্রি সেকশন (আগে থেকে সেভ করা থাকলে অটো লোড হয়ে আসবে) */}
                 {serialNumbers.length > 0 && (
                   <div className="space-y-3 pt-2 border-t border-dashed">
-                    <p className="text-[11px] font-black text-slate-500 uppercase">ইনভার্টার সিরিয়াল নম্বরসমূহ:</p>
+                    <p className="text-[11px] font-black text-slate-500 uppercase">ইনভার্টার সিরিয়াল নম্বরসমূহ:</p>
                     {serialNumbers.map((serial, index) => {
-                      const isExisting = serial !== ""; // সিরিয়াল অলরেডি এন্ট্রি করা কি না
+                      // 🔴 ফিক্স: এখন থেকে শুধু ডাটাবেজে থাকা এক্সিস্টিং সিরিয়ালগুলোই ডিজেবল (লক) থাকবে, নতুন টাইপ করার সময় লক হবে না
+                      const isExisting = serial !== "" && savedSerials.includes(serial.trim().toUpperCase());
                       return (
                         <div key={index} className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border">
                           <span className="w-5 h-5 rounded bg-slate-200 flex items-center justify-center font-black text-[10px] text-slate-600">
@@ -382,13 +382,13 @@ const ServiceManager = () => {
                           <input 
                             type="text"
                             value={serial}
-                            disabled={isExisting} // অলরেডি সেভ করা সিরিয়াল এডিট লক থাকবে
+                            disabled={isExisting} 
                             onChange={(e) => {
                               const updated = [...serialNumbers];
                               updated[index] = e.target.value;
                               setSerialNumbers(updated);
                             }}
-                            placeholder={`সিরিয়াল দিন`}
+                            placeholder={`সিরিয়াল দিন`}
                             className={`flex-1 p-1 bg-white border rounded font-bold uppercase text-xs outline-none ${isExisting ? 'bg-slate-100 text-slate-800 border-green-200 font-black' : 'focus:border-blue-600'}`}
                           />
                           <button 
@@ -407,7 +407,7 @@ const ServiceManager = () => {
               </div>
             ) : (
               <div className="text-center py-24 text-slate-300 italic text-sm">
-                সার্চ বারে বিল, চালান বা সিরিয়াল নম্বর দিলে প্রোডাক্টের সব ডিটেইলস এখানে আসবে।
+                সার্চ বারে বিল, চালান বা সিরিয়াল নম্বর দিলে প্রোডাক্টের সব ডিটেইলস এখানে আসবে।
               </div>
             )}
           </div>
@@ -428,7 +428,6 @@ const ServiceManager = () => {
               </h3>
             </div>
 
-            {/* একক সার্ভিস ইনপুট ফর্ম সেগমেন্ট */}
             {dbRowData.sl_no && (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-200 pb-2">
@@ -478,7 +477,7 @@ const ServiceManager = () => {
                     
                     <div className="space-y-1">
                       <label className="text-[10px] font-black text-slate-400 block uppercase">সমস্যা (Problem)</label>
-                      <textarea name="problem" placeholder="কী সমস্যা হয়েছিল বিস্তারিত লিখুন..." value={singleInput.problem} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none min-h-[50px] max-h-[80px]" required />
+                      <textarea name="problem" placeholder="কী সমস্যা হয়েছিল বিস্তারিত লিখুন..." value={singleInput.problem} onChange={handleSingleInputChange} className="w-full p-2.5 bg-white border rounded-xl font-bold text-xs outline-none min-h-[50px] max-h-[80px]" required />
                     </div>
 
                     <div className="flex gap-2 justify-end">
@@ -486,7 +485,7 @@ const ServiceManager = () => {
                         <button type="button" onClick={resetServiceForm} className="px-4 py-2 bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">বাতিল</button>
                       )}
                       <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all shadow-sm">
-                        {submitting ? 'সেভ হচ্ছে...' : isEditing ? '🔄 আপডেট করুন' : '📥 টেবিলে পাঠান'}
+                        {submitting ? 'সেভ হচ্ছে...' : isEditing ? '🔄 Nachricht' : '📥 টেবিলে পাঠান'}
                       </button>
                     </div>
                   </form>
@@ -494,7 +493,6 @@ const ServiceManager = () => {
               </div>
             )}
 
-            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ */}
             {dbRowData.sl_no && (
               <div className="space-y-3">
                 <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider px-1">📊 সার্ভিসের ইতিহাস তালিকা</h4>
