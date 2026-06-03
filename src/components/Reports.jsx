@@ -36,9 +36,86 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // 🔴 ফিক্স: totals ক্যালকুলেশন মেকানিজম ফাংশনটি সবার উপরে নিয়ে আসা হয়েছে
+  const calculateTotals = () => {
+    let q = 0, m = 0, s = 0;
+    if (reportData && reportData.productStats) {
+      Object.values(reportData.productStats).forEach(stat => {
+        const pKey = `${stat.name}_${stat.house}`;
+        const currentMrp = parseFloat(mrps[pKey]) || 0;
+        q += stat.qty;
+        m += (currentMrp * stat.qty);
+        s += stat.total;
+      });
+    }
+    return { totalQty: q, totalMinAllowed: m, totalActualSold: s, totalSurplus: s - m };
+  };
+
+  const totals = calculateTotals();
+
+  const getProductWiseStats = () => {
+    if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
+    let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
+
+    Object.values(reportData.productStats).forEach(stat => {
+      if (stat.name && stat.name.toLowerCase() === productSearch.toLowerCase()) {
+        totalQty += stat.qty;
+        totalAmount += stat.total;
+        if (stat.house === 'Head Office') { hoQty += stat.qty; hoAmount += stat.total; } 
+        else if (stat.house === 'Showroom') { showroomQty += stat.qty; showroomAmount += stat.total; }
+      }
+    });
+    return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
+  };
+
+  const productWiseStats = getProductWiseStats();
+
+  const getLedgerSummary = () => {
+    const summary = {};
+    ledgerData.forEach(item => {
+      if (!item.product) return;
+      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
+      summary[item.product].totalIn += parseInt(item.quantity) || 0;
+    });
+    salesOutData.forEach(item => {
+      if (!item.product) return;
+      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
+      summary[item.product].totalOut += parseInt(item.quantity) || 0;
+    });
+    return Object.values(summary);
+  };
+
+  const ledgerSummaryList = getLedgerSummary();
+
+  const getIndividualLedgerHistory = () => {
+    const history = [];
+    ledgerData.forEach(l => {
+      if (l.product && l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+        history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
+      }
+    });
+    salesOutData.forEach(s => {
+      if (s.product && s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
+        history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
+      }
+    });
+    return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  };
+
+  const combinedLedgerHistory = getIndividualLedgerHistory();
+
+  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
+    .filter(c => {
+      const nameStr = c.name ? String(c.name).toLowerCase() : '';
+      const phoneStr = c.phone ? String(c.phone) : '';
+      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
+      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+    })
+    .sort((a, b) => b.amount - a.amount) : [];
+
   useEffect(() => {
     generateReport();
-  }, [reportType, startDate, endDate]); 
+  }, [startDate, endDate]); 
 
   useEffect(() => {
     fetchAllCustomers(); 
@@ -196,53 +273,6 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // 🔴 নতুন: ফিক্সড ডাইনামিক পিডিএফ ডাউনলোড মেকানিজম ফাংশন
-  const downloadReportPDF = () => {
-    const element = document.getElementById('formal-corporate-portrait-pdf');
-    if (!element) return;
-
-    setPdfLoading(true);
-
-    const executeDownload = () => {
-      const opt = {
-        margin: 0, 
-        filename: `LAMS_POWER_${reportType}_Report_${startDate}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      element.classList.remove('hidden');
-
-      window.html2pdf().from(element).set(opt).save().then(() => {
-        element.classList.add('hidden');
-        setPdfLoading(false);
-      }).catch((err) => {
-        console.error(err);
-        element.classList.add('hidden');
-        setPdfLoading(false);
-      });
-    };
-
-    if (!window.html2pdf) {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-      script.onload = executeDownload;
-      document.head.appendChild(script);
-    } else {
-      executeDownload();
-    }
-  };
-
-  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
-    .filter(c => {
-      const nameStr = c.name ? String(c.name).toLowerCase() : '';
-      const phoneStr = c.phone ? String(c.phone) : '';
-      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
-      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
-    })
-    .sort((a, b) => b.amount - a.amount) : [];
-
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
     setCustomerSearch(val);
@@ -296,56 +326,42 @@ const Reports = () => {
     }
   };
 
-  const getProductWiseStats = () => {
-    if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
-    let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
+  const downloadReportPDF = () => {
+    const element = document.getElementById('formal-corporate-portrait-pdf');
+    if (!element) return;
 
-    Object.values(reportData.productStats).forEach(stat => {
-      if (stat.name && stat.name.toLowerCase() === productSearch.toLowerCase()) {
-        totalQty += stat.qty;
-        totalAmount += stat.total;
-        if (stat.house === 'Head Office') { hoQty += stat.qty; hoAmount += stat.total; } 
-        else if (stat.house === 'Showroom') { showroomQty += stat.qty; showroomAmount += stat.total; }
-      }
-    });
-    return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
+    setPdfLoading(true);
+
+    const executeDownload = () => {
+      const opt = {
+        margin: 0, 
+        filename: `LAMS_POWER_${reportType}_Report_${startDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      element.classList.remove('hidden');
+
+      window.html2pdf().from(element).set(opt).save().then(() => {
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      }).catch((err) => {
+        console.error(err);
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      });
+    };
+
+    if (!window.html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = executeDownload;
+      document.head.appendChild(script);
+    } else {
+      executeDownload();
+    }
   };
-
-  const productWiseStats = getProductWiseStats();
-
-  const getLedgerSummary = () => {
-    const summary = {};
-    ledgerData.forEach(item => {
-      if (!item.product) return;
-      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      summary[item.product].totalIn += parseInt(item.quantity) || 0;
-    });
-    salesOutData.forEach(item => {
-      if (!item.product) return;
-      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      summary[item.product].totalOut += parseInt(item.quantity) || 0;
-    });
-    return Object.values(summary);
-  };
-
-  const ledgerSummaryList = getLedgerSummary();
-
-  const getIndividualLedgerHistory = () => {
-    const history = [];
-    ledgerData.forEach(l => {
-      if (l.product && l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
-        history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
-      }
-    });
-    salesOutData.forEach(s => {
-      if (s.product && s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
-        history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
-      }
-    });
-    return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  };
-
-  const combinedLedgerHistory = getIndividualLedgerHistory();
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -666,6 +682,7 @@ const Reports = () => {
                     <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
+                  
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead>
                       <tr className="bg-slate-900 text-white text-[10px] uppercase">
@@ -677,7 +694,7 @@ const Reports = () => {
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
                       {combinedLedgerHistory.map((l, i) => (
-                        <tr key={i}>
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
                           <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -692,6 +709,9 @@ const Reports = () => {
                           </td>
                         </tr>
                       ))}
+                      {combinedLedgerHistory.length === 0 && (
+                        <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -702,7 +722,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 ডাইনামিক এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
+      {/* 🏛️ ডাইনামিক এবং ক্র্যাশ-প্রুফ এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
       <div 
         id="formal-corporate-portrait-pdf" 
         className="hidden bg-white text-slate-900 mx-auto" 
