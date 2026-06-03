@@ -24,7 +24,7 @@ const SmartUpload = () => {
     if (!error && data) setDbProducts(data);
   };
 
-  // স্মার্ট এবং টাইপো-টলারেন্ট ম্যাচিং অ্যালগরিদম
+  // আল্ট্রা-স্মার্ট টাইপো-টলারেন্ট এবং টোকেনাইজড ম্যাচিং অ্যালগরিদম
   const findBestMatch = (aiDesc) => {
     if (!aiDesc) return null;
     
@@ -220,7 +220,7 @@ const SmartUpload = () => {
 
           const currentStock = match.matchedProduct.stock_quantity || 0;
           const newStock = currentStock - Number(match.quantity);
-          await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id).eq('house', selectedHouse);
+          await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id);
         }
       }
 
@@ -234,6 +234,14 @@ const SmartUpload = () => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const getCustomerData = (item) => {
+    return {
+      name: item.customer_name || item.customers?.name || 'Walk-in',
+      phone: item.phone || item.customers?.phone || '',
+      address: item.address || item.customers?.address || ''
+    };
   };
 
   return (
@@ -355,7 +363,6 @@ const SmartUpload = () => {
               <h3 className="text-2xl font-black text-slate-800 mb-6">স্টক ভেরিফিকেশন ({selectedHouse})</h3>
               <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
                 {matchedItems.map((match, idx) => (
-                  {/* 🔴 ফিক্স: ফ্লেক্স ডিরেক্টশন কলামে নিয়ে আসা হয়েছে যাতে ড্রপডাউনটি সুন্দরভাবে ফিট হয় */}
                   <div key={idx} className="p-5 rounded-3xl bg-slate-50 border border-slate-100 flex flex-col gap-3">
                     <div className="flex justify-between items-start">
                       <div>
@@ -371,7 +378,6 @@ const SmartUpload = () => {
                       </div>
                     </div>
 
-                    {/* 🔴 নতুন ফিচার: ম্যানুয়াল ড্রপডাউন সিলেকশন এবং সার্চ অপশন */}
                     <div className="mt-1">
                       <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">🛠️ ভুল ম্যাচ হলে এখান থেকে ম্যানুয়ালি মডেল ঠিক করুন:</label>
                       <select 
@@ -379,7 +385,6 @@ const SmartUpload = () => {
                         onChange={(e) => {
                           const selectedId = e.target.value;
                           const updatedMatches = [...matchedItems];
-                          // ড্রপডাউন থেকে আইডি দিয়ে ডাটাবেজের অবজেক্ট খুঁজে সেট করা হচ্ছে
                           updatedMatches[idx].matchedProduct = selectedId ? dbProducts.find(p => p.id === parseInt(selectedId)) : null;
                           setMatchedItems(updatedMatches);
                         }}
