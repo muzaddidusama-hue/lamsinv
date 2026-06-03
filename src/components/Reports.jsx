@@ -26,7 +26,7 @@ const Reports = () => {
 
   // 📝 লেজার (Ledger) রিপোর্টের জন্য স্টেটস
   const [ledgerData, setLedgerData] = useState([]);
-  const [salesOutData, setSalesOutData] = useState([]); // 🔴 নতুন: বিক্রয় আউটের ডাটা ট্র্যাকিং স্টেট
+  const [salesOutData, setSalesOutData] = useState([]); 
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
   const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
@@ -82,20 +82,21 @@ const Reports = () => {
       if (error) throw error;
       processReportData(chalans || []);
 
-      // 🔴 নতুন লজিক: চালানের ভেতরের পেইড বিলগুলো থেকে প্রোডাক্ট সেলস আউট (Out) ডাটা এক্সট্র্যাক্ট করা
+      // 🔴 ফিক্স: সেলস আউট ডাটা নির্ভুলভাবে এক্সট্র্যাক্ট করে কাস্টমার নেম বাইন্ডিং
       const extractedOutItems = [];
       if (chalans) {
         chalans.forEach(ch => {
           if (ch.status === 'paid') {
             ch.chalan_items.forEach(item => {
-              const pKey = `${item.products?.name || ''} - ${item.products?.model || ''}`;
+              const pKey = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
+              const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
               extractedOutItems.push({
-                product: pKey,
+                product: pName,
                 quantity: item.quantity,
                 date: ch.created_at ? ch.created_at.split('T')[0] : '',
                 timestamp: ch.created_at,
                 type: 'out',
-                source: `Bill: #${ch.bill_no || 'N/A'}`
+                source: `Sold to: ${cName} (Bill: #${ch.bill_no || 'N/A'})`
               });
             });
           }
@@ -103,7 +104,7 @@ const Reports = () => {
       }
       setSalesOutData(extractedOutItems);
 
-      // ২. লেজার টেবিল থেকে ডাটা লোড করা হচ্ছে (তারিখ রেঞ্জ অনুযায়ী)
+      // লেজার টেবিল থেকে ডাটা লোড (তারিখ রেঞ্জ অনুযায়ী)
       const { data: ledger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -205,7 +206,6 @@ const Reports = () => {
         .select('id, name, phone')
         .or(`name.ilike.%${val}%,phone.ilike.%${val}%`)
         .limit(10);
-      
       setCustomerSuggestions(data || []);
       setShowSuggestions(true);
     } else {
@@ -235,7 +235,6 @@ const Reports = () => {
     }
   };
 
-  // 🔴 নতুন ফিক্স: ইনপুট ও সেলস আউট উভয় তালিকা মিলিয়ে স্মার্ট সাজেশন লিস্ট বিল্ড করা
   const handleLedgerSearchAction = (e) => {
     const val = e.target.value;
     setLedgerSearch(val);
@@ -247,43 +246,6 @@ const Reports = () => {
       setShowLedgerSuggestions(true);
     } else {
       setShowLedgerSuggestions(false);
-    }
-  };
-
-  const downloadReportPDF = () => {
-    const element = document.getElementById('formal-corporate-portrait-pdf');
-    if (!element) return;
-
-    setPdfLoading(true);
-
-    const executeDownload = () => {
-      const opt = {
-        margin: 0, 
-        filename: `LAMS_POWER_Sales_Report_${startDate}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
-
-      element.classList.remove('hidden');
-
-      window.html2pdf().from(element).set(opt).save().then(() => {
-        element.classList.add('hidden');
-        setPdfLoading(false);
-      }).catch((err) => {
-        console.error(err);
-        element.classList.add('hidden');
-        setPdfLoading(false);
-      });
-    };
-
-    if (!window.html2pdf) {
-      const script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-      script.onload = executeDownload;
-      document.head.appendChild(script);
-    } else {
-      executeDownload();
     }
   };
 
@@ -307,7 +269,7 @@ const Reports = () => {
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
 
-  const getProductWiseStats = () => {
+  const productWiseData = () => {
     if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
     let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
 
@@ -315,33 +277,23 @@ const Reports = () => {
       if (stat.name.toLowerCase() === productSearch.toLowerCase()) {
         totalQty += stat.qty;
         totalAmount += stat.total;
-        if (stat.house === 'Head Office') {
-          hoQty += stat.qty;
-          hoAmount += stat.total;
-        } else if (stat.house === 'Showroom') {
-          showroomQty += stat.qty;
-          showroomAmount += stat.total;
-        }
+        if (stat.house === 'Head Office') { hoQty += stat.qty; hoAmount += stat.total; } 
+        else if (stat.house === 'Showroom') { showroomQty += stat.qty; showroomAmount += stat.total; }
       }
     });
     return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
   };
 
-  const productWiseData = getProductWiseStats();
+  const productWiseStats = productWiseData();
 
-  // 🔴 নতুন লজিক: সার্বিক টেবিলে ইন এবং আউটের টোটাল ডাটা পাশাপাশি সাজানো (হিজিবিজি মুক্ত সামারি)
   const getLedgerSummary = () => {
     const summary = {};
     ledgerData.forEach(item => {
-      if (!summary[item.product]) {
-        summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      }
+      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
       summary[item.product].totalIn += parseInt(item.quantity) || 0;
     });
     salesOutData.forEach(item => {
-      if (!summary[item.product]) {
-        summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
-      }
+      if (!summary[item.product]) summary[item.product] = { product: item.product, totalIn: 0, totalOut: 0 };
       summary[item.product].totalOut += parseInt(item.quantity) || 0;
     });
     return Object.values(summary);
@@ -349,29 +301,16 @@ const Reports = () => {
 
   const ledgerSummaryList = getLedgerSummary();
 
-  // 🔴 নতুন লজিক: সুনির্দিষ্ট প্রোডাক্টের ইন ও আউট হিস্ট্রি একসাথে এক টাইমলাইনে ক্রোনোলজিক্যালি মার্চ করা
   const getIndividualLedgerHistory = () => {
     const history = [];
     ledgerData.forEach(l => {
       if (l.product.toLowerCase() === ledgerSearch.toLowerCase()) {
-        history.push({
-          date: l.date,
-          timestamp: l.in || l.date,
-          type: 'in',
-          source: l.source || 'Import',
-          quantity: l.quantity
-        });
+        history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
     salesOutData.forEach(s => {
       if (s.product.toLowerCase() === ledgerSearch.toLowerCase()) {
-        history.push({
-          date: s.date,
-          timestamp: s.timestamp,
-          type: 'out',
-          source: s.source,
-          quantity: s.quantity
-        });
+        history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
     return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
@@ -408,7 +347,7 @@ const Reports = () => {
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
             { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
             { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' },
-            { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' } // ট্যাব রিনেম করা হয়েছে
+            { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' }
           ].map(tab => (
             <button 
               key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); }}
@@ -432,7 +371,6 @@ const Reports = () => {
       {reportData && !loading && (
         <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm">
           
-          {/* সার্বিক হিসাব ট্যাব */}
           {reportType === 'summary' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -462,7 +400,6 @@ const Reports = () => {
             </div>
           )}
 
-          {/* হাউজ রিপোর্ট ট্যাব */}
           {reportType === 'house' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {Object.keys(reportData.houseStats).map((house, idx) => (
@@ -499,7 +436,6 @@ const Reports = () => {
             </div>
           )}
 
-          {/* প্রোডাক্ট সেলস রিপোর্ট */}
           {reportType === 'product' && (
             <div className="overflow-x-auto border rounded-xl">
               <table className="w-full text-left text-xs border-collapse">
@@ -545,7 +481,6 @@ const Reports = () => {
             </div>
           )}
 
-          {/* কাস্টোমার রিপোর্ট */}
           {reportType === 'customer' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -591,9 +526,6 @@ const Reports = () => {
                           <td className="p-4 text-right text-emerald-600 font-black text-sm">{cust.amount} ৳</td>
                         </tr>
                       ))}
-                      {filteredCustomers.length === 0 && (
-                        <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ ও ফিল্টারে কোনো কেনাকাটার ইতিহাস নেই</td></tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -601,7 +533,6 @@ const Reports = () => {
             </div>
           )}
 
-          {/* প্রোডাক্ট ওয়াইজ রিপোর্ট */}
           {reportType === 'product_wise' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -628,39 +559,20 @@ const Reports = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between">
                       <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
-                      <h3 className="text-3xl font-black">{productWiseData.totalQty} pcs</h3>
+                      <h3 className="text-3xl font-black">{productWiseStats.totalQty} pcs</h3>
                     </div>
                     <div className="bg-blue-600 text-white p-6 rounded-2xl flex flex-col justify-between">
                       <p className="text-blue-100 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় মূল্য (Gross Revenue)</p>
-                      <h3 className="text-3xl font-black">{productWiseData.totalAmount} ৳</h3>
-                    </div>
-                  </div>
-
-                  <div className="border rounded-2xl overflow-hidden bg-white shadow-sm">
-                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢  হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
-                      <div className="p-6 space-y-2">
-                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
-                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.hoQty} pcs</span></p>
-                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.hoAmount} ৳</span></p>
-                      </div>
-                      <div className="p-6 space-y-2">
-                        <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏪 Showroom</p>
-                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.showroomQty} pcs</span></p>
-                        <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.showroomAmount} ৳</span></p>
-                      </div>
+                      <h3 className="text-3xl font-black">{productWiseStats.totalAmount} ৳</h3>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">
-                  সার্চ বক্সে নাম টাইপ করুন অথবা ড্রপডাউন থেকে প্রোডাক্ট সিলেক্ট করলে বিস্তারিত বিবরণ এখানে লোড হবে।
-                </div>
+                <div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">প্রোডাক্ট সিলেক্ট করুন।</div>
               )}
             </div>
           )}
 
-          {/* 📝 ৬. আপডেট করা ইন ও আউট সম্বলিত লেজার রিপোর্ট এরিয়া ইউআই */}
           {reportType === 'ledger_report' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -683,79 +595,63 @@ const Reports = () => {
               </div>
 
               {!ledgerSearch ? (
-                // ক) সার্বিক সামারি ভিউ (ইন এবং আউট কলাম পাশাপাশি)
                 <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5 flex justify-between">
                     <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা</span>
-                    <span className="text-orange-400">Total Unique Items: {ledgerSummaryList.length}</span>
                   </div>
-                  <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
-                          <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও মডেল)</th>
-                          <th className="p-4 text-center w-40 text-emerald-600 bg-emerald-50/40">মোট স্টক ইন (+)</th>
-                          <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
+                        <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও модель)</th>
+                        <th className="p-4 text-center w-40 text-emerald-600 bg-emerald-50/40">মোট স্টক ইন (+)</th>
+                        <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-bold text-slate-700">
+                      {ledgerSummaryList.map((item, i) => (
+                        <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
+                          <td className="p-4 text-slate-900 font-black">📦 {item.product}</td>
+                          <td className="p-4 text-center text-emerald-600">{item.totalIn} PCS</td>
+                          <td className="p-4 text-center text-rose-600">{item.totalOut} PCS</td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y font-bold text-slate-700">
-                        {ledgerSummaryList.map((item, i) => (
-                          <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors group">
-                            <td className="p-4 text-slate-900 font-black group-hover:text-blue-600 transition-colors">📦 {item.product}</td>
-                            <td className="p-4 text-center text-emerald-600 font-black text-sm bg-emerald-50/10">{item.totalIn} PCS</td>
-                            <td className="p-4 text-center text-rose-600 font-black text-sm bg-rose-50/10">{item.totalOut} PCS</td>
-                          </tr>
-                        ))}
-                        {ledgerSummaryList.length === 0 && (
-                          <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ রেঞ্জে কোনো প্রকার স্টক আদানপ্রদান হয়নি</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                // খ) সুনির্দিষ্ট প্রোডাক্টের ক্রোনোলজিক্যাল ইন-আউট স্টেটমেন্ট টাইমলাইন হিস্ট্রি
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center bg-orange-50 border border-orange-100 p-4 rounded-xl">
+                  <div className="flex justify-between items-center bg-orange-50 p-4 rounded-xl">
                     <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
-                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg hover:text-red-500">← সার্বিক তালিকায় ফিরুন</button>
+                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
-                  
-                  <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead>
-                        <tr className="bg-slate-900 text-white font-black text-[10px] uppercase">
-                          <th className="p-4">তারিখ (Date)</th>
-                          <th className="p-4 text-center">লেনদেনের ধরন (Type)</th>
-                          <th className="p-4 text-center">রেফারেন্স / সোর্স (Source/Ref)</th>
-                          <th className="p-4 text-right pr-12">পরিমাণ (Qty)</th>
+                  <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
+                    <thead>
+                      <tr className="bg-slate-900 text-white text-[10px] uppercase">
+                        <th className="p-4">তারিখ (Date)</th>
+                        <th className="p-4 text-center">লেনদেনের ধরন</th>
+                        <th className="p-4 text-center">রেফারেন্স / সোর্স (Source/Ref)</th>
+                        <th className="p-4 text-right pr-12">পরিমাণ (Qty)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-bold text-slate-700">
+                      {combinedLedgerHistory.map((l, i) => (
+                        <tr key={i}>
+                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                          <td className="p-4 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center text-slate-500">{l.source}</td>
+                          <td className="p-4 text-right pr-12 font-black">
+                            <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
+                              {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
+                            </span>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y font-bold text-slate-700">
-                        {combinedLedgerHistory.map((l, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
-                            <td className="p-4 font-mono text-slate-600">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
-                            <td className="p-4 text-center">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
-                              </span>
-                            </td>
-                            <td className="p-4 text-center">
-                              <span className="text-slate-500 font-bold text-xs">{l.source}</span>
-                            </td>
-                            <td className="p-4 text-right pr-12 font-black text-sm">
-                              <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
-                                {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                        {combinedLedgerHistory.length === 0 && (
-                          <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -764,71 +660,177 @@ const Reports = () => {
         </div>
       )}
 
-      {/* PDF layout hidden elements unchanged */}
-      <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '210mm', padding: '20mm 15mm 20mm 15mm', boxSizing: 'border-box', fontFamily: "Times New Roman, 'Inter', serif", lineHeight: '1.4' }} >
+      {/* 🔴 ফিক্সড আল্ট্রা-মিনিমাল এ৪ পোর্ট্রেট ফরমাল PDF কন্টেন্ট - ট্যাব অনুযায়ী ডাইনামিক ইউআই */}
+      <div 
+        id="formal-corporate-portrait-pdf" 
+        className="hidden bg-white text-slate-900 mx-auto" 
+        style={{ width: '210mm', padding: '20mm 15mm', boxSizing: 'border-box', fontFamily: "Times New Roman, serif", lineHeight: '1.4' }}
+      >
         <div className="pb-4 mb-6 flex justify-between items-start" style={{ borderBottom: '2px solid #0f172a' }}>
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight uppercase" style={{ letterSpacing: '0.02em' }}>LAMS POWER</h1>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p>
+            <h1 className="text-3xl font-bold tracking-tight uppercase">LAMS POWER</h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p>
           </div>
           <div className="text-right">
-            <div className="border border-slate-900 px-4 py-1 bg-slate-50 text-center font-bold text-xs uppercase tracking-wider" style={{ minWidth: '170px' }}>Financial Sales Statement</div>
-            <p className="text-[10px] text-slate-700 mt-2 font-bold">Period: <span className="font-bold">{startDate}</span> to <span className="font-bold">{endDate}</span></p>
-            <p className="text-[9px] text-slate-400">Generated On: {new Date().toLocaleDateString()}</p>
+            <div className="border border-slate-900 px-4 py-1 bg-slate-50 font-bold text-xs uppercase tracking-wider">
+              {reportType === 'ledger_report' ? 'Inventory Ledger Statement' : 'Financial Sales Statement'}
+            </div>
+            <p className="text-[10px] text-slate-700 mt-2 font-bold">Period: {startDate} to {endDate}</p>
           </div>
         </div>
-        <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50/50">
-          <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span className="text-slate-900 text-xs font-black">{totals.totalMinAllowed} ৳</span></div>
-          <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Revenue</span><span className="text-blue-900 text-xs font-black">{totals.totalActualSold} ৳</span></div>
-          <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span className="text-slate-900 text-xs font-black">+{totals.totalSurplus} ৳</span></div>
+
+        {/* সামারি কার্ড প্যানেল */}
+        <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50">
+          <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span>{totals.totalMinAllowed} ৳</span></div>
+          <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Revenue</span><span>{totals.totalActualSold} ৳</span></div>
+          <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span>+{totals.totalSurplus} ৳</span></div>
         </div>
+
+        {/* 🔴 ডাইনামিক টেবিল রেন্ডারার (ট্যাব ভিত্তিক পিডিএফ এক্সপোর্ট মেকানিজম) */}
         <div className="mt-6">
           <table className="w-full text-left text-[10px] border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 font-bold uppercase text-slate-500">
-                <th className="pb-2 font-bold w-2/5">Product Description Specification</th>
-                <th className="pb-2 text-center font-bold">Source</th>
-                <th className="pb-2 text-center font-bold">Volume</th>
-                <th className="pb-2 text-right font-bold">Base MRP</th>
-                <th className="pb-2 text-right font-bold">Min Allowed</th>
-                <th className="pb-2 text-right font-bold">Gross Sold</th>
-                <th className="pb-2 text-right font-bold">Net Surplus</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {reportType === 'product' && reportData && Object.values(reportData.productStats).map((stat, idx) => {
-                const pKey = `${stat.name}_${stat.house}`;
-                const currentMrp = parseFloat(mrps[pKey]) || 0;
-                const minVal = currentMrp * stat.qty;
-                const surplus = stat.total - minVal;
-                return (
-                  <tr key={idx}>
-                    <td className="py-2 font-semibold text-slate-900">{stat.name}</td>
-                    <td className="py-2 text-center text-slate-600 uppercase">{stat.house}</td>
-                    <td className="py-2 text-center font-bold">{stat.qty} pcs</td>
-                    <td className="py-2 text-right">{currentMrp} ৳</td>
-                    <td className="py-2 text-right">{minVal} ৳</td>
-                    <td className="py-2 text-right font-bold">{stat.total} ৳</td>
-                    <td className="py-2 text-right font-bold bg-slate-50">+{surplus} ৳</td>
+            
+            {/* ক) summary এবং product ট্যাব এর পিডিএফ রেন্ডার */}
+            {(reportType === 'summary' || reportType === 'product') && (
+              <>
+                <thead>
+                  <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
+                    <th className="pb-2 w-2/5">Product Description Specification</th>
+                    <th className="pb-2 text-center">House</th>
+                    <th className="pb-2 text-center">Volume</th>
+                    <th className="pb-2 text-right">Actual Sold</th>
                   </tr>
-                );
-              })}
-            </tbody>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {reportType === 'product' ? Object.values(reportData?.productStats || {}).map((stat, idx) => (
+                    <tr key={idx}>
+                      <td className="py-2 font-semibold">{stat.name}</td>
+                      <td className="py-2 text-center uppercase">{stat.house}</td>
+                      <td className="py-2 text-center font-bold">{stat.qty} pcs</td>
+                      <td className="py-2 text-right font-bold">{stat.total} ৳</td>
+                    </tr>
+                  )) : Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
+                    <tr key={idx}>
+                      <td className="py-2 font-semibold" colSpan="2">{prod.name}</td>
+                      <td className="py-2 text-center font-bold">{prod.qty} pcs</td>
+                      <td className="py-2 text-right font-bold">{prod.total} ৳</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </>
+            )}
+
+            {/* খ) house ট্যাবের পিডিএফ রেন্ডার */}
+            {reportType === 'house' && (
+              <>
+                <thead>
+                  <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
+                    <th className="pb-2">Source House Location</th>
+                    <th className="pb-2 text-center">Total Document Bills</th>
+                    <th className="pb-2 text-right">Gross Generated Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {Object.keys(reportData?.houseStats || {}).map((house, idx) => (
+                    <tr key={idx}>
+                      <td className="py-3 font-semibold">🏢 {house}</td>
+                      <td className="py-3 text-center font-bold">{reportData.houseStats[house].bills} Bills</td>
+                      <td className="py-3 text-right font-black text-blue-900">{reportData.houseStats[house].amount} ৳</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </>
+            )}
+
+            {/* গ) customer ট্যাবের পিডিএফ রেন্ডার */}
+            {reportType === 'customer' && (
+              <>
+                <thead>
+                  <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
+                    <th className="pb-2">Client Identity Name</th>
+                    <th className="pb-2 text-center">Contact Mobile No</th>
+                    <th className="pb-2 text-right">Cumulative Sales Volume</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {filteredCustomers.map((cust, idx) => (
+                    <tr key={idx}>
+                      <td className="py-2 font-semibold">👤 {cust.name}</td>
+                      <td className="py-2 text-center font-mono">{cust.phone || '—'}</td>
+                      <td className="py-2 text-right font-black text-emerald-700">{cust.amount} ৳</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </>
+            )}
+
+            {/* ঘ) ledger_report (স্টক ইন-আউট খতিয়ান) ট্যাবের পিডিএফ রেন্ডার */}
+            {reportType === 'ledger_report' && (
+              <>
+                {(!ledgerSearch) ? (
+                  <>
+                    <thead>
+                      <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
+                        <th className="pb-2">Inventory Stock Specification</th>
+                        <th className="pb-2 text-center">Gross Incoming (+ Input)</th>
+                        <th className="pb-2 text-center">Gross Outgoing (- Sales)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {ledgerSummaryList.map((item, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2 font-semibold">📦 {item.product}</td>
+                          <td className="py-2 text-center text-green-600 font-bold">{item.totalIn} PCS</td>
+                          <td className="py-2 text-center text-red-600 font-bold">{item.totalOut} PCS</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </>
+                ) : (
+                  <>
+                    <thead>
+                      <tr className="border-b border-slate-800 uppercase text-slate-500 font-bold">
+                        <th className="pb-2">Transaction Timestamp</th>
+                        <th className="pb-2 text-center">Movement Type</th>
+                        <th className="pb-2 text-center">Reference Log Info</th>
+                        <th className="pb-2 text-right">Volume</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {combinedLedgerHistory.map((l, idx) => (
+                        <tr key={idx}>
+                          <td className="py-2">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                          <td className="py-2 text-center uppercase font-bold">{l.type === 'in' ? 'STOCK IN' : 'SALES OUT'}</td>
+                          <td className="py-2 text-center text-slate-500">{l.source}</td>
+                          <td className="py-2 text-right font-bold">{l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </>
+                )}
+              </>
+            )}
+
             <tfoot>
               <tr className="border-t border-b border-slate-800 font-bold text-slate-900 uppercase bg-slate-100">
-                <td colSpan="2" className="py-2.5 text-right font-bold">Grand Valuations Total:</td>
-                <td className="py-2.5 text-center font-bold">{totals.totalQty} Pcs</td>
-                <td></td>
-                <td className="py-2.5 text-right font-bold">{totals.totalMinAllowed} ৳</td>
-                <td className="py-2.5 text-right font-bold text-blue-900">{totals.totalActualSold} ৳</td>
-                <td className="py-2.5 text-right font-bold text-emerald-700">+{totals.totalSurplus} ৳</td>
+                <td className="py-2 text-right font-bold" colSpan={reportType === 'ledger_report' && ledgerSearch ? 3 : 2}>Grand Valuation Totals:</td>
+                <td className="py-2 text-right font-bold text-blue-900">
+                  {reportType === 'ledger_report' ? (ledgerSearch ? `${combinedLedgerHistory.reduce((s,c)=>s+c.quantity, 0)} PCS` : `${ledgerSummaryList.reduce((s,c)=>s+c.totalIn, 0)} In / ${ledgerSummaryList.reduce((s,c)=>s+c.totalOut, 0)} Out`) : `${totals.totalActualSold} ৳`}
+                </td>
               </tr>
             </tfoot>
           </table>
         </div>
+
+        {/* সিগনেচার বার */}
+        <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[8px] uppercase tracking-wider text-slate-400 font-bold">
+          <div><div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By (Accounts)</div></div>
+          <div><div className="border-t border-slate-300 pt-1.5 mx-4">Verified By (Auditor)</div></div>
+          <div><div className="border-t border-slate-900 pt-1.5 mx-4 text-slate-900 font-bold">Authorized Approval (CEO)</div></div>
+        </div>
       </div>
 
-      {/* Pop-up Modal */}
+      {/* কাস্টোমার স্পেসিফিক বিল পপ-আপ মডাল উইন্ডো */}
       {selectedCustomerBills && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
@@ -839,7 +841,7 @@ const Reports = () => {
                 <p className="text-sm font-bold text-slate-500 mt-1">📞 {selectedCustomerBills.phone}</p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <button onClick={() => setSelectedCustomerBills(null)} className="w-10 h-10 bg-slate-100 rounded-full hover:bg-red-500 hover:text-white font-bold transition-all flex items-center justify-center">✕</button>
+                <button onClick={() => setSelectedCustomerBills(null)} className="w-10 h-10 bg-slate-100 rounded-full hover:bg-red-500 hover:text-white font-bold flex items-center justify-center">✕</button>
                 <span className="text-xs font-black text-green-600 bg-green-50 px-3 py-1 rounded-md">Total Paid: {selectedCustomerBills.amount} ৳</span>
               </div>
             </div>
