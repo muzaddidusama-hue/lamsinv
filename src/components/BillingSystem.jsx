@@ -259,6 +259,7 @@ const BillingSystem = () => {
     </button>
   </div>
 </div>
+        </div>
 
         <div className="lg:col-span-8">
           <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col h-full min-h-[500px]">
