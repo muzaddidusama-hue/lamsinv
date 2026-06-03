@@ -47,10 +47,18 @@ const Dashboard = () => {
     }
   };
 
+  // 🔴 ফিক্স: ফলস স্ট্রিং ইস্যু সমাধানের জন্য গ্লোবাল ভ্যালিডেটর
+  const checkIsTransfer = (val) => {
+    return val === true || String(val).toLowerCase() === 'true';
+  };
+
   const handleAction = async (actionType) => {
     setProcessing(true);
     try {
+      const isTransferMode = checkIsTransfer(selectedItem.is_in_house);
+
       if (actionType === 'transfer') {
+        if (!isTransferMode) throw new Error("অবৈধ রিকোয়েস্ট!");
         // ইন-হাউজ ট্রান্সফার লজিক
         for (let itm of modalItems) {
           const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
@@ -61,25 +69,32 @@ const Dashboard = () => {
           else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: selectedItem.transfer_to }]);
         }
         await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
-      } else if (actionType === 'payment') {
-        // সেলস পেমেন্ট ও বিল লজিক
+      } 
+      
+      else if (actionType === 'payment') {
+        if (isTransferMode) throw new Error("ইন-হাউজ ট্রান্সফারে পেমেন্ট প্রযোজ্য নয়!");
         if (!paymentMethod) throw new Error('পেমেন্ট মেথড সিলেক্ট করুন!');
-        const finalBillNo = billNo.trim() !== '' ? billNo : `BLL-${Date.now().toString().slice(-6)}`;
+        
+        const finalBillNo = billNo.trim() !== '' ? billNo.trim() : `BLL-${Date.now().toString().slice(-6)}`;
 
+        // স্টক মাইনাস
         for (let itm of modalItems) {
           const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
           if (p) await supabase.from('products').update({ stock_quantity: p.stock_quantity - itm.quantity }).eq('id', p.id);
         }
+        // স্ট্যাটাস পেইড ও বিল নাম্বার সেভ
         await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: finalBillNo }).eq('id', selectedItem.id);
       }
+      
       alert('সফল হয়েছে!'); setSelectedItem(null); fetchDashboardData();
     } catch (e) { alert(e.message || 'ত্রুটি হয়েছে'); console.error(e); }
     setProcessing(false);
   };
 
   const getCustomerData = (item) => {
+    const isTransferMode = checkIsTransfer(item.is_in_house);
     return {
-      name: item.customer_name || item.customers?.name || (item.is_in_house ? 'Transfer' : 'Walk-in'),
+      name: item.customer_name || item.customers?.name || (isTransferMode ? 'Transfer' : 'Walk-in'),
       phone: item.phone || item.customers?.phone || '',
       address: item.address || item.customers?.address || ''
     };
@@ -88,18 +103,13 @@ const Dashboard = () => {
   const handlePrint = () => {
     const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
     const customerData = getCustomerData(selectedItem); 
-    
-    if (modalType === 'bill') {
-      printBill(selectedItem, customerData, printItems);
-    } else {
-      printChallan(selectedItem, customerData, printItems);
-    }
+    if (modalType === 'bill') printBill(selectedItem, customerData, printItems);
+    else printChallan(selectedItem, customerData, printItems);
   };
 
   const handleDownload = () => {
     const printItems = modalItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
     const customerData = getCustomerData(selectedItem); 
-    
     downloadPDF(selectedItem, customerData, printItems, modalType === 'bill' ? 'Bill' : 'Challan');
   };
 
@@ -128,9 +138,9 @@ const Dashboard = () => {
           <div className="space-y-3">
             {holdChalans.map(c => (
               <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover:border-orange-400 hover:shadow-xl transition-all cursor-pointer group">
-                <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${c.is_in_house ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{c.is_in_house ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
+                <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${checkIsTransfer(c.is_in_house) ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                 <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
-                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (c.is_in_house ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
+                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
                 <div className="mt-4 flex justify-between items-center"><span className="text-lg font-black text-slate-700">{c.total_amount} ৳</span><div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-colors">→</div></div>
               </div>
             ))}
@@ -144,7 +154,7 @@ const Dashboard = () => {
                {todayChalans.map(tc => (
                  <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-blue-50 cursor-pointer transition-all">
                     <div className="flex justify-between items-start">
-                      <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (tc.is_in_house ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
+                      <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>
                     </div>
                  </div>
@@ -186,7 +196,7 @@ const Dashboard = () => {
                 <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
                 <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
                 <p className="text-sm font-bold text-slate-400 mt-2">
-                  {modalType === 'product' ? `Model: ${selectedItem.model}` : (selectedItem.is_in_house ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
+                  {modalType === 'product' ? `Model: ${selectedItem.model}` : (checkIsTransfer(selectedItem.is_in_house) ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -219,11 +229,11 @@ const Dashboard = () => {
             <div className="p-8 bg-slate-50 border-t">
                {selectedItem.status === 'hold' ? (
                  <div className="space-y-4">
-                    {selectedItem.is_in_house ? (
+                    {checkIsTransfer(selectedItem.is_in_house) ? (
                       <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 uppercase tracking-widest">{processing ? 'Processing...' : 'Confirm Transfer'}</button>
                     ) : (
                       <div className="space-y-3">
-                        <input type="text" placeholder="ম্যানুয়াল বিল নাম্বার (খালি রাখলে অটোমেটিক হবে)" value={billNo} onChange={(e) => setBillNo(e.target.value)} className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm" />
+                        <input type="text" placeholder="ম্যানুয়াল বিল নাম্বার (খালি রাখলে অটোমেটিক হবে)" value={billNo} onChange={(e) => setBillNo(e.target.value)} className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm" />
                         <div className="flex flex-col md:flex-row gap-3">
                           <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="flex-1 p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm">
                             <option value="">Method...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
