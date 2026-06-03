@@ -24,14 +24,12 @@ const SmartUpload = () => {
     if (!error && data) setDbProducts(data);
   };
 
-  // 🔴 আল্ট্রা-স্মার্ট টাইপো-টলারেন্ট এবং টোকেনাইজড ম্যাচিং অ্যালগরিদম ফিক্স
+  // স্মার্ট এবং টাইপো-টলারেন্ট ম্যাচিং অ্যালগরিদম
   const findBestMatch = (aiDesc) => {
     if (!aiDesc) return null;
-
-    // হাইফেন, স্পেস ও স্পেশাল ক্যারেক্টার ক্লিন করার হেল্পার
+    
     const stripSpecial = (str) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-    // বানানের আংশিক মিল বা টাইপো ধরার জন্য লেভেনস্টাইন সিমিলারিটি ক্যালকুলেটর (Fuzzy Match)
     const getSimilarity = (s1, s2) => {
       const len1 = s1.length;
       const len2 = s2.length;
@@ -45,18 +43,16 @@ const SmartUpload = () => {
         for (let i = 1; i <= len1; i++) {
           const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
           matrix[j][i] = Math.min(
-            matrix[j - 1][i] + 1,     // deletion
-            matrix[j][i - 1] + 1,     // insertion
-            matrix[j - 1][i - 1] + cost // substitution
+            matrix[j - 1][i] + 1,     
+            matrix[j][i - 1] + 1,     
+            matrix[j - 1][i - 1] + cost 
           );
         }
       }
       return 1 - (matrix[len2][len1] / Math.max(len1, len2));
     };
 
-    // এআই ডেসক্রিপশনকে ভেঙে আলাদা আলাদা শব্দে (Tokens) রূপান্তর
     const aiTokens = aiDesc.toLowerCase().split(/[\s\-,_/\+]+/).filter(t => t.length > 1);
-
     let bestMatch = null;
     let maxScore = 0;
 
@@ -67,33 +63,29 @@ const SmartUpload = () => {
       
       const cleanBrand = stripSpecial(brand);
       const cleanModel = stripSpecial(model);
-
       let currentScore = 0;
 
       aiTokens.forEach(token => {
         const cleanToken = stripSpecial(token);
         if (!cleanToken) return;
 
-        // ১. মডেল নম্বরের স্মার্ট ম্যাচিং (যেমন: si3kt2 এর সাথে 3kt2 আংশিক বা পুর্ণাঙ্গ মিললে বড় স্কোর)
         if (cleanModel && cleanToken) {
           if (cleanModel === cleanToken) {
-            currentScore += 30; // শতভাগ মিল
+            currentScore += 30; 
           } else if (cleanModel.includes(cleanToken) && cleanToken.length >= 3) {
-            currentScore += 22; // আংশিক মিল (যেমন ডাটাবেজের si3kt2 এর ভেতর ইনভয়েসের 3kt2 আছে)
+            currentScore += 22; 
           } else if (cleanToken.includes(cleanModel) && cleanModel.length >= 3) {
             currentScore += 22;
           }
         }
 
-        // ২. ব্র্যান্ড/কোম্পানি নামের টাইপো-টলারেন্ট ম্যাচিং (যেমন: Inkenergy vs Inhenergy)
         if (cleanBrand) {
           const brandSim = getSimilarity(cleanBrand, cleanToken);
-          if (brandSim >= 0.75) { // ৭৫% বা তার বেশি অক্ষরের মিল থাকলে টাইপো কাউন্ট হবে
+          if (brandSim >= 0.75) { 
             currentScore += (brandSim * 15);
           }
         }
 
-        // ৩. ক্যাটাগরি ম্যাচিং বোনাস
         if (category && category.includes(cleanToken)) {
           currentScore += 2;
         }
@@ -105,11 +97,7 @@ const SmartUpload = () => {
       }
     });
 
-    // মিনিমাম স্কোর থ্রেশহোল্ড সেফটি চেক (একেবারে কোনো মিল না থাকলে নো ম্যাচ দেখাবে)
-    if (maxScore < 10) {
-      return null;
-    }
-
+    if (maxScore < 10) return null;
     return bestMatch;
   };
 
@@ -185,7 +173,6 @@ const SmartUpload = () => {
 
       if (cPhone) {
         const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', cPhone).maybeSingle();
-        
         if (existingCust) {
           customerId = existingCust.id;
           await supabase.from('customers').update({ name: cName, address: cAddress }).eq('id', customerId);
@@ -193,7 +180,6 @@ const SmartUpload = () => {
           const { data: newCust, error: insertErr } = await supabase.from('customers').insert([{
             name: cName, phone: cPhone, address: cAddress
           }]).select().single();
-          
           if (insertErr) throw new Error("কাস্টমার সেভ এরর: " + insertErr.message);
           customerId = newCust.id;
         }
@@ -202,7 +188,6 @@ const SmartUpload = () => {
         const { data: newCust, error: insertErr } = await supabase.from('customers').insert([{
           name: cName, phone: fakePhone, address: cAddress
         }]).select().single();
-
         if (insertErr) throw new Error("কাস্টমার সেভ এরর (No Phone): " + insertErr.message);
         customerId = newCust.id;
       }
@@ -370,15 +355,43 @@ const SmartUpload = () => {
               <h3 className="text-2xl font-black text-slate-800 mb-6">স্টক ভেরিফিকেশন ({selectedHouse})</h3>
               <div className="space-y-4 max-h-[45vh] overflow-y-auto pr-2 custom-scrollbar">
                 {matchedItems.map((match, idx) => (
-                  <div key={idx} className="p-5 rounded-3xl bg-slate-50 border border-slate-100 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Matched Product</p>
-                      <p className="font-black text-slate-800">{match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}</p>
-                      <p className="text-xs text-slate-400 italic">Extracted: {match.aiDescription}</p>
+                  {/* 🔴 ফিক্স: ফ্লেক্স ডিরেক্টশন কলামে নিয়ে আসা হয়েছে যাতে ড্রপডাউনটি সুন্দরভাবে ফিট হয় */}
+                  <div key={idx} className="p-5 rounded-3xl bg-slate-50 border border-slate-100 flex flex-col gap-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Matched Product</p>
+                        <p className="font-black text-slate-800">
+                          {match.matchedProduct ? `${match.matchedProduct.name} - ${match.matchedProduct.model}` : "⚠️ ম্যাচ পাওয়া যায়নি!"}
+                        </p>
+                        <p className="text-xs text-slate-400 italic">Extracted: {match.aiDescription}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-black text-orange-600">-{match.quantity}</p>
+                        <p className="text-[10px] font-bold text-slate-400">PCS</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xl font-black text-orange-600">-{match.quantity}</p>
-                      <p className="text-[10px] font-bold text-slate-400">PCS</p>
+
+                    {/* 🔴 নতুন ফিচার: ম্যানুয়াল ড্রপডাউন সিলেকশন এবং সার্চ অপশন */}
+                    <div className="mt-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase block mb-1">🛠️ ভুল ম্যাচ হলে এখান থেকে ম্যানুয়ালি মডেল ঠিক করুন:</label>
+                      <select 
+                        value={match.matchedProduct ? match.matchedProduct.id : ''} 
+                        onChange={(e) => {
+                          const selectedId = e.target.value;
+                          const updatedMatches = [...matchedItems];
+                          // ড্রপডাউন থেকে আইডি দিয়ে ডাটাবেজের অবজেক্ট খুঁজে সেট করা হচ্ছে
+                          updatedMatches[idx].matchedProduct = selectedId ? dbProducts.find(p => p.id === parseInt(selectedId)) : null;
+                          setMatchedItems(updatedMatches);
+                        }}
+                        className="w-full p-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-700 outline-none focus:border-orange-500 shadow-sm cursor-pointer"
+                      >
+                        <option value="">-- সঠিক প্রোডাক্ট মডেল বেছে নিন --</option>
+                        {dbProducts.map(p => (
+                          <option key={p.id} value={p.id}>
+                            📦 {p.name} — {p.model} [{p.house}] (স্টক: {p.stock_quantity} pcs)
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 ))}
