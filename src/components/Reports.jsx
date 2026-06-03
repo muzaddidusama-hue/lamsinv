@@ -196,7 +196,44 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // 🔴 ফিক্স: কাস্টোমার ফিল্টারিং করার সময় নাল চেক কন্ডিশন সেফ করা হয়েছে
+  // 🔴 নতুন: ফিক্সড ডাইনামিক পিডিএফ ডাউনলোড মেকানিজম ফাংশন
+  const downloadReportPDF = () => {
+    const element = document.getElementById('formal-corporate-portrait-pdf');
+    if (!element) return;
+
+    setPdfLoading(true);
+
+    const executeDownload = () => {
+      const opt = {
+        margin: 0, 
+        filename: `LAMS_POWER_${reportType}_Report_${startDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      element.classList.remove('hidden');
+
+      window.html2pdf().from(element).set(opt).save().then(() => {
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      }).catch((err) => {
+        console.error(err);
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      });
+    };
+
+    if (!window.html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = executeDownload;
+      document.head.appendChild(script);
+    } else {
+      executeDownload();
+    }
+  };
+
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => {
       const nameStr = c.name ? String(c.name).toLowerCase() : '';
@@ -466,9 +503,6 @@ const Reports = () => {
                     );
                   })}
                 </tbody>
-                <tfoot className="bg-slate-900 text-white font-black">
-                  <tr><td colSpan="2" className="p-4 text-right">Grand Total:</td><td className="p-4 text-center text-orange-400">{totals.totalQty} pcs</td><td></td><td className="p-4 text-right text-slate-300">{totals.totalMinAllowed} ৳</td><td className="p-4 text-right text-emerald-400">{totals.totalActualSold} ৳</td><td className="p-4 text-right text-orange-400">+{totals.totalSurplus} ৳</td></tr>
-                </tfoot>
               </table>
             </div>
           )}
@@ -564,7 +598,7 @@ const Reports = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
                       <div className="p-6 space-y-2">
                         <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
-                        <p className="text-xs text-slate-500">بীর বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.hoQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseStats.hoQty} pcs</span></p>
                         <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseStats.hoAmount} ৳</span></p>
                       </div>
                       <div className="p-6 space-y-2">
@@ -594,7 +628,7 @@ const Reports = () => {
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋  লেজার ড্রপডাউন সিলেকশন</label>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
                   <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
                     <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
                     {[...new Set([...ledgerData.map(l => l.product || ''), ...salesOutData.map(s => s.product || '')])].filter(Boolean).map((name, i) => (<option key={i} value={name}>{name}</option>))}
@@ -632,7 +666,6 @@ const Reports = () => {
                     <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
-                  
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead>
                       <tr className="bg-slate-900 text-white text-[10px] uppercase">
@@ -644,7 +677,7 @@ const Reports = () => {
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
                       {combinedLedgerHistory.map((l, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <tr key={i}>
                           <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -659,9 +692,6 @@ const Reports = () => {
                           </td>
                         </tr>
                       ))}
-                      {combinedLedgerHistory.length === 0 && (
-                        <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -672,7 +702,7 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 ডাইনামিক এবং ক্র্যাশ-প্রুফ এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
+      {/* 🔴 ডাইনামিক এ৪ পোর্ট্রেট ফরমাল PDF লেআউট */}
       <div 
         id="formal-corporate-portrait-pdf" 
         className="hidden bg-white text-slate-900 mx-auto" 
