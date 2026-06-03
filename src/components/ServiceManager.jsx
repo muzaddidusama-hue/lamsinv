@@ -1,17 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { printChallan } from '../utils/printChalan';
-import { printBill } from '../utils/printBill';
-import { downloadPDF } from '../utils/pdfGenerator';
 
 const ServiceManager = () => {
   const [searchNo, setSearchNo] = useState(''); // বিল, চালান বা সিরিয়াল নম্বর সার্চ
   const [record, setRecord] = useState(null); 
   const [inverterItem, setInverterItem] = useState(null); 
-  const [serialNumbers, setSerialNumbers] = useState([]); // চালানের সিরিয়াল তালিকা (ডায়নামিক)
+  const [serialNumbers, setSerialNumbers] = useState([]); 
   const [saleDate, setSaleDate] = useState(''); 
-  
-  // 🔴 ফিক্স: ডাটাবেজ থেকে লোড হওয়া আসল সিরিয়ালগুলো ট্র্যাক করার জন্য নতুন স্টেট
   const [savedSerials, setSavedSerials] = useState([]); 
 
   // সেকশন ২-এর জন্য ফর্ম স্টেট
@@ -19,139 +14,87 @@ const ServiceManager = () => {
   const [serviceLoading, setServiceLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [isNewRecord, setIsNewRecord] = useState(true); 
+
+  // 📝 সেকশন ৩ (ডাইরেক্ট সিরিয়াল এন্ট্রি) এর জন্য নতুন স্টেটস
+  const [standaloneSerial, setStandaloneSerial] = useState('');
+  const [standaloneInvType, setStandaloneInvType] = useState('Hybrid');
+  const [standaloneCustName, setStandaloneCustName] = useState('');
+  const [standaloneAddress, setStandaloneAddress] = useState('');
 
   // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট
   const [dbRowData, setDbRowData] = useState({
-    bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '',
+    bill_no: '', chalan_no: '', inv_type: 'Hybrid', sl_no: '', customer_name: '', address: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
     serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
     serv_3_date: '', serv_3_problem: '', serv_3_amount: '', remarks3: '',
     serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
   });
 
-  // সিঙ্গেল ইনপুট বক্সের জন্য স্টেট
   const [selectedServiceSlot, setSelectedServiceSlot] = useState('1'); 
   const [singleInput, setSingleInput] = useState({
     date: '', problem: '', amount: '', remarks: ''
   });
 
-  const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel", "Lithium Battery", "Accessories"];
-
-  // 🔍 অল-ইন-ওয়ান সার্চ (بیل নম্বর / চালান নম্বর / সিরিয়াল নম্বর)
+  // 🔍 অল-ইন-ওয়ান সার্চ (বিল নম্বর / চালান নম্বর / সিরিয়াল নম্বর সরাসরি)
   const handleAllInOneSearch = async (e) => {
     e.preventDefault();
     const queryText = searchNo.trim().toUpperCase();
-    if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
+    if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
 
     setLoading(true);
-    setRecord(null);
-    setInverterItem(null);
-    setSerialNumbers([]);
-    setSavedSerials([]); // রিসেট ট্র্যাকিং
-    setSaleDate('');
+    setRecord(null); setInverterItem(null); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
     resetServiceForm();
 
     try {
-      // ১. প্রথমে চেক করি ইনপুটটি কোনো ইনভার্টারের একক সিরিয়াল নম্বর (sl_no) কি না
-      const { data: slData, error: slErr } = await supabase
-        .from('inv_sl')
-        .select('*')
-        .eq('sl_no', queryText)
-        .maybeSingle();
-
-      if (slErr) throw slErr;
-
+      // প্রথমে চেক করি ইনপুটটি কোনো ইনভার্টারের একক সিরিয়াল নম্বর (sl_no) কি না
+      const { data: slData } = await supabase.from('inv_sl').select('*').eq('sl_no', queryText).maybeSingle();
+      
       let targetChalanNo = queryText;
       let targetBillNo = queryText;
 
       if (slData) {
         setDbRowData(slData);
-        setIsNewRecord(false);
         determineNextAvailableSlot(slData);
         targetChalanNo = slData.chalan_no;
         targetBillNo = slData.bill_no;
       }
 
-      // ২. এবার চালানের মূল তথ্য এবং কাস্টমার ডিটেইলস বের করি
-      const { data: mainData, error: mainErr } = await supabase
+      const { data: mainData } = await supabase
         .from('chalans')
         .select(`*, customers (*)`)
         .or(`chalan_no.eq.${targetChalanNo},bill_no.eq.${targetBillNo}`)
         .maybeSingle();
 
-      if (mainErr) throw mainErr;
-
       if (mainData) {
         setRecord(mainData);
         setSaleDate(mainData.created_at ? new Date(mainData.created_at).toLocaleDateString('bn-BD') : 'পাওয়া যায়নি');
 
-        // চালানের প্রোডাক্ট আইটেম লোড করা
-        const { data: itemData, error: itemErr } = await supabase
-          .from('chalan_items')
-          .select(`*, products (*)`)
-          .eq('chalan_id', mainData.id);
-
-        if (itemErr) throw itemErr;
-
-        const inverter = itemData?.find(item => 
-          item.products?.category?.toLowerCase().includes('inverter') || 
-          item.products?.name?.toLowerCase().includes('inverter')
-        );
+        const { data: itemData } = await supabase.from('chalan_items').select(`*, products (*)`).eq('chalan_id', mainData.id);
+        const inverter = itemData?.find(item => item.products?.category?.toLowerCase().includes('inverter') || item.products?.name?.toLowerCase().includes('inverter'));
 
         if (inverter) {
           setInverterItem(inverter);
-
-          // inv_sl টেবিল থেকে এই চালানের আগে থেকে এন্ট্রি করা সব সিরিয়াল নম্বর খুঁজে আনা
-          const { data: existingSerials, error: existingSerialsErr } = await supabase
-            .from('inv_sl')
-            .select('sl_no')
-            .eq('chalan_no', mainData.chalan_no);
-
-          if (existingSerialsErr) throw existingSerialsErr;
-
+          const { data: existingSerials } = await supabase.from('inv_sl').select('sl_no').eq('chalan_no', mainData.chalan_no);
+          
           const dbSerials = existingSerials ? existingSerials.map(s => s.sl_no.toUpperCase()) : [];
-          setSavedSerials(dbSerials); // 🔴 ফিক্স: ডাটাবেজের আসল সিরিয়ালগুলো ট্র্যাকিং স্টেট-এ সংরক্ষণ
+          setSavedSerials(dbSerials); 
           
-          const mergedSerials = Array.from({ length: inverter.quantity }, (_, index) => {
-            return dbSerials[index] || ""; 
-          });
-
+          const mergedSerials = Array.from({ length: inverter.quantity }, (_, index) => dbSerials[index] || "");
           setSerialNumbers(mergedSerials);
-          
-          if (!slData) {
-            const freshRow = {
-              bill_no: mainData.bill_no || '',
-              chalan_no: mainData.chalan_no || '',
-              inv_type: inverter.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
-              sl_no: queryText,
-              serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
-              serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
-              serv_3_date: '', serv_3_problem: '', serv_3_amount: '', remarks3: '',
-              serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
-            };
-            setDbRowData(freshRow);
-            setIsNewRecord(true);
-            setSelectedServiceSlot('1');
-          }
         }
       } else {
         if (slData) {
           setDbRowData(slData);
-          setIsNewRecord(false);
           determineNextAvailableSlot(slData);
         } else {
           alert("⚠️ এই নম্বর দিয়ে কোনো চালান, বিল বা সিরিয়াল রেকর্ড খুঁজে পাওয়া যায়নি!");
         }
       }
-
-    } catch (error) {
-      console.error(error);
-      alert("তথ্য লোড করতে সমস্যা হয়েছে!");
-    }
+    } catch (error) { console.error(error); alert("তথ্য লোড করতে সমস্যা হয়েছে!"); }
     setLoading(false);
   };
 
+  // 📝 সেকশন ১: রেগুলার চালানের সিরিয়াল ডাটাবেজে সরাসরি সেভ করা
   const handleRegisterSerial = async (index) => {
     const currentSerial = serialNumbers[index]?.trim().toUpperCase();
     if (!currentSerial) return alert("অনুগ্রহ করে সিরিয়াল নম্বরটি ইনপুট দিন!");
@@ -160,40 +103,78 @@ const ServiceManager = () => {
     resetServiceForm();
 
     try {
-      const { data, error } = await supabase
-        .from('inv_sl')
-        .select('*')
-        .eq('sl_no', currentSerial)
-        .maybeSingle();
-
+      const { data, error } = await supabase.from('inv_sl').select('*').eq('sl_no', currentSerial).maybeSingle();
       if (error) throw error;
 
       if (data) {
         setDbRowData(data);
-        setIsNewRecord(false);
         determineNextAvailableSlot(data);
-        alert(`ℹ️ সিরিয়াল নম্বর ${currentSerial}-এর তথ্য ও সার্ভিসের ইতিহাস লোড হয়েছে।`);
+        alert(`ℹ️ সিরিয়াল নম্বর ${currentSerial}-এর তথ্য লোড হয়েছে।`);
       } else {
         const freshRow = {
-          bill_no: record?.bill_no || '',
-          chalan_no: record?.chalan_no || '',
+          bill_no: record?.bill_no || 'N/A',
+          chalan_no: record?.chalan_no || 'N/A',
           inv_type: inverterItem?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
           sl_no: currentSerial,
-          serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
-          serv_2_date: '', serv_2_problem: '', serv_2_amount: '', remarks2: '',
-          serv_3_date: '', serv_3_problem: '', serv_3_amount: '', remarks3: '',
-          serv_4_date: '', serv_4_problem: '', serv_4_amount: '', remarks4: '',
+          customer_name: record?.customers?.name || 'Walk-in',
+          address: record?.customers?.address || 'N/A'
         };
+        const { error: insertErr } = await supabase.from('inv_sl').insert([freshRow]);
+        if (insertErr) throw insertErr;
+
         setDbRowData(freshRow);
-        setIsNewRecord(true);
+        setSavedSerials(prev => [...prev, currentSerial]); 
         setSelectedServiceSlot('1');
-        alert(`📝 সিরিয়াল নম্বর ${currentSerial} সফলভাবে এন্ট্রি করার জন্য রেডি। নিচে ডাটা ইনপুট দিন।`);
+        alert(`✅ সিরিয়াল নম্বর ${currentSerial} সফলভাবে এন্ট্রি হয়েছে!`);
       }
-    } catch (error) {
-      console.error(error);
-      alert("সিরিয়াল নম্বর প্রসেস করতে সমস্যা হয়েছে!");
-    }
+    } catch (error) { console.error(error); alert("সিরিয়াল এন্ট্রি করতে সমস্যা হয়েছে!"); }
     setServiceLoading(false);
+  };
+
+  // 📥 সেকশন ৩: ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে কাস্টোমার ডাটা সহ)
+  const handleStandaloneSerialSubmit = async (e) => {
+    e.preventDefault();
+    const sl = standaloneSerial.trim().toUpperCase();
+    const custName = standaloneCustName.trim();
+    const custAddr = standaloneAddress.trim();
+
+    if (!sl) return alert("সিরিয়াল নম্বর দিন!");
+    if (!custName) return alert("কাস্টোমারের নাম দিন!");
+
+    setLoading(true);
+    setRecord(null); setInverterItem(null); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
+    resetServiceForm();
+
+    try {
+      const { data, error } = await supabase.from('inv_sl').select('*').eq('sl_no', sl).maybeSingle();
+      if (error) throw error;
+
+      if (data) {
+        setDbRowData(data);
+        determineNextAvailableSlot(data);
+        alert("ℹ️ এই সিরিয়াল নম্বরের রেকর্ড অলরেডি ডাটাবেজে বিদ্যমান রয়েছে!");
+      } else {
+        // 💾 নতুন কাস্টোমার ইনফো সহ পে-লোড ডিফাইন
+        const freshRow = {
+          bill_no: 'N/A', 
+          chalan_no: 'N/A', 
+          inv_type: standaloneInvType,
+          sl_no: sl,
+          customer_name: custName,
+          address: custAddr || 'N/A'
+        };
+        const { error: insErr } = await supabase.from('inv_sl').insert([freshRow]);
+        if (insErr) throw insErr;
+        
+        setDbRowData(freshRow);
+        setSelectedServiceSlot('1');
+        alert("✅ নতুন কাস্টোমার ও সিরিয়াল রেকর্ড সফলভাবে যুক্ত করা হয়েছে!");
+      }
+    } catch (err) { console.error(err); alert("ত্রুটি হয়েছে!"); }
+    setLoading(false);
+    setStandaloneSerial('');
+    setStandaloneCustName('');
+    setStandaloneAddress('');
   };
 
   const determineNextAvailableSlot = (data) => {
@@ -213,7 +194,6 @@ const ServiceManager = () => {
     const slotStr = slotNum.toString();
     setIsEditing(true);
     setSelectedServiceSlot(slotStr);
-    
     setSingleInput({
       date: dbRowData[`serv_${slotStr}_date`] || '',
       problem: dbRowData[`serv_${slotStr}_problem`] || '',
@@ -230,7 +210,6 @@ const ServiceManager = () => {
   const handleSlotChange = (e) => {
     const slotStr = e.target.value;
     setSelectedServiceSlot(slotStr);
-    
     if (dbRowData[`serv_${slotStr}_date`]) {
       setSingleInput({
         date: dbRowData[`serv_${slotStr}_date`] || '',
@@ -245,7 +224,7 @@ const ServiceManager = () => {
 
   const handleSaveService = async (e) => {
     e.preventDefault();
-    if (!dbRowData.sl_no?.trim()) return alert("প্রথমে একটি সিরিয়াল নম্বর সার্চ বা লোড করুন!");
+    if (!dbRowData.sl_no?.trim()) return alert("প্রথমে একটি সিরিয়াল নম্বর লোড করুন!");
     if (!singleInput.date || !singleInput.problem) return alert("তারিখ এবং সমস্যার বিবরণ আবশ্যিক!");
 
     setSubmitting(true);
@@ -253,7 +232,6 @@ const ServiceManager = () => {
 
     const updatedDbRow = {
       ...dbRowData,
-      sl_no: dbRowData.sl_no.trim().toUpperCase(),
       [`serv_${slot}_date`]: singleInput.date,
       [`serv_${slot}_problem`]: singleInput.problem,
       [`serv_${slot}_amount`]: singleInput.amount || '',
@@ -261,45 +239,24 @@ const ServiceManager = () => {
     };
 
     try {
-      if (isNewRecord) {
-        const { error: insertErr } = await supabase
-          .from('inv_sl')
-          .insert([updatedDbRow]);
+      const { error: updateErr } = await supabase
+        .from('inv_sl')
+        .update({
+          [`serv_${slot}_date`]: singleInput.date,
+          [`serv_${slot}_problem`]: singleInput.problem,
+          [`serv_${slot}_amount`]: singleInput.amount || '',
+          [`remarks${slot}`]: singleInput.remarks,
+        })
+        .eq('sl_no', updatedDbRow.sl_no);
 
-        if (insertErr) throw insertErr;
-        setIsNewRecord(false);
-      } else {
-        const { error: updateErr } = await supabase
-          .from('inv_sl')
-          .update(updatedDbRow)
-          .eq('sl_no', updatedDbRow.sl_no);
+      if (updateErr) throw updateErr;
 
-        if (updateErr) throw updateErr;
-      }
-
-      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সংরক্ষণ করা হয়েছে!`);
+      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সেভ হয়েছে!`);
       setDbRowData(updatedDbRow);
       resetServiceForm();
       determineNextAvailableSlot(updatedDbRow);
 
-      const { data: existingSerials } = await supabase
-        .from('inv_sl')
-        .select('sl_no')
-        .eq('chalan_no', updatedDbRow.chalan_no);
-        
-      if (existingSerials) {
-        const dbSerials = existingSerials.map(s => s.sl_no.toUpperCase());
-        setSavedSerials(dbSerials); // ট্র্যাকিং স্টেট রি-সিঙ্ক
-        const mergedSerials = Array.from({ length: inverterItem.quantity }, (_, index) => {
-          return dbSerials[index] || ""; 
-        });
-        setSerialNumbers(mergedSerials);
-      }
-
-    } catch (error) {
-      console.error(error);
-      alert("সংরক্ষণ করতে ত্রুটি হয়েছে: " + error.message);
-    }
+    } catch (error) { console.error(error); alert("সংরক্ষণ করতে ত্রুটি হয়েছে!"); }
     setSubmitting(false);
   };
 
@@ -311,14 +268,14 @@ const ServiceManager = () => {
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-20 p-4" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* 🔍 গ্লোবাল অল-ইন-ওয়ান সার্চ বার */}
+      {/* 🔍 গ্লোবাল সার্চ বার */}
       <div className="bg-white p-6 rounded-3xl border shadow-sm">
         <form onSubmit={handleAllInOneSearch} className="flex gap-4">
           <input 
             type="text" 
             value={searchNo} 
             onChange={(e) => setSearchNo(e.target.value)} 
-            placeholder="বিল, চালান অথবা ইনভার্টারের সিরিয়াল নম্বর (S/N) দিন..." 
+            placeholder="বিল, চালান অথবা সিরিয়াল নম্বর সরাসরি সার্চ করুন..." 
             className="flex-1 h-14 px-6 bg-slate-50 border rounded-2xl font-black text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-600" 
           />
           <button type="submit" disabled={loading} className="h-14 px-10 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-colors">
@@ -327,12 +284,13 @@ const ServiceManager = () => {
         </form>
       </div>
 
-      {/* মেইন ড্যাশবোর্ড গ্রিড */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* ==================== সেকশন ১: ইনভার্টারের বিবরণ ও প্রোডাক্ট ডিটেইলস ==================== */}
+        {/* ==================== লেফট কলাম (সেকশন ১ এবং ৩) ==================== */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4 min-h-[400px]">
+          
+          {/* সেকশন ১: ইনভার্টারের বিবরণ */}
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">
               ১. ইনভার্টার ও বিক্রয়ের বিবরণ
             </h3>
@@ -340,23 +298,24 @@ const ServiceManager = () => {
             {dbRowData.sl_no || record ? (
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
-                  <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার মডেল ও নাম</p>
-                  <p className="text-base font-black">{inverterItem?.products?.name || 'ইনভার্টার ডাটা লোড হচ্ছে...'}</p>
-                  <p className="text-xs font-medium text-blue-600">মডেল: {inverterItem?.products?.model || '—'}</p>
+                  <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার টাইপ / নাম</p>
+                  <p className="text-base font-black">
+                    {inverterItem?.products?.name || `${dbRowData.inv_type} Inverter`}
+                  </p>
+                  {inverterItem?.products?.model && <p className="text-xs font-medium text-blue-600">মডেল: {inverterItem.products.model}</p>}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border">
-                  <div>
-                    <span className="text-slate-400 block">বিক্রয়ের তারিখ</span>
-                    <span className="font-black text-slate-700 text-sm">{saleDate || '—'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block">ওয়ারেন্টি কাল</span>
-                    <span className="font-black text-slate-700 text-sm">{inverterItem?.products?.warranty || '১ বছর'}</span>
-                  </div>
+                  <div><span className="text-slate-400 block">বিক্রয়ের তারিখ</span><span className="font-black text-slate-700 text-sm">{saleDate || 'বিনা চালানে এন্ট্রি'}</span></div>
+                  <div><span className="text-slate-400 block">ওয়ারেন্টি কাল</span><span className="font-black text-slate-700 text-sm">{inverterItem?.products?.warranty || '১ বছর'}</span></div>
                   <div className="pt-2 border-t col-span-2">
                     <span className="text-slate-400 block">গ্রাহকের নাম</span>
-                    <span className="font-black text-slate-800">{record?.customers?.name || 'খুচরা ক্রেতা/অন্যান্য'}</span>
+                    {/* 💡 স্মার্ট ফিক্স: রেগুলার চালান অথবা স্ট্যান্ডঅ্যালোন এন্ট্রি দুই জায়গার নামই ট্র্যাক করবে */}
+                    <span className="font-black text-slate-800">{record?.customers?.name || dbRowData?.customer_name || 'Walk-in'}</span>
+                  </div>
+                  <div className="pt-2 border-t col-span-2">
+                    <span className="text-slate-400 block">📍 ঠিকানা</span>
+                    <span className="font-bold text-slate-600 text-xs">{record?.customers?.address || dbRowData?.address || 'N/A'}</span>
                   </div>
                   <div className="pt-2 border-t">
                     <span className="text-slate-400 block">চালান নং</span>
@@ -372,32 +331,21 @@ const ServiceManager = () => {
                   <div className="space-y-3 pt-2 border-t border-dashed">
                     <p className="text-[11px] font-black text-slate-500 uppercase">ইনভার্টার সিরিয়াল নম্বরসমূহ:</p>
                     {serialNumbers.map((serial, index) => {
-                      // 🔴 ফিক্স: এখন থেকে শুধু ডাটাবেজে থাকা এক্সিস্টিং সিরিয়ালগুলোই ডিজেবল (লক) থাকবে, নতুন টাইপ করার সময় লক হবে না
                       const isExisting = serial !== "" && savedSerials.includes(serial.trim().toUpperCase());
                       return (
                         <div key={index} className="flex items-center gap-2 bg-slate-50 p-1.5 rounded-xl border">
-                          <span className="w-5 h-5 rounded bg-slate-200 flex items-center justify-center font-black text-[10px] text-slate-600">
-                            #{index + 1}
-                          </span>
+                          <span className="w-5 h-5 rounded bg-slate-200 flex items-center justify-center font-black text-[10px] text-slate-600">#{index + 1}</span>
                           <input 
-                            type="text"
-                            value={serial}
-                            disabled={isExisting} 
-                            onChange={(e) => {
-                              const updated = [...serialNumbers];
-                              updated[index] = e.target.value;
-                              setSerialNumbers(updated);
-                            }}
-                            placeholder={`সিরিয়াল দিন`}
+                            type="text" value={serial} disabled={isExisting} 
+                            onChange={(e) => { const updated = [...serialNumbers]; updated[index] = e.target.value; setSerialNumbers(updated); }}
+                            placeholder="সিরিয়াল দিন"
                             className={`flex-1 p-1 bg-white border rounded font-bold uppercase text-xs outline-none ${isExisting ? 'bg-slate-100 text-slate-800 border-green-200 font-black' : 'focus:border-blue-600'}`}
                           />
                           <button 
-                            type="button"
-                            onClick={() => handleRegisterSerial(index)}
-                            disabled={serviceLoading}
-                            className={`px-3 py-1 text-[10px] font-black rounded text-white transition-colors ${isExisting ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                            type="button" onClick={() => handleRegisterSerial(index)} disabled={serviceLoading || isExisting}
+                            className={`px-3 py-1 text-[10px] font-black rounded text-white transition-colors ${isExisting ? 'bg-green-600 opacity-50 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                           >
-                            {isExisting ? '✅ লোড' : 'এন্ট্রি'}
+                            {isExisting ? '✅ সেভড' : 'এন্ট্রি'}
                           </button>
                         </div>
                       );
@@ -406,14 +354,60 @@ const ServiceManager = () => {
                 )}
               </div>
             ) : (
-              <div className="text-center py-24 text-slate-300 italic text-sm">
-                সার্চ বারে বিল, চালান বা সিরিয়াল নম্বর দিলে প্রোডাক্টের সব ডিটেইলস এখানে আসবে।
-              </div>
+              <div className="text-center py-6 text-slate-300 italic text-sm">চালান অথবা সিরিয়াল সার্চ করলে এখানে ডিটেইলস আসবে।</div>
             )}
           </div>
+
+          {/* 🛠️ ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (কাস্টোমার ডিটেইলস সহ) */}
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider border-b pb-2">
+              ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে)
+            </h3>
+            <form onSubmit={handleStandaloneSerialSubmit} className="space-y-3.5">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার টাইপ</label>
+                <select value={standaloneInvType} onChange={(e) => setStandaloneInvType(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold text-xs outline-none">
+                  <option value="Hybrid">Hybrid Inverter</option>
+                  <option value="On-Grid">On-Grid Inverter</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">সিরিয়াল নম্বর (S/N)</label>
+                <input 
+                  type="text" value={standaloneSerial} onChange={(e) => setStandaloneSerial(e.target.value)} 
+                  placeholder="যেমন: SN-998877" 
+                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs uppercase outline-none focus:border-blue-600" 
+                  required 
+                />
+              </div>
+              {/* 🔴 নতুন ইনপুট ফিল্ড: কাস্টোমারের নাম */}
+              <div>
+                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">কাস্টোমারের নাম</label>
+                <input 
+                  type="text" value={standaloneCustName} onChange={(e) => setStandaloneCustName(e.target.value)} 
+                  placeholder="নাম লিখুন" 
+                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                  required 
+                />
+              </div>
+              {/* 🔴 নতুন ইনপুট ফিল্ড: কাস্টোমারের ঠিকানা */}
+              <div>
+                <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ঠিকানা (Address)</label>
+                <input 
+                  type="text" value={standaloneAddress} onChange={(e) => setStandaloneAddress(e.target.value)} 
+                  placeholder="ঠিকানা লিখুন" 
+                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-600" 
+                />
+              </div>
+              <button type="submit" disabled={loading} className="w-full py-3.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs rounded-xl transition-all shadow-sm">
+                {loading ? 'প্রসেসিং...' : '➕ সরাসরি ডাটাবেজে যুক্ত করুন'}
+              </button>
+            </form>
+          </div>
+
         </div>
 
-        {/* ==================== সেকশন ২: সার্ভিস ম্যানেজার ফর্ম ও ইতিহাস ==================== */}
+        {/* ==================== রাইট কলাম (সেকশন ২: সার্ভিস ম্যানেজার) ==================== */}
         <div className="lg:col-span-8 space-y-6">
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-6">
             
@@ -428,7 +422,7 @@ const ServiceManager = () => {
               </h3>
             </div>
 
-            {dbRowData.sl_no && (
+            {dbRowData.sl_no ? (
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
                 <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                   <div className="flex items-center gap-2">
@@ -440,12 +434,7 @@ const ServiceManager = () => {
                   
                   <div className="flex items-center gap-2">
                     <label className="text-xs font-bold text-slate-500">রেকর্ড স্লট:</label>
-                    <select
-                      value={selectedServiceSlot}
-                      onChange={handleSlotChange}
-                      disabled={isEditing} 
-                      className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none"
-                    >
+                    <select value={selectedServiceSlot} onChange={handleSlotChange} disabled={isEditing} className="p-1 bg-white border rounded-lg text-xs font-black text-slate-800 outline-none">
                       <option value="1">সার্ভিস রেকর্ড ০১ {isSlotLocked('1') ? '🔒 (Locked)' : ''}</option>
                       <option value="2">সার্ভিস রেকর্ড ০২ {isSlotLocked('2') ? '🔒 (Locked)' : ''}</option>
                       <option value="3">সার্ভিস রেকর্ড ০৩ {isSlotLocked('3') ? '🔒 (Locked)' : ''}</option>
@@ -485,14 +474,19 @@ const ServiceManager = () => {
                         <button type="button" onClick={resetServiceForm} className="px-4 py-2 bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">বাতিল</button>
                       )}
                       <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl transition-all shadow-sm">
-                        {submitting ? 'সেভ হচ্ছে...' : isEditing ? '🔄 Nachricht' : '📥 টেবিলে পাঠান'}
+                        {submitting ? 'সেভ হচ্ছে...' : isEditing ? '🔄 আপডেট করুন' : '📥 সেভ সার্ভিস'}
                       </button>
                     </div>
                   </form>
                 )}
               </div>
+            ) : (
+              <div className="text-center py-20 text-slate-300 italic text-sm">
+                প্রথমে বাম পাশ বা নিচে থেকে কোনো সিরিয়াল নম্বর লোড করুন।
+              </div>
             )}
 
+            {/* 📊 ৪টি সার্ভিসের কমপ্লিট ডাটা টেবিল ভিউ */}
             {dbRowData.sl_no && (
               <div className="space-y-3">
                 <h4 className="font-black text-slate-700 text-xs uppercase tracking-wider px-1">📊 সার্ভিসের ইতিহাস তালিকা</h4>
