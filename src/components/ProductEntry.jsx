@@ -5,7 +5,7 @@ const ProductEntry = () => {
   const [entryMode, setEntryMode] = useState('new'); // 'new' বা 'existing'
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false); // আপলোডিং স্টেট
+  const [uploading, setUploading] = useState(false);
 
   // ফর্ম স্টেটস
   const [name, setName] = useState('');
@@ -26,7 +26,6 @@ const ProductEntry = () => {
     fetchBrands();
   }, []);
 
-  // ডাটাবেজ থেকে বিদ্যমান ব্র্যান্ডগুলো নিয়ে আসা
   const fetchBrands = async () => {
     const { data } = await supabase.from('products').select('name');
     if (data) {
@@ -43,34 +42,52 @@ const ProductEntry = () => {
     }
   }, [panelWatt, perWattPrice, category]);
 
-  // 🔴 ইমেজ আপলোড হ্যান্ডলার (সুপাবেজ স্টোরেজের জন্য)
+  // 🔄 নতুন লজিক: পুরনো ব্র্যান্ড ও ক্যাটাগরি সিলেক্ট করলে অটোমেটিক ছবি নিয়ে আসা
+  useEffect(() => {
+    const fetchExistingImage = async () => {
+      if (entryMode === 'existing' && name && category) {
+        const { data } = await supabase
+          .from('products')
+          .select('image_url')
+          .eq('name', name)
+          .eq('category', category)
+          .not('image_url', 'is', null)
+          .limit(1);
+
+        if (data && data.length > 0 && data[0].image_url) {
+          setImageUrl(data[0].image_url); // ছবি থাকলে অটো সেট হয়ে যাবে
+        } else {
+          setImageUrl(''); // যদি ওই ব্র্যান্ডের এই ক্যাটাগরিতে আগে কোনো ছবি না থাকে
+        }
+      }
+    };
+    fetchExistingImage();
+  }, [name, category, entryMode]);
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setUploading(true);
     try {
-      // ফাইলের ইউনিক নাম তৈরি
       const fileExt = file.name.split('.').pop();
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // আপনার স্ক্রিনশট অনুযায়ী বাকেটের নাম 'product image'
       const { data, error: uploadError } = await supabase.storage
         .from('product image') 
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // পাবলিক ইউআরএল সংগ্রহ
       const { data: { publicUrl } } = supabase.storage
         .from('product image')
         .getPublicUrl(filePath);
 
-      setImageUrl(publicUrl); // প্রিভিউ এবং ফর্মে সেভ
+      setImageUrl(publicUrl); 
     } catch (error) {
       console.error(error);
-      alert('ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+      alert('ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
     } finally {
       setUploading(false);
     }
@@ -98,13 +115,15 @@ const ProductEntry = () => {
 
     if (!error) {
       alert('✅ প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!');
-      // ফর্ম রিসেট
       setModel('');
       setUnitPrice('');
       setPanelWatt('');
       setPerWattPrice('');
-      setImageUrl('');
-      if (entryMode === 'new') fetchBrands();
+      // নতুন ব্র্যান্ড এন্ট্রি মোড হলে ছবি রিসেট হবে, নাহলে ছবি থেকে যাবে যাতে পর পর এন্ট্রি দেওয়া যায়
+      if (entryMode === 'new') {
+        setImageUrl('');
+        fetchBrands();
+      }
     } else {
       console.error(error);
       alert('❌ প্রোডাক্ট যুক্ত করতে সমস্যা হয়েছে!');
@@ -115,21 +134,21 @@ const ProductEntry = () => {
   return (
     <div className="w-full max-w-5xl mx-auto space-y-8 pb-12" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
       
-      {/* হেডার ও টগল বাটন */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <h2 className="text-3xl font-black text-slate-800 tracking-tight">মডেল এন্ট্রি</h2>
         
         <div className="flex bg-slate-100 p-1.5 rounded-2xl">
           <button 
             type="button"
-            onClick={() => setEntryMode('new')}
+            // মোড চেঞ্জ করলে ইনপুটগুলো রিসেট হবে
+            onClick={() => { setEntryMode('new'); setName(''); setImageUrl(''); }}
             className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${entryMode === 'new' ? 'bg-orange-500 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
           >
             নতুন ব্র্যান্ড
           </button>
           <button 
             type="button"
-            onClick={() => { setEntryMode('existing'); setName(''); }}
+            onClick={() => { setEntryMode('existing'); setName(''); setImageUrl(''); }}
             className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${entryMode === 'existing' ? 'bg-slate-800 text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}
           >
             পুরনো ব্র্যান্ডে যোগ
@@ -141,7 +160,6 @@ const ProductEntry = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
           <div className="lg:col-span-7 space-y-6">
-            {/* ব্র্যান্ড নেম */}
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">ব্র্যান্ড / কোম্পানি</label>
               {entryMode === 'new' ? (
@@ -208,7 +226,6 @@ const ProductEntry = () => {
             </div>
           </div>
 
-          {/* 🔴 আপডেট করা ইমেজ আপলোড সেকশন */}
           <div className="lg:col-span-5 flex flex-col gap-4">
             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block text-center">প্রোডাক্ট ইমেজ</label>
             
@@ -216,6 +233,7 @@ const ProductEntry = () => {
               {imageUrl ? (
                 <>
                   <img src={imageUrl} alt="Preview" className="h-full w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
+                  {/* ব্যবহারকারী চাইলে ক্রস বাটনে ক্লিক করে অটো-ফেচ হওয়া ছবি বাতিল করে নতুন আপলোড করতে পারবেন */}
                   <button type="button" onClick={() => setImageUrl('')} className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600">✕</button>
                 </>
               ) : (
@@ -234,7 +252,6 @@ const ProductEntry = () => {
               )}
             </div>
 
-            {/* ইউআরএল বক্সটি এখন রিড-অনলি করা হয়েছে */}
             <input type="text" value={imageUrl} readOnly placeholder="লিংক এখানে অটোমেটিক আসবে" className="w-full p-3 bg-orange-50 border border-orange-100 rounded-2xl outline-none text-[10px] font-medium text-slate-500" />
 
             <button type="submit" disabled={loading || uploading || !imageUrl} className="w-full mt-2 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-xl active:scale-95 disabled:bg-slate-300">
