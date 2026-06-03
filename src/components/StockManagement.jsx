@@ -4,244 +4,192 @@ import { supabase } from '../supabaseClient';
 const StockManagement = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  // হাউজ ফিল্টার স্টেট
-  const [activeHouse, setActiveHouse] = useState('Head Office'); 
-  
-  const [updateModal, setUpdateModal] = useState(false);
-  const [modalType, setModalType] = useState('stock'); 
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [newValue, setNewValue] = useState('');
-  const [purchaseSource, setPurchaseSource] = useState('Import');
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [updateQty, setUpdateQty] = useState('');
+  const [newPrice, setNewPrice] = useState(''); 
+  const [type, setType] = useState('in');
+  const [purchaseSource, setPurchaseSource] = useState('Import'); // 🔴 নতুন: সোর্স স্টেট
 
   useEffect(() => {
     fetchProducts();
   }, []);
 
   const fetchProducts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (!error && data) setProducts(data);
+    const { data } = await supabase.from('products').select('*').order('name', { ascending: true });
+    setProducts(data || []);
     setLoading(false);
   };
 
-  const toggleAvailability = async (product) => {
-    const newStatus = product.availability === 'in stock' ? 'out of stock' : 'in stock';
-    
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({ availability: newStatus })
-        .eq('id', product.id);
-
-      if (error) throw error;
-
-      setProducts(products.map(p => p.id === product.id ? { ...p, availability: newStatus } : p));
-    } catch (error) {
-      alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে!');
-    }
-  };
-
-  const handleDataSave = async () => {
-    if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
-    
-    let updateData = {};
-    
-    // 🔴 আপডেট লজিক: স্টক যোগ, স্টক বিয়োগ এবং প্রাইস আপডেট
-    if (modalType === 'stock') {
-      updateData = { stock_quantity: selectedProduct.stock_quantity + parseInt(newValue) };
-    } else if (modalType === 'reduce_stock') {
-      const reducedStock = selectedProduct.stock_quantity - parseInt(newValue);
-      if (reducedStock < 0) return alert('বর্তমান স্টকের চেয়ে বেশি কমানো যাবে না!');
-      updateData = { stock_quantity: reducedStock };
+  const handleProductChange = (id) => {
+    setSelectedProduct(id);
+    const product = products.find(p => p.id === parseInt(id));
+    if (product) {
+      setNewPrice(product.unit_price); 
     } else {
-      updateData = { unit_price: parseFloat(newValue) };
+      setNewPrice('');
     }
+  };
+
+  const handleUpdate = async (e) => {
+    e.preventDefault();
+    if (!selectedProduct) return alert("প্রোডাক্ট সিলেক্ট করুন");
+
+    setLoading(true);
+    const product = products.find(p => p.id === parseInt(selectedProduct));
     
-    try {
-      const { error } = await supabase.from('products').update(updateData).eq('id', selectedProduct.id);
-      if (error) throw error;
-
-      alert(`✅ ${modalType === 'price' ? 'দাম' : 'স্টক'} সফলভাবে আপডেট হয়েছে!`);
-      setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, ...updateData } : p));
-      closeModal();
-    } catch (error) {
-      alert('আপডেট করতে সমস্যা হয়েছে!');
+    let updatedStock = product.stock_quantity || 0;
+    if (updateQty) {
+      updatedStock = type === 'in' 
+        ? updatedStock + parseInt(updateQty) 
+        : updatedStock - parseInt(updateQty);
     }
-  };
 
-  const closeModal = () => {
-    setUpdateModal(false);
-    setSelectedProduct(null);
-    setNewValue('');
-  };
+    if (updatedStock < 0) {
+      alert("স্টক মাইনাস হতে পারবে না!");
+      setLoading(false);
+      return;
+    }
 
-  const filteredProducts = products.filter(p => 
-    (p.house === activeHouse) && 
-    (p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     p.model.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+    const { error } = await supabase
+      .from('products')
+      .update({ 
+        stock_quantity: updatedStock,
+        unit_price: parseFloat(newPrice) || product.unit_price 
+      })
+      .eq('id', selectedProduct);
+
+    if (!error) {
+      // 🔴 ফিক্সড লজিক: টাইপ 'in' (যোগ) হলে নির্বাচিত সোর্স সহ লেজার টেবিলে ডাটা পুশ হবে
+      if (type === 'in' && updateQty && parseInt(updateQty) > 0) {
+        const { error: ledgerError } = await supabase.from('ledger').insert([
+          {
+            product: `${product.name} - ${product.model}`,
+            quantity: parseInt(updateQty),
+            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD
+            in: new Date().toISOString(), // টাইমস্ট্যাম্প
+            source: purchaseSource // ইউজারের সিলেক্ট করা রিয়েল-টাইম সোর্স
+          }
+        ]);
+        if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
+      }
+
+      alert("সফলভাবে আপডেট করা হয়েছে!");
+      setUpdateQty('');
+      fetchProducts();
+    } else {
+      alert("আপডেট ব্যর্থ হয়েছে!");
+    }
+    setLoading(false);
+  };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-4 pb-20 px-2 md:px-0" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+    <div className="max-w-7xl mx-auto space-y-10 p-4 font-['Inter']" style={{fontFamily: "'Hind Siliguri', sans-serif"}}>
       
-      {/* টপ সেকশন */}
-      <div className="bg-white p-4 md:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h2 className="text-xl md:text-2xl font-black text-slate-800">📊 স্টক ম্যানেজমেন্ট</h2>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Inventory Management</p>
-          </div>
+      {/* আপডেট ফর্ম */}
+      <div className="bg-white p-8 lg:p-12 rounded-[3rem] shadow-xl border-4 border-orange-100">
+        <h2 className="text-3xl font-black text-slate-800 mb-8 border-b pb-4">🔄 স্টক ও প্রাইস ম্যানেজমেন্ট</h2>
+        
+        <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-12 gap-5 items-end">
           
-          <div className="flex bg-slate-100 p-1 rounded-2xl self-stretch md:self-auto">
-            <button 
-              onClick={() => setActiveHouse('Head Office')}
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-xs transition-all ${activeHouse === 'Head Office' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          {/* প্রোডাক্ট সিলেকশন */}
+          <div className="md:col-span-3">
+            <label className="block text-sm font-bold text-slate-500 mb-2">প্রোডাক্ট সিলেক্ট করুন</label>
+            <select 
+              value={selectedProduct} 
+              onChange={(e) => handleProductChange(e.target.value)}
+              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold cursor-pointer"
             >
-              🏢 HEAD OFFICE
-            </button>
-            <button 
-              onClick={() => setActiveHouse('Showroom')}
-              className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-xs transition-all ${activeHouse === 'Showroom' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-              🏪 SHOWROOM
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row gap-4">
-          <input 
-            type="text" 
-            placeholder={`🔍 সার্চ করুন (${activeHouse}-এ)...`} 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" 
-          />
-          {/* 🔴 নতুন বাটন সেকশন */}
-          <div className="flex flex-wrap gap-2">
-             <button onClick={() => { setModalType('price'); setUpdateModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">💰 আপডেট প্রাইস</button>
-             <button onClick={() => { setModalType('reduce_stock'); setUpdateModal(true); }} className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➖ স্টক কমানো</button>
-             <button onClick={() => { setModalType('stock'); setUpdateModal(true); }} className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➕ নতুন স্টক</button>
-          </div>
-        </div>
-      </div>
-
-      {/* টেবিল */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b">
-              <tr className="text-[10px] uppercase font-black text-slate-400">
-                <th className="p-5">প্রোডাক্ট ইনফো</th>
-                <th className="p-5 text-right">দাম</th>
-                <th className="p-5 text-center">স্টক ({activeHouse})</th>
-                <th className="p-5 text-center">পাবলিক পেজ স্ট্যাটাস</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {loading ? (
-                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">লোড হচ্ছে...</td></tr>
-              ) : filteredProducts.length === 0 ? (
-                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</td></tr>
-              ) : filteredProducts.map((p) => (
-                <tr key={p.id} className="hover:bg-slate-50/50">
-                  <td className="p-5">
-                    <div className="font-black text-slate-900">{p.name}</div>
-                    <div className="text-[10px] font-bold text-slate-400 uppercase">{p.model}</div>
-                  </td>
-                  <td className="p-5 text-right font-black">{p.unit_price} ৳</td>
-                  <td className="p-5 text-center font-black">
-                    <span className={`px-3 py-1 rounded-lg ${p.stock_quantity <= 10 ? 'bg-red-50 text-red-600' : 'bg-slate-100'}`}>
-                      {p.stock_quantity} PCS
-                    </span>
-                  </td>
-                  <td className="p-5 text-center">
-                    <div className="flex flex-col items-center gap-1">
-                      <button 
-                        onClick={() => toggleAvailability(p)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${p.availability === 'in stock' ? 'bg-green-500' : 'bg-red-500'}`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${p.availability === 'in stock' ? 'translate-x-6' : 'translate-x-1'}`}
-                        />
-                      </button>
-                      <span className={`text-[8px] font-black uppercase ${p.availability === 'in stock' ? 'text-green-600' : 'text-red-500'}`}>
-                        {p.availability === 'in stock' ? 'Public: In Stock' : 'Public: Out Stock'}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
+              <option value="">বাছাই করুন...</option>
+              {products.map(p => (
+                <option key={p.id} value={p.id}>📦 {p.name} — {p.model} [{p.house}]</option>
               ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            </select>
+          </div>
 
-      {/* মডাল কোড */}
-      {updateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="mb-6">
-                <h3 className="text-2xl font-black text-slate-900">
-                  {/* 🔴 ডায়নামিক টাইটেল */}
-                  {modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : modalType === 'reduce_stock' ? '➖ স্টক কমানো' : '💰 প্রাইস আপডেট'}
-                </h3>
-                <p className="text-sm font-bold text-slate-400">প্রোডাক্ট সিলেক্ট করে নতুন ডাটা দিন</p>
-            </div>
-            
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">প্রোডাক্ট নির্বাচন করুন</label>
-                <select 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
-                  onChange={(e) => setSelectedProduct(products.find(p => p.id === parseInt(e.target.value)))}
-                >
-                  <option value="">সিলেক্ট করুন...</option>
-                  {products.filter(p => p.house === activeHouse).map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} - {p.model} (বর্তমান: {modalType === 'price' ? `${p.unit_price}৳` : `${p.stock_quantity} pcs`})
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* প্রাইস ইনপুট */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-bold text-orange-600 mb-2">নতুন ইউনিট প্রাইস</label>
+            <input 
+              type="number" 
+              value={newPrice} 
+              onChange={(e) => setNewPrice(e.target.value)}
+              placeholder="দাম"
+              className="w-full p-4 bg-orange-50 border-2 border-orange-200 rounded-2xl outline-none focus:border-orange-500 font-black text-xl text-orange-700"
+            />
+          </div>
 
-              {/* সোর্স শুধু স্টক যোগ করার সময় দেখাবে */}
-              {modalType === 'stock' && (
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">মাল আসার সোর্স (Source)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Import', 'Out Purchase'].map(s => (
-                      <button key={s} onClick={() => setPurchaseSource(s)} className={`p-4 rounded-2xl font-black text-xs md:text-sm border-2 transition-all ${purchaseSource === s ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-slate-100 text-slate-400'}`}>{s}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {/* 🔴 নতুন ঘর: মাল আসার সোর্স (Source Selector) */}
+          <div className="md:col-span-3">
+            <label className="block text-sm font-bold text-slate-500 mb-2">মাল আসার সোর্স (Source)</label>
+            <select 
+              value={purchaseSource} 
+              onChange={(e) => setPurchaseSource(e.target.value)}
+              disabled={type !== 'in'} // শুধু স্টক যোগ করার সময়ই একটিভ থাকবে
+              className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 transition-all font-bold cursor-pointer disabled:opacity-50"
+            >
+              <option value="Import">Import (🚢)</option>
+              <option value="Out Purchase">Out Purchase (🛒)</option>
+            </select>
+          </div>
 
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                  {/* 🔴 ডায়নামিক ইনপুট লেবেল */}
-                  {modalType === 'stock' ? 'কত পিস নতুন যোগ হবে? (Qty)' : modalType === 'reduce_stock' ? 'কত পিস স্টক থেকে কমানো হবে? (Qty)' : 'নতুন ইউনিট প্রাইস কত হবে? (৳)'}
-                </label>
-                <input 
-                  type="number" 
-                  value={newValue}
-                  onChange={(e) => setNewValue(e.target.value)}
-                  placeholder="সংখ্যা লিখুন..."
-                  className="w-full p-5 bg-slate-50 border border-slate-200 rounded-3xl font-black text-2xl outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="flex gap-4 pt-4">
-                <button onClick={closeModal} className="flex-1 py-4 font-bold text-slate-400 hover:text-slate-600">বাতিল</button>
-                <button onClick={handleDataSave} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-lg active:scale-95">
-                  কনফার্ম করুন
-                </button>
-              </div>
+          {/* স্টক আপডেট */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-bold text-slate-500 mb-2">স্টক ইন/আউট</label>
+            <div className="flex gap-2">
+              <input 
+                type="number" 
+                value={updateQty} 
+                onChange={(e) => setUpdateQty(e.target.value)}
+                placeholder="0"
+                className="w-1/2 p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-orange-500 font-bold"
+              />
+              <select 
+                value={type} 
+                onChange={(e) => setType(e.target.value)}
+                className="w-1/2 p-2 bg-slate-200 rounded-2xl font-black text-xs cursor-pointer"
+              >
+                <option value="in">যোগ (+)</option>
+                <option value="out">বিয়োগ (-)</option>
+              </select>
             </div>
           </div>
-        </div>
-      )}
+
+          {/* সাবমিট বাটন */}
+          <div className="md:col-span-2">
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="w-full bg-slate-900 h-[62px] text-white py-4 rounded-2xl font-bold hover:bg-orange-600 transition-all shadow-lg active:scale-95"
+            >
+              {loading ? '...' : 'সেভ করুন'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* নিচের টেবিল */}
+      <div className="bg-white rounded-[3rem] shadow-xl overflow-hidden border border-slate-100">
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 border-b">
+            <tr className="text-slate-400 uppercase text-xs font-black">
+              <th className="px-8 py-5">মডেল</th>
+              <th className="px-8 py-5 text-orange-600">বর্তমান দাম</th>
+              <th className="px-8 py-5 text-center">স্টক</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {products.map(p => (
+              <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                <td className="px-8 py-6 font-bold text-slate-800">
+                  {p.name} <span className="block text-xs font-medium text-slate-400">{p.model} [{p.house}]</span>
+                </td>
+                <td className="px-8 py-6 font-black text-slate-700">{p.unit_price} BDT</td>
+                <td className="px-8 py-6 text-center font-black">{p.stock_quantity || 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

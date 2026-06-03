@@ -18,11 +18,17 @@ const Reports = () => {
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // 📦 প্রোডাক্ট ওয়াইজ রিপোর্টের জন্য নতুন স্টেটস
+  // 📦 প্রোডাক্ট ওয়াইজ রিপোর্টের জন্য স্টেটস
   const [allProducts, setAllProducts] = useState([]);
   const [productSearch, setProductSearch] = useState('');
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
+
+  // 📝 লেজার (Ledger) রিপোর্টের জন্য স্টেটস
+  const [ledgerData, setLedgerData] = useState([]);
+  const [ledgerSearch, setLedgerSearch] = useState('');
+  const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
+  const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
 
   // কাস্টোমারের বিল ডিটেইলস মডাল দেখানোর জন্য
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
@@ -35,7 +41,7 @@ const Reports = () => {
 
   useEffect(() => {
     fetchAllCustomers(); 
-    fetchAllProducts(); // প্রোডাক্ট লোড করা হচ্ছে
+    fetchAllProducts(); 
   }, []);
 
   const fetchAllCustomers = async () => {
@@ -46,7 +52,6 @@ const Reports = () => {
   const fetchAllProducts = async () => {
     const { data } = await supabase.from('products').select('id, name, model, category').order('name', { ascending: true });
     if (data) {
-      // ইউনিক প্রোডাক্ট লিস্ট ফিল্টার করা (ক্যাটাগরি + মডেল + নাম কম্বিনেশনে)
       const uniqueProds = [];
       const keys = new Set();
       data.forEach(p => {
@@ -75,6 +80,17 @@ const Reports = () => {
 
       if (error) throw error;
       processReportData(chalans || []);
+
+      // ২. লেজার টেবিল থেকে ডাটা লোড করা হচ্ছে (তারিখ রেঞ্জ অনুযায়ী)
+      const { data: ledger, error: ledgerErr } = await supabase
+        .from('ledger')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (!ledgerErr && ledger) setLedgerData(ledger);
+
     } catch (error) {
       console.error(error);
       alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
@@ -157,7 +173,6 @@ const Reports = () => {
     setReportData(data);
   };
 
-  // 🔴 ফিক্সড: টাইপো এরর মুছে দেওয়া হয়েছে, এখন কাস্টোমার সার্চ বক্সে টাইপ করা যাবে
   const handleCustomerSearch = async (e) => {
     const val = e.target.value;
     setCustomerSearch(val);
@@ -185,7 +200,6 @@ const Reports = () => {
     setCustomerSearch(e.target.value);
   };
 
-  // 📦 নতুন: প্রোডাক্ট লাইভ সার্চ হ্যান্ডলার
   const handleProductSearchAction = (e) => {
     const val = e.target.value;
     setProductSearch(val);
@@ -196,6 +210,20 @@ const Reports = () => {
       setShowProductSuggestions(true);
     } else {
       setShowProductSuggestions(false);
+    }
+  };
+
+  const handleLedgerSearchAction = (e) => {
+    const val = e.target.value;
+    setLedgerSearch(val);
+
+    if (val.length >= 1) {
+      const uniqueLedgerNames = [...new Set(ledgerData.map(l => l.product))];
+      const filtered = uniqueLedgerNames.filter(name => name.toLowerCase().includes(val.toLowerCase()));
+      setLedgerSuggestions(filtered.slice(0, 10));
+      setShowLedgerSuggestions(true);
+    } else {
+      setShowLedgerSuggestions(false);
     }
   };
 
@@ -252,15 +280,12 @@ const Reports = () => {
 
   const totals = calculateTotals();
 
-  // ফিল্টারিং কাস্টোমার তালিকা
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()) || c.phone.includes(customerSearch))
     .sort((a, b) => b.amount - a.amount) : [];
 
-  // 📦 নতুন: প্রোডাক্ট ওয়াইজ ক্যালকুলেশন ফিল্টারিং লজিক
   const getProductWiseStats = () => {
     if (!reportData || !productSearch) return { totalQty: 0, totalAmount: 0, hoQty: 0, hoAmount: 0, showroomQty: 0, showroomAmount: 0 };
-    
     let totalQty = 0, totalAmount = 0, hoQty = 0, hoAmount = 0, showroomQty = 0, showroomAmount = 0;
 
     Object.values(reportData.productStats).forEach(stat => {
@@ -276,11 +301,24 @@ const Reports = () => {
         }
       }
     });
-
     return { totalQty, totalAmount, hoQty, hoAmount, showroomQty, showroomAmount };
   };
 
   const productWiseData = getProductWiseStats();
+
+  const getLedgerSummary = () => {
+    const summary = {};
+    ledgerData.forEach(item => {
+      if (!summary[item.product]) {
+        summary[item.product] = { product: item.product, totalQty: 0 };
+      }
+      summary[item.product].totalQty += parseInt(item.quantity) || 0;
+    });
+    return Object.values(summary).sort((a, b) => b.totalQty - a.totalQty);
+  };
+
+  const ledgerSummaryList = getLedgerSummary();
+  const filteredLedgerHistory = ledgerData.filter(l => l.product.toLowerCase() === ledgerSearch.toLowerCase());
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -310,11 +348,12 @@ const Reports = () => {
             { id: 'house', label: 'হাউজ রিপোর্ট (HO vs Showroom)' },
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
             { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
-            { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' } // 📦 নতুন ট্যাব সংযোজন
+            { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' },
+            { id: 'ledger_report', label: 'লেজার রিপোর্ট (Stock In)' }
           ].map(tab => (
             <button 
-              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); }}
-              className={`flex-1 min-w-[140px] py-3 px-3 rounded-lg font-bold text-xs transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); }}
+              className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-bold text-[11px] transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
             >
               {tab.label}
             </button>
@@ -334,7 +373,7 @@ const Reports = () => {
       {reportData && !loading && (
         <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm">
           
-          {/* ১. সার্বিক হিসাব ট্যাব */}
+          {/* সার্বিক হিসাব ট্যাব */}
           {reportType === 'summary' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -364,7 +403,7 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ২. হাউজ রিপোর্ট ট্যাব */}
+          {/* হাউজ রিপোর্ট ট্যাব */}
           {reportType === 'house' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {Object.keys(reportData.houseStats).map((house, idx) => (
@@ -401,7 +440,7 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ৩. প্রোডাক্ট সেলস রিপোর্ট */}
+          {/* প্রোডাক্ট সেলস রিপোর্ট */}
           {reportType === 'product' && (
             <div className="overflow-x-auto border rounded-xl">
               <table className="w-full text-left text-xs border-collapse">
@@ -447,7 +486,7 @@ const Reports = () => {
             </div>
           )}
 
-          {/* ৪. কাস্টোমার রিপোর্ট */}
+          {/* কাস্টোমার রিপোর্ট */}
           {reportType === 'customer' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -456,14 +495,14 @@ const Reports = () => {
                   <input type="text" value={customerSearch} onChange={handleCustomerSearch} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showSuggestions && customerSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
-                      {customerSuggestions.map(c => (<div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer">{c.name} — {c.phone}</div>))}
+                      {customerSuggestions.map(c => (<div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50/40 cursor-pointer">{c.name} — {c.phone}</div>))}
                     </div>
                   )}
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টোমার ড্রপডাউন সিলেকশন</label>
                   <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">লিস্টের সকল কাস্টোমার (All Active)</option>
+                    <option value="">لিস্টের সকল কাস্টোমার (All Active)</option>
                     {allCustomers.map(c => (<option key={c.id} value={c.name}>{c.name} — {c.phone}</option>))}
                   </select>
                 </div>
@@ -503,12 +542,12 @@ const Reports = () => {
             </div>
           )}
 
-          {/* 📦 ৫. নতুন: প্রোডাক্ট ওয়াইজ রিপোর্ট ট্যাব */}
+          {/* প্রোডাক্ট ওয়াইজ রিপোর্ট */}
           {reportType === 'product_wise' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 প্রোডাক্ট সার্চ (নাম/মডেল)</label>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍  প্রোডাক্ট সার্চ (নাম/মডেল)</label>
                   <input type="text" value={productSearch} onChange={handleProductSearchAction} onFocus={() => productSearch && setShowProductSuggestions(true)} onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)} placeholder="যেমন: Solar Panel..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showProductSuggestions && productSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
@@ -525,32 +564,30 @@ const Reports = () => {
                 </div>
               </div>
 
-              {/* প্রোডাক্ট সেলস ডিটেইলস কার্ডস গ্রিড */}
               {productSearch ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-slate-900 text-white p-6 rounded-2xl flex flex-col justify-between">
-                      <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
+                      <p className="text-orange-400 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় ভলিউম (Total Quantity)</p>
                       <h3 className="text-3xl font-black">{productWiseData.totalQty} pcs</h3>
                     </div>
                     <div className="bg-blue-600 text-white p-6 rounded-2xl flex flex-col justify-between">
-                      <p className="text-blue-100 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় মূল্য (Gross Revenue)</p>
+                      <p className="text-blue-100 font-black text-xs uppercase tracking-widest mb-1">মোট বিক্রয় মূল্য (Gross Revenue)</p>
                       <h3 className="text-3xl font-black">{productWiseData.totalAmount} ৳</h3>
                     </div>
                   </div>
 
-                  {/* হাউজ ব্রেকডাউন সামারি উইন্ডো */}
                   <div className="border rounded-2xl overflow-hidden bg-white shadow-sm">
-                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢 হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
+                    <div className="bg-slate-100 p-4 border-b font-black text-xs text-slate-700 uppercase tracking-wider">🏢 হাউজ ভিত্তিক বিক্রয়ের বিবরণ (HO vs Showroom)</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x font-bold">
                       <div className="p-6 space-y-2">
                         <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏠 Head Office (HO)</p>
-                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.hoQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.hoQty} pcs</span></p>
                         <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.hoAmount} ৳</span></p>
                       </div>
                       <div className="p-6 space-y-2">
                         <p className="text-sm font-black text-slate-800 flex items-center gap-2">🏪 Showroom</p>
-                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.showroomQty} pcs</span></p>
+                        <p className="text-xs text-slate-500">বিক্রয় পরিমাণ: <span className="text-slate-800 font-black text-sm">{productWiseData.showroomQty} pcs</span></p>
                         <p className="text-xs text-slate-500">মোট মূল্য: <span className="text-blue-600 font-black text-sm">{productWiseData.showroomAmount} ৳</span></p>
                       </div>
                     </div>
@@ -564,47 +601,124 @@ const Reports = () => {
             </div>
           )}
 
+          {/* 📝 লেজার রিপোর্ট (Stock In) এরিয়া ইউআই */}
+          {reportType === 'ledger_report' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
+                <div className="relative">
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 ইনপুট প্রোডাক্ট সার্চ (লেজার)</label>
+                  <input type="text" value={ledgerSearch} onChange={handleLedgerSearchAction} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  {showLedgerSuggestions && ledgerSuggestions.length > 0 && (
+                    <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">
+                      {ledgerSuggestions.map((name, i) => (<div key={i} onClick={() => { setLedgerSearch(name); setShowLedgerSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {name}</div>))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
+                  <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
+                    <option value="">লিস্টের সকল ইনপুট প্রোডাক্ট সামারি</option>
+                    {[...new Set(ledgerData.map(l => l.product))].map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                  </select>
+                </div>
+              </div>
+
+              {!ledgerSearch ? (
+                <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                  <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5 flex justify-between">
+                    <span>স্টক ইন সার্বিক সামারি তালিকা</span>
+                    <span className="text-orange-400">Total Entries: {ledgerSummaryList.length}</span>
+                  </div>
+                  <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
+                          <th className="p-4">প্রোডাক্ট এর বিবরণ (মডেল সহ)</th>
+                          <th className="p-4 text-center w-40">মোট ইনপুট পরিমাণ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y font-bold text-slate-700">
+                        {ledgerSummaryList.map((item, i) => (
+                          <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
+                            <td className="p-4 text-slate-900 font-black">📦 {item.product}</td>
+                            <td className="p-4 text-center text-blue-600 font-black text-sm bg-slate-50/50">{item.totalQty} PCS</td>
+                          </tr>
+                        ))}
+                        {ledgerSummaryList.length === 0 && (
+                          <tr><td colSpan="2" className="p-8 text-center text-slate-400 italic">উক্ত তারিখ রেঞ্জে কোনো নতুন মালামাল ইনপুট হয়নি</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center bg-orange-50 border border-orange-100 p-4 rounded-xl">
+                    <p className="text-xs font-black text-orange-700">🎯 সিলেক্টেড প্রোডাক্ট: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
+                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg hover:text-red-500">← ব্যাক টু সামারি</button>
+                  </div>
+                  
+                  <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        {/* 🔴 ফিক্সড: সোর্স হেডার রেন্ডারিং */}
+                        <tr className="bg-slate-900 text-white font-black text-[10px] uppercase">
+                          <th className="p-4">স্টক ইন এর তারিখ (Date)</th>
+                          <th className="p-4 text-center">সোর্স (Source)</th>
+                          <th className="p-4 text-right pr-12">পরিমাণ (Quantity)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y font-bold text-slate-700">
+                        {filteredLedgerHistory.map((l, i) => (
+                          <tr key={i} className="hover:bg-slate-50">
+                            <td className="p-4 font-mono text-slate-600">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                            {/* 🔴 নতুন কলাম: সোর্স ডাটা ডিসপ্লে */}
+                            <td className="p-4 text-center">
+                              <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${l.source === 'Import' ? 'bg-orange-50 text-orange-600 border border-orange-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                                {l.source || 'Form Input'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right pr-12 text-blue-600 font-black text-sm bg-slate-50/40">{l.quantity} PCS</td>
+                          </tr>
+                        ))}
+                        {filteredLedgerHistory.length === 0 && (
+                          <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+                        )}
+                      </tbody>
+                      <tfoot className="bg-slate-50 border-t font-black">
+                        <tr>
+                          <td colSpan="2" className="p-4 text-right text-slate-500 uppercase">Grand Total:</td>
+                          <td className="p-4 text-right pr-12 text-slate-900 text-sm font-black">{filteredLedgerHistory.reduce((sum, curr) => sum + (parseInt(curr.quantity) || 0), 0)} PCS</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 
-      {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
-      {/* 👔 ৩. ফিক্সড আল্ট্রা-মিনিমাল এ৪ পোর্ট্রেট ফরমাল PDF কন্টেন্ট (স্ক্রিনশট ইমেজ_56dc68 থিম) */}
-      {/* 🏛️ -------------------------------------------------------------------------- 🏛️ */}
-      <div 
-        id="formal-corporate-portrait-pdf" 
-        className="hidden bg-white text-slate-900 mx-auto" 
-        style={{ 
-          width: '210mm',         
-          padding: '20mm 15mm 20mm 15mm', 
-          boxSizing: 'border-box',
-          fontFamily: "Times New Roman, 'Inter', serif", 
-          lineHeight: '1.4' 
-        }}
-      >
-        
-        {/* 💡 ফিক্সড স্ক্রিনশট হেডার থিম লেআউট */}
+      {/* PDF layout hidden elements unchanged */}
+      <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '210mm', padding: '20mm 15mm 20mm 15mm', boxSizing: 'border-box', fontFamily: "Times New Roman, 'Inter', serif", lineHeight: '1.4' }} >
         <div className="pb-4 mb-6 flex justify-between items-start" style={{ borderBottom: '2px solid #0f172a' }}>
           <div>
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight uppercase" style={{ letterSpacing: '0.02em' }}>LAMS POWER</h1>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p>
           </div>
           <div className="text-right">
-            <div className="border border-slate-900 px-4 py-1 bg-slate-50 text-center font-bold text-xs uppercase tracking-wider" style={{ minWidth: '170px' }}>
-              Financial Sales Statement
-            </div>
+            <div className="border border-slate-900 px-4 py-1 bg-slate-50 text-center font-bold text-xs uppercase tracking-wider" style={{ minWidth: '170px' }}>Financial Sales Statement</div>
             <p className="text-[10px] text-slate-700 mt-2 font-bold">Period: <span className="font-bold">{startDate}</span> to <span className="font-bold">{endDate}</span></p>
             <p className="text-[9px] text-slate-400">Generated On: {new Date().toLocaleDateString()}</p>
           </div>
         </div>
-
-        {/* এক্সিকিউティブ ফিন্যান্সিয়াল ওভারভিউ সামারি */}
         <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50/50">
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span className="text-slate-900 text-xs font-black">{totals.totalMinAllowed} ৳</span></div>
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Actual Realized Revenue</span><span className="text-blue-900 text-xs font-black">{totals.totalActualSold} ৳</span></div>
           <div><span className="text-[9px] text-slate-400 block mb-0.5">Net Margin Surplus</span><span className="text-slate-900 text-xs font-black">+{totals.totalSurplus} ৳</span></div>
         </div>
-
-        {/* ডাইনামিক ডাটা টেবিল */}
         <div className="mt-6">
           <table className="w-full text-left text-[10px] border-collapse">
             <thead>
@@ -636,16 +750,6 @@ const Reports = () => {
                   </tr>
                 );
               })}
-              
-              {reportType === 'summary' && reportData && Object.values(reportData.combinedProductStats).map((prod, idx) => (
-                <tr key={idx}>
-                  <td className="py-2 font-semibold text-slate-900" colSpan="2">{prod.name}</td>
-                  <td className="py-2 text-center font-bold">{prod.qty} pcs</td>
-                  <td className="py-2 text-right">—</td><td className="py-2 text-right">—</td>
-                  <td className="py-2 text-right font-bold">{prod.total} ৳</td>
-                  <td className="py-2 text-right font-bold bg-slate-50">—</td>
-                </tr>
-              ))}
             </tbody>
             <tfoot>
               <tr className="border-t border-b border-slate-800 font-bold text-slate-900 uppercase bg-slate-100">
@@ -659,22 +763,12 @@ const Reports = () => {
             </tfoot>
           </table>
         </div>
-
-        {/* সিগনেচার বার */}
-        <div className="mt-20 grid grid-cols-3 gap-8 text-center text-[8px] uppercase tracking-wider text-slate-400 font-bold">
-          <div><div className="border-t border-slate-300 pt-1.5 mx-4">Prepared By (Accounts)</div></div>
-          <div><div className="border-t border-slate-300 pt-1.5 mx-4">Verified By (Auditor)</div></div>
-          <div><div className="border-t border-slate-900 pt-1.5 mx-4 text-slate-900 font-bold">Authorized Approval (CEO)</div></div>
-        </div>
-
       </div>
 
-      {/* 🔴 কাস্টোমার স্পেসিফিক বিল ও আইটেম হিস্ট্রি পপ-আপ মডাল উইন্ডো */}
+      {/* Pop-up Modal */}
       {selectedCustomerBills && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-            
-            {/* Header */}
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
               <div>
                 <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">কাস্টোমার অর্ডার হিস্ট্রি</p>
@@ -686,12 +780,9 @@ const Reports = () => {
                 <span className="text-xs font-black text-green-600 bg-green-50 px-3 py-1 rounded-md">Total Paid: {selectedCustomerBills.amount} ৳</span>
               </div>
             </div>
-
-            {/* Bills List */}
             <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-6">
               {selectedCustomerBills.bills.map((bill, i) => (
                 <div key={i} className="bg-slate-50 border border-slate-200 p-5 md:p-6 rounded-3xl">
-                  
                   <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
@@ -705,33 +796,23 @@ const Reports = () => {
                       <p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(bill.created_at).toLocaleDateString()} • via {bill.payment_method}</p>
                     </div>
                   </div>
-
                   <table className="w-full text-left text-xs bg-white border border-slate-100 rounded-2xl overflow-hidden">
                     <thead className="bg-slate-100/50 text-[10px] uppercase font-black text-slate-400">
-                      <tr>
-                        <th className="p-3">Item Details</th>
-                        <th className="p-3 text-center">Qty</th>
-                        <th className="p-3 text-right">Total</th>
-                      </tr>
+                      <tr><th className="p-3">Item Details</th><th className="p-3 text-center">Qty</th><th className="p-3 text-right">Total</th></tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50 font-bold">
                       {bill.chalan_items.map((item, j) => (
                         <tr key={j}>
-                          <td className="p-3 text-slate-700">
-                            {item.products?.name} 
-                            <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model} ({item.products?.category})</span>
-                          </td>
+                          <td className="p-3 text-slate-700">{item.products?.name} <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model} ({item.products?.category})</span></td>
                           <td className="p-3 text-center text-blue-600">{item.quantity} pcs</td>
                           <td className="p-3 text-right text-slate-900">{item.total_price} ৳</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                  
                 </div>
               ))}
             </div>
-
           </div>
         </div>
       )}
