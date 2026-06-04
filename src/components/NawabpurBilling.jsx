@@ -1,0 +1,257 @@
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
+import { printBill } from '../utils/printBill';
+import { downloadPDF } from '../utils/pdfGenerator';
+
+const NawabpurBilling = () => {
+  const house = 'Showroom'; // ফিক্সড শোরুম 
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [address, setAddress] = useState('');
+  const [customerSearchText, setCustomerSearchText] = useState('');
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  
+  const [products, setProducts] = useState([]);
+  const [selectedProduct, setSelectedProduct] = useState('');
+  const [qty, setQty] = useState('');
+  const [cart, setCart] = useState([]);
+  
+  const [loading, setLoading] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [generatedData, setGeneratedData] = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('Cash'); // Default Cash
+  const [isManualBill, setIsManualBill] = useState(false);
+  const [manualBillNo, setManualBillNo] = useState('');
+
+  useEffect(() => { fetchAvailableProducts(); }, []);
+
+  const fetchAvailableProducts = async () => {
+    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0).order('name');
+    if (data) setProducts(data);
+  };
+
+  const handleCustomerSearch = async (e) => {
+    const val = e.target.value;
+    setCustomerSearchText(val);
+    if (val.length >= 2) {
+      const { data } = await supabase.from('customers').select('*').or(`name.ilike.%${val}%,phone.ilike.%${val}%`).limit(10);
+      setCustomerSuggestions(data || []);
+      setShowSuggestions(true);
+    } else { setShowSuggestions(false); }
+  };
+
+  const selectCustomer = (cust) => {
+    setPhone(cust.phone || ''); setName(cust.name || ''); setAddress(cust.address || '');
+    setCustomerSearchText(''); setShowSuggestions(false);
+  };
+
+  const addToCart = () => {
+    if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
+    const product = products.find(p => p.id === parseInt(selectedProduct));
+    if (parseInt(qty) > product.stock_quantity) return alert(`স্টকে মাত্র ${product.stock_quantity} পিস আছে!`);
+    
+    setCart([...cart, { 
+        product_id: product.id, 
+        name: product.name, 
+        model: product.model, 
+        category: product.category, 
+        unit_price: parseFloat(product.unit_price) || 0, 
+        qty: parseInt(qty), 
+        total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
+    }]);
+    setSelectedProduct(''); setQty('');
+  };
+
+  const handleCartDataChange = (index, field, value) => {
+    const updatedCart = [...cart];
+    if (field === 'qty') {
+      const parsedQty = parseInt(value) || 0;
+      const originalProduct = products.find(p => p.id === updatedCart[index].product_id);
+      if (originalProduct && parsedQty > originalProduct.stock_quantity) {
+        alert(`দুঃখিত, স্টকে সর্বোচ্চ ${originalProduct.stock_quantity} পিস উপলব্ধ আছে!`);
+        return;
+      }
+      updatedCart[index].qty = parsedQty;
+    } else if (field === 'unit_price') {
+      updatedCart[index].unit_price = parseFloat(value) || 0; 
+    }
+    updatedCart[index].total = updatedCart[index].qty * updatedCart[index].unit_price;
+    setCart(updatedCart);
+  };
+
+  // সরাসরি বিল জেনারেট (কোনো চালান বা হোল্ড নেই)
+  const handleDirectBill = async () => {
+    if (!phone && !name) return alert('কাস্টমারের তথ্য দিন (নাম বা মোবাইল)!');
+    if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
+    if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');
+    if (isManualBill && !manualBillNo) return alert('ম্যানুয়াল বিল নম্বর দিন!');
+
+    setLoading(true);
+    try {
+      let customerId = null;
+      let customerData = { name: name || 'Walk-in', phone, address };
+
+      // কাস্টোমার ম্যানেজমেন্ট
+      const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', phone).maybeSingle();
+      if (existingCust) {
+        customerId = existingCust.id;
+        await supabase.from('customers').update({ name, address }).eq('id', customerId);
+      } else if (phone) {
+        const { data: newCust } = await supabase.from('customers').insert([{ phone, name, address }]).select().single();
+        customerId = newCust?.id;
+      }
+
+      const finalBillNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
+      const chalanNo = `CHL-DIR-${Date.now().toString().slice(-6)}`;
+
+      // 1. ক্রিয়েট চালান (Direct Paid Status)
+      const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
+        chalan_no: chalanNo, 
+        bill_no: finalBillNo,
+        status: 'paid', // সরাসরি পেইড
+        payment_method: paymentMethod,
+        total_amount: cart.reduce((acc, item) => acc + item.total, 0), 
+        house: house, 
+        customer_id: customerId, 
+        is_in_house: false
+      }]).select().single();
+
+      if (chalanErr) throw chalanErr;
+
+      const itemsForPrint = [];
+      // 2. চ্যালান আইটেম যোগ এবং রিয়েলটাইম স্টক মাইনাস
+      for (let item of cart) {
+        await supabase.from('chalan_items').insert([{ 
+          chalan_id: chalanData.id, 
+          product_id: item.product_id, 
+          quantity: item.qty, 
+          unit_price: item.unit_price, 
+          total_price: item.total 
+        }]);
+
+        const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', item.product_id).single();
+        if (p) {
+          await supabase.from('products').update({ stock_quantity: p.stock_quantity - item.qty }).eq('id', p.id);
+        }
+
+        itemsForPrint.push({ ...item, quantity: item.qty, total_price: item.total });
+      }
+
+      setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
+      setShowSuccessModal(true);
+      
+      // কার্ট রিসেট
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash');
+      fetchAvailableProducts();
+    } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
+    
+    setLoading(false);
+  };
+
+  return (
+    <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
+      <div className="flex justify-between items-center bg-blue-600 p-6 rounded-3xl border shadow-sm text-white">
+        <div>
+           <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
+           <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+             <div className="space-y-4">
+               <div className="relative">
+                 <input type="text" value={customerSearchText} onChange={handleCustomerSearch} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="স্মার্ট সার্চ (নাম/মোবাইল)..." className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none" />
+                 {showSuggestions && <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">{customerSuggestions.map(c => <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold">{c.name} - {c.phone}</div>)}</div>}
+               </div>
+               <input type="text" placeholder="মোবাইল" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
+               <input type="text" placeholder="নাম" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
+               <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
+             </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">প্রোডাক্ট নির্বাচন</h2>
+            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
+              {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
+            </select>
+            <div className="flex gap-3">
+              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600" />
+              <button onClick={addToCart} className="flex-1 bg-blue-600 text-white px-8 rounded-2xl font-bold hover:bg-blue-700 transition-all whitespace-nowrap">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="lg:col-span-8">
+          <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col h-full min-h-[500px]">
+            <div className="flex-1 overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
+                    <th className="pb-4">Item</th><th className="pb-4 text-center w-24">Qty</th><th className="pb-4 text-center w-36">Price</th><th className="pb-4 text-right">Total</th><th className="pb-4"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {cart.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
+                      <td className="py-4 text-center">
+                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none" />
+                      </td>
+                      <td className="py-4 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <input type="number" value={item.unit_price} onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)} className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none" placeholder="0"/>
+                          <span className="text-slate-400 text-[11px]">৳</span>
+                        </div>
+                      </td>
+                      <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
+                      <td className="py-4 text-right"><button onClick={() => {const nc = [...cart]; nc.splice(idx, 1); setCart(nc);}} className="text-red-400 font-bold text-xl">×</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-6 pt-6 border-t space-y-4">
+               <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-4 rounded-2xl">
+                 <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full md:w-auto flex-1 p-3 bg-white border rounded-xl font-bold outline-none">
+                    <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash</option><option value="bKash">bKash</option><option value="Bank">Bank</option>
+                 </select>
+                 <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="w-4 h-4" />
+                    <span className="text-xs font-bold text-slate-500">ম্যানুয়াল বিল?</span>
+                 </div>
+                 {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="Bill No..." className="p-3 bg-white border rounded-xl font-bold w-32" />}
+               </div>
+
+              <div className="flex justify-between items-center">
+                <div className="text-2xl font-black text-slate-900">{cart.reduce((acc, item) => acc + item.total, 0)} ৳</div>
+                <button onClick={handleDirectBill} disabled={loading || cart.length === 0} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase tracking-tighter">
+                  {loading ? 'Processing...' : 'Confirm & Bill'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && generatedData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 text-center">
+             <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
+             <h2 className="text-2xl font-black mb-1">বিল তৈরি হয়েছে!</h2>
+             <p className="font-bold text-slate-400 mb-6 uppercase">নং: {generatedData.chalan.bill_no}</p>
+             <div className="flex flex-col gap-3">
+                <button onClick={() => printBill(generatedData.chalan, generatedData.customer, generatedData.items)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest">🖨️ প্রিন্ট বিল</button>
+                <button onClick={() => setShowSuccessModal(false)} className="mt-2 text-slate-400 font-bold">বন্ধ করুন</button>
+             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+export default NawabpurBilling;

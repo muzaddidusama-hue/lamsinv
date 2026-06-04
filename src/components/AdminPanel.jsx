@@ -7,6 +7,7 @@ import Dashboard from './Dashboard';
 import BillingSystem from './BillingSystem';
 import ChalanManager from './ChalanManager';
 import BillManager from './BillManager';
+import NawabpurBilling from './NawabpurBilling';
 import FalseBilling from './FalseBilling';
 import Reports from './Reports';
 import ProductEntry from './ProductEntry';
@@ -44,13 +45,14 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         { id: 'stock_management', label: 'স্টক ম্যানেজমেন্ট' },
       ]
     },
-    {
+{
       id: 'bill_section', 
       icon: '🧾', 
       label: 'বিল সেকশন',
       isDropdown: true,
       subItems: [
-        { id: 'billing', label: 'চালান ও বিলিং' },
+        { id: 'billing', label: 'চালান ও বিলিং (হেড অফিস)' }, // নাম আপডেট করতে পারেন
+        { id: 'nawabpur_billing', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)' }, // 🔴 এটি যুক্ত করুন
         { id: 'chalans', label: 'পেমেন্ট ও চালান' },
         { id: 'bills', label: 'বিলের তালিকা (Bills)' },
         { id: 'false_billing', label: 'ফলস বিল/চালান' },
@@ -278,6 +280,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         {/* কন্টেন্ট লোড এরিয়া */}
         <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1">
           {view === 'dashboard' && <Dashboard />}
+          {view === 'nawabpur_billing' && <NawabpurBilling />}
           {view === 'smart_scan' && <SmartUpload />} 
           {view === 'product_entry' && <ProductEntry />}
           {view === 'billing' && <BillingSystem />}
