@@ -36,24 +36,19 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // 🔴 হেল্পার ফাংশন: দুটি নাম আগে-পিছে উলটপালট থাকলেও তারা একই প্রোডাক্ট কিনা তা যাচাই করার জন্য (Fuzzy Token Match)
-  const isSameProductFuzzy = (name1, name2) => {
-    if (!name1 || !name2) return false;
-    const n1 = name1.toLowerCase().replace(/[^a-z0-9]/g, ' ');
-    const n2 = name2.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+  // 🔴 নতুন এবং নিখুঁত লজিক: ব্র্যান্ড এবং মডেলের কি-ওয়ার্ড মিলিয়ে ইউনিক প্রোডাক্ট হিসেবে ধরবে
+  const getStandardKey = (name) => {
+    if (!name) return 'unknown';
+    const t = name.toLowerCase();
     
-    const tokens1 = n1.split(' ').filter(t => t.length > 1);
-    const tokens2 = n2.split(' ').filter(t => t.length > 1);
+    // আপনার ইনভেন্টরির পরিচিত ব্র্যান্ড ও মডেলের কি-ওয়ার্ড
+    const brands = ['ae solar', 'ae', 'lefn', 'inhenergy', 'deye', 'jfy', 'solaron', 'talegent']; 
+    const models = ['550w', '700w', 'si3kt2', '10k', '500w', '3ks2', '1000va'];
     
-    if (tokens1.length === 0 || tokens2.length === 0) return false;
-
-    let matches = 0;
-    tokens1.forEach(t => {
-      if (tokens2.includes(t)) matches++;
-    });
-
-    const matchRatio = matches / Math.max(tokens1.length, tokens2.length);
-    return matchRatio >= 0.70; // ৭০% কিওয়ার্ড মিললেই তারা একই প্রোডাক্ট হিসেবে মার্জ হবে
+    const b = brands.find(brand => t.includes(brand)) || 'other_brand';
+    const m = models.find(model => t.includes(model)) || 'other_model';
+    
+    return `${b}_${m}`; // উদাহরণ: 'ae solar_550w'
   };
 
   const calculateTotals = () => {
@@ -89,42 +84,30 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  // 🔴 ফিক্সড লজিক: ইনভয়েস নাম ফরমেট ও লেজার নাম উলটপালট থাকলেও স্মার্টলি একই রো-তে মার্জ করার অ্যালগরিদম
-// 🔴 সমাধান: নতুন ও শক্তিশালী লেজার সামারি মেকানিজম
-// 🔴 নতুন স্মার্ট লজিক: ব্র্যান্ড এবং মডেলের কি-ওয়ার্ড মিলিয়ে ইউনিক প্রোডাক্ট হিসেবে ধরবে
-// 🔴 ব্র্যান্ড এবং মডেল কি-ওয়ার্ড ম্যাচিং লজিক (AE Solar, LEFN, Inhenergy + 550W, 700W ইত্যাদি)
-  const getStandardKey = (name) => {
-    if (!name) return 'unknown';
-    const t = name.toLowerCase().replace(/[^a-z0-9]/g, ' ');
-    const brands = ['ae solar', 'ae', 'solar', 'lefn', 'inhenergy', 'deye'];
-    const models = ['550w', '700w', 'si3kt2', '10k', '500w', '3ks2', '1000va'];
-    
-    const b = brands.find(brand => t.includes(brand)) || 'other';
-    const m = models.find(model => t.includes(model)) || 'gen';
-    
-    return `${b}_${m}`;
-  };
-
+  // 🔴 ফিক্সড লেজার সামারি: একই কি-ওয়ার্ডের প্রোডাক্টগুলোকে একসাথে মার্জ করবে
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    ledgerData.forEach(item => {
+    const processItem = (item, type) => {
+      if (!item.product) return;
       const key = getStandardKey(item.product);
-      if (!key || key === 'other_gen') return;
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
+      // যদি ব্র্যান্ড ও মডেল না মেলে, তখন নরমাল নামটাই ব্যবহার করবে (যাতে কোনো ডাটা হারিয়ে না যায়)
+      const mapKey = key === 'other_brand_other_model' ? item.product.trim() : key;
+      
+      if (!summaryMap.has(mapKey)) {
+        // প্রথম যে নামটা পাবে সেটাই ইউআই তে দেখাবে
+        summaryMap.set(mapKey, { product: item.product, totalIn: 0, totalOut: 0 });
       }
-      summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
-    });
+      
+      if (type === 'in') {
+        summaryMap.get(mapKey).totalIn += parseInt(item.quantity) || 0;
+      } else {
+        summaryMap.get(mapKey).totalOut += parseInt(item.quantity) || 0;
+      }
+    };
 
-    salesOutData.forEach(item => {
-      const key = getStandardKey(item.product);
-      if (!key || key === 'other_gen') return;
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0 });
-      }
-      summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
-    });
+    ledgerData.forEach(item => processItem(item, 'in'));
+    salesOutData.forEach(item => processItem(item, 'out'));
 
     return Array.from(summaryMap.values());
   };
@@ -133,23 +116,291 @@ const Reports = () => {
 
   const getIndividualLedgerHistory = () => {
     if (!ledgerSearch) return [];
-    const searchKey = getStandardKey(ledgerSearch);
     
+    // যে প্রোডাক্টে ক্লিক করা হয়েছে তার কি-ওয়ার্ড বের করে নেওয়া
+    const targetKey = getStandardKey(ledgerSearch);
     const history = [];
+    
     ledgerData.forEach(l => {
-      if (getStandardKey(l.product) === searchKey) {
+      const lKey = getStandardKey(l.product);
+      // কি-ওয়ার্ড মিলে গেলে অথবা হুবহু নাম মিলে গেলে হিস্ট্রিতে যোগ করবে
+      if ((targetKey !== 'other_brand_other_model' && lKey === targetKey) || (l.product === ledgerSearch)) {
         history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
       }
     });
+    
     salesOutData.forEach(s => {
-      if (getStandardKey(s.product) === searchKey) {
+      const sKey = getStandardKey(s.product);
+      if ((targetKey !== 'other_brand_other_model' && sKey === targetKey) || (s.product === ledgerSearch)) {
         history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
       }
     });
+    
     return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
   const combinedLedgerHistory = getIndividualLedgerHistory();
+
+  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
+    .filter(c => {
+      const nameStr = c.name ? String(c.name).toLowerCase() : '';
+      const phoneStr = c.phone ? String(c.phone) : '';
+      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
+      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+    })
+    .sort((a, b) => b.amount - a.amount) : [];
+
+  useEffect(() => {
+    generateReport();
+  }, [startDate, endDate]); 
+
+  useEffect(() => {
+    fetchAllCustomers(); 
+    fetchAllProducts(); 
+  }, []);
+
+  const fetchAllCustomers = async () => {
+    const { data } = await supabase.from('customers').select('id, name, phone').order('name', { ascending: true });
+    if (data) setAllCustomers(data);
+  };
+
+  const fetchAllProducts = async () => {
+    const { data } = await supabase.from('products').select('id, name, model, category').order('name', { ascending: true });
+    if (data) {
+      const uniqueProds = [];
+      const keys = new Set();
+      data.forEach(p => {
+        const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
+        if (!keys.has(fullName)) {
+          keys.add(fullName);
+          uniqueProds.push({ ...p, fullName });
+        }
+      });
+      setAllProducts(uniqueProds);
+    }
+  };
+
+  const generateReport = async () => {
+    setLoading(true);
+    try {
+      const { data: chalans, error } = await supabase
+        .from('chalans')
+        .select(`
+          *,
+          customers(name, phone),
+          chalan_items(*, products(name, model, category))
+        `)
+        .gte('created_at', `${startDate}T00:00:00.000Z`)
+        .lte('created_at', `${endDate}T23:59:59.999Z`);
+
+      if (error) throw error;
+      processReportData(chalans || []);
+
+      const extractedOutItems = [];
+      if (chalans) {
+        chalans.forEach(ch => {
+          if (ch.status === 'paid' && ch.chalan_items) {
+            ch.chalan_items.forEach(item => {
+              const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
+              const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
+              extractedOutItems.push({
+                product: pName,
+                quantity: item.quantity,
+                date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                timestamp: ch.created_at,
+                type: 'out',
+                source: `Sold to: ${cName} (Bill: #${ch.bill_no || 'N/A'})`
+              });
+            });
+          }
+        });
+      }
+      setSalesOutData(extractedOutItems);
+
+      const { data: ledger, error: ledgerErr } = await supabase
+        .from('ledger')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: false });
+
+      if (!ledgerErr && ledger) setLedgerData(ledger);
+
+    } catch (error) {
+      console.error(error);
+      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
+    }
+    setLoading(false);
+  };
+
+  const processReportData = (chalans) => {
+    const data = {
+      totalBills: 0,
+      totalBillAmount: 0,
+      totalChalans: 0,
+      totalChalanAmount: 0,
+      houseStats: { 'Head Office': { bills: 0, amount: 0, products: {} }, 'Showroom': { bills: 0, amount: 0, products: {} } },
+      customerStats: {},
+      productStats: {},
+      combinedProductStats: {} 
+    };
+
+    chalans.forEach(ch => {
+      const isPaid = ch.status === 'paid';
+      const amt = parseFloat(ch.total_amount) || 0;
+      const house = ch.house || 'Head Office';
+
+      if (isPaid) {
+        data.totalBills += 1;
+        data.totalBillAmount += amt;
+        
+        if (!data.houseStats[house]) data.houseStats[house] = { bills: 0, amount: 0, products: {} };
+        data.houseStats[house].bills += 1;
+        data.houseStats[house].amount += amt;
+      } else if (ch.status === 'hold') {
+        data.totalChalans += 1;
+        data.totalChalanAmount += amt;
+      }
+
+      if (isPaid && ch.customers) {
+        const custName = ch.customers.name || 'Walk-in';
+        const custPhone = ch.customers.phone || '';
+        const custKey = `${custName}_${custPhone}`; 
+
+        if (!data.customerStats[custKey]) {
+          data.customerStats[custKey] = { name: custName, phone: custPhone, amount: 0, items: [], bills: [] };
+        }
+        data.customerStats[custKey].amount += amt;
+        data.customerStats[custKey].bills.push(ch);
+        
+        if (ch.chalan_items) {
+          ch.chalan_items.forEach(item => {
+            const pName = `${item.products?.category || ''} ${item.products?.model || ''}`.trim();
+            data.customerStats[custKey].items.push(`${pName} (${item.quantity} pcs)`);
+          });
+        }
+      }
+
+      if (isPaid && ch.chalan_items) {
+        ch.chalan_items.forEach(item => {
+          const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
+          const pKey = `${pName}_${house}`; 
+
+          if (!data.productStats[pKey]) {
+            data.productStats[pKey] = { name: pName, house: house, qty: 0, total: 0 };
+          }
+          data.productStats[pKey].qty += item.quantity;
+          data.productStats[pKey].total += item.total_price;
+
+          if (!data.combinedProductStats[pName]) {
+            data.combinedProductStats[pName] = { name: pName, qty: 0, total: 0 };
+          }
+          data.combinedProductStats[pName].qty += item.quantity;
+          data.combinedProductStats[pName].total += item.total_price;
+
+          if (!data.houseStats[house].products[pName]) {
+            data.houseStats[house].products[pName] = { name: pName, qty: 0, total: 0 };
+          }
+          data.houseStats[house].products[pName].qty += item.quantity;
+          data.houseStats[house].products[pName].total += item.total_price;
+        });
+      }
+    });
+
+    setReportData(data);
+  };
+
+  const handleCustomerSearch = async (e) => {
+    const val = e.target.value;
+    setCustomerSearch(val);
+    
+    if (val.length >= 2) {
+      const { data } = await supabase
+        .from('customers')
+        .select('id, name, phone')
+        .or(`name.ilike.%${val}%,phone.ilike.%${val}%`)
+        .limit(10);
+      setCustomerSuggestions(data || []);
+      setShowSuggestions(true);
+    } else {
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectCustomer = (cust) => {
+    setCustomerSearch(cust.name); 
+    setShowSuggestions(false);
+  };
+
+  const handleDropdownSelect = (e) => {
+    setCustomerSearch(e.target.value);
+  };
+
+  const handleProductSearchAction = (e) => {
+    const val = e.target.value;
+    setProductSearch(val);
+
+    if (val.length >= 1) {
+      const filtered = allProducts.filter(p => p.fullName?.toLowerCase().includes(val.toLowerCase()));
+      setProductSuggestions(filtered.slice(0, 10));
+      setShowProductSuggestions(true);
+    } else {
+      setShowProductSuggestions(false);
+    }
+  };
+
+  // 🔴 ফিক্স: সার্চ সাজেশনে মার্জ হওয়া নামগুলো দেখানোর লজিক
+  const handleLedgerSearchAction = (e) => {
+    const val = e.target.value;
+    setLedgerSearch(val);
+
+    if (val.length >= 1) {
+      const filtered = ledgerSummaryList
+        .map(s => s.product)
+        .filter(name => name.toLowerCase().includes(val.toLowerCase()));
+      setLedgerSuggestions(filtered.slice(0, 10));
+      setShowLedgerSuggestions(true);
+    } else {
+      setShowLedgerSuggestions(false);
+    }
+  };
+
+  const downloadReportPDF = () => {
+    const element = document.getElementById('formal-corporate-portrait-pdf');
+    if (!element) return;
+
+    setPdfLoading(true);
+
+    const executeDownload = () => {
+      const opt = {
+        margin: 0, 
+        filename: `LAMS_POWER_${reportType}_Report_${startDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      element.classList.remove('hidden');
+
+      window.html2pdf().from(element).set(opt).save().then(() => {
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      }).catch((err) => {
+        console.error(err);
+        element.classList.add('hidden');
+        setPdfLoading(false);
+      });
+    };
+
+    if (!window.html2pdf) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+      script.onload = executeDownload;
+      document.head.appendChild(script);
+    } else {
+      executeDownload();
+    }
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -434,8 +685,8 @@ const Reports = () => {
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
                   <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
-                    {[...new Set([...ledgerData.map(l => l.product || ''), ...salesOutData.map(s => s.product || '')])].filter(Boolean).map((name, i) => (<option key={i} value={name}>{name}</option>))}
+                    <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
+                    {ledgerSummaryList.map((item, i) => (<option key={i} value={item.product}>{item.product}</option>))}
                   </select>
                 </div>
               </div>
@@ -443,14 +694,14 @@ const Reports = () => {
               {!ledgerSearch ? (
                 <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5 flex justify-between">
-                    <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা</span>
+                    <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা</span>
                   </div>
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
                         <th className="p-4">প্রোডাক্ট এর বিবরণ (নাম ও মডেল)</th>
                         <th className="p-4 text-center w-40 text-emerald-600 bg-emerald-50/40">মোট স্টক ইন (+)</th>
-                        <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
+                        <th className="p-4 text-center w-40 text-rose-600 bg-rose-50/40">মোট বিক্রয় আউট (-)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
@@ -467,7 +718,7 @@ const Reports = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex justify-between items-center bg-orange-50 p-4 rounded-xl">
-                    <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
+                    <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
                   
@@ -486,7 +737,7 @@ const Reports = () => {
                           <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                           <td className="p-4 text-center">
                             <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
+                              {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
                             </span>
                           </td>
                           <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
@@ -498,7 +749,7 @@ const Reports = () => {
                         </tr>
                       ))}
                       {combinedLedgerHistory.length === 0 && (
-                        <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+                        <tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
                       )}
                     </tbody>
                   </table>
