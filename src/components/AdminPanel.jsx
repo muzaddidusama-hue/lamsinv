@@ -54,7 +54,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         { id: 'billing', label: 'চালান ও বিলিং (হেড অফিস)' }, // নাম আপডেট করতে পারেন
         { id: 'nawabpur_billing', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)' }, // 🔴 এটি যুক্ত করুন
         { id: 'chalans', label: 'পেমেন্ট ও চালান' },
-        { id: 'bills', label: 'বিলের তালিকা (Bills)' },
+        { id: 'bills', label: 'বিল ও চালানের তালিকা (Bills & Chalan)' },
         { id: 'false_billing', label: 'ফলস বিল/চালান' },
       ]
     },
