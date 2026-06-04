@@ -5,6 +5,11 @@ import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 
 const BillManager = () => {
+  const date = new Date();
+  const currentMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+  const [activeTab, setActiveTab] = useState('bills'); // 'bills' বা 'chalans'
   const [searchNo, setSearchNo] = useState('');
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,12 +23,16 @@ const BillManager = () => {
 
   useEffect(() => { 
     fetchAllRecords(); 
-  }, []);
+  }, [selectedMonth]); // মাস পরিবর্তন হলেই ডাটা রিফ্রেশ হবে
 
-  // 🔴 সব বিল এবং চালান একসাথে ফেচ করার লজিক (প্রোডাক্ট আইটেম সহ)
+  // 🔴 মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
   const fetchAllRecords = async () => {
     setLoading(true);
     try {
+      const [year, month] = selectedMonth.split('-');
+      const firstDay = new Date(year, month - 1, 1).toISOString();
+      const lastDay = new Date(year, month, 0, 23, 59, 59).toISOString();
+
       const { data, error } = await supabase
         .from('chalans')
         .select(`
@@ -31,8 +40,9 @@ const BillManager = () => {
           customers(name, phone, address),
           chalan_items(quantity, products(name, model))
         `)
-        .order('created_at', { ascending: false })
-        .limit(100); // লেটেস্ট ১০০টি রেকর্ড দেখাবে (পারফরম্যান্সের জন্য)
+        .gte('created_at', firstDay)
+        .lte('created_at', lastDay)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setRecords(data || []);
@@ -76,7 +86,7 @@ const BillManager = () => {
     };
   };
 
-  // প্রোডাক্ট সামারি তৈরি করার হেল্পার (টেবিলে দেখানোর জন্য)
+  // প্রোডাক্ট সামারি তৈরি করার হেল্পার
   const getProductSummary = (items) => {
     if (!items || items.length === 0) return 'No items';
     const summary = items.map(i => `${i.products?.name} (${i.quantity})`).join(', ');
@@ -111,7 +121,7 @@ const BillManager = () => {
     setIsEditModalOpen(true);
   };
 
-  // 🔴 এডিট সেভ করার লজিক
+  // এডিট সেভ করার লজিক
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     setSavingEdit(true);
@@ -124,7 +134,7 @@ const BillManager = () => {
           status: editForm.status,
           total_amount: editForm.total_amount,
           payment_method: editForm.payment_method,
-          created_at: new Date(editForm.created_at).toISOString() // ডেট আপডেট
+          created_at: new Date(editForm.created_at).toISOString() 
         })
         .eq('id', editForm.id);
 
@@ -132,7 +142,7 @@ const BillManager = () => {
       
       alert('✅ আপডেট সফল হয়েছে!');
       setIsEditModalOpen(false);
-      fetchAllRecords(); // টেবিল রিফ্রেশ
+      fetchAllRecords(); 
     } catch (error) {
       alert('আপডেট করতে সমস্যা হয়েছে!');
       console.error(error);
@@ -145,36 +155,64 @@ const BillManager = () => {
     downloadPDF(viewRecord, getCustomerData(viewRecord), printItems, viewRecord.status === 'paid' ? 'Bill' : 'Challan');
   };
 
+  // 🔴 রেকর্ডগুলোকে দুই ভাগে ভাগ করা
+  const bills = records.filter(r => r.status === 'paid');
+  const chalans = records.filter(r => r.status === 'hold');
+  const displayRecords = activeTab === 'bills' ? bills : chalans;
+
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-12 p-4" style={{ fontFamily: "'Hind Siliguri', 'Inter', sans-serif" }}>
       
-      {/* 🔍 টপ বার ও সার্চ */}
-      <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+      {/* 🔍 টপ বার ও সার্চ (Month Filter সহ) */}
+      <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">📋 বিল ও চালানের তালিকা</h2>
-          <p className="text-xs font-bold text-slate-400">সর্বশেষ রেকর্ডগুলো লিস্ট ভিউতে দেখানো হচ্ছে</p>
+          <p className="text-xs font-bold text-slate-400">নির্দিষ্ট মাসের রেকর্ড ফিল্টার করে দেখুন</p>
         </div>
-        <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-col md:flex-row gap-3 w-full lg:w-auto">
           <input 
-            type="text" 
-            value={searchNo} 
-            onChange={(e) => setSearchNo(e.target.value)} 
-            placeholder="বিল বা চালান নাম্বার..." 
-            className="w-full md:w-64 h-12 px-4 bg-slate-50 border rounded-xl font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-500" 
+            type="month" 
+            value={selectedMonth} 
+            onChange={(e) => setSelectedMonth(e.target.value)} 
+            className="h-12 px-4 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl font-black outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           />
-          <button type="submit" className="h-12 px-6 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">সার্চ</button>
-        </form>
+          <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
+            <input 
+              type="text" 
+              value={searchNo} 
+              onChange={(e) => setSearchNo(e.target.value)} 
+              placeholder="সার্চ নাম্বার..." 
+              className="w-full md:w-48 h-12 px-4 bg-slate-50 border rounded-xl font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-500" 
+            />
+            <button type="submit" className="h-12 px-6 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">সার্চ</button>
+          </form>
+        </div>
+      </div>
+
+      {/* 🔴 ট্যাব সিলেকশন (২টা আলাদা সেকশন) */}
+      <div className="flex gap-4">
+        <button 
+          onClick={() => setActiveTab('bills')} 
+          className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'bills' ? 'bg-green-600 text-white shadow-lg shadow-green-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
+        >
+          🧾 বিলের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{bills.length}</span>
+        </button>
+        <button 
+          onClick={() => setActiveTab('chalans')} 
+          className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'chalans' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
+        >
+          ⏳ পেন্ডিং চালান <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{chalans.length}</span>
+        </button>
       </div>
 
       {/* 📋 মেইন ডাটা টেবিল (List View) */}
-      <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden">
+      <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
         <div className="overflow-x-auto custom-scrollbar min-h-[400px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-slate-50 border-b text-slate-500 uppercase text-[10px] font-black tracking-wider">
+            <thead className={`border-b text-[10px] font-black tracking-wider uppercase ${activeTab === 'bills' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
               <tr>
                 <th className="p-4 pl-6">তারিখ</th>
-                <th className="p-4 text-center">স্ট্যাটাস</th>
-                <th className="p-4">নাম্বার (No.)</th>
+                <th className="p-4">{activeTab === 'bills' ? 'বিল নাম্বার' : 'চালান নাম্বার'}</th>
                 <th className="p-4">কাস্টমার</th>
                 <th className="p-4 w-1/3">প্রোডাক্ট বিবরণ</th>
                 <th className="p-4 text-right">মোট টাকা</th>
@@ -183,23 +221,18 @@ const BillManager = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
               {loading ? (
-                <tr><td colSpan="7" className="p-10 text-center text-slate-400 font-bold animate-pulse">ডাটা লোড হচ্ছে...</td></tr>
-              ) : records.length === 0 ? (
-                <tr><td colSpan="7" className="p-10 text-center text-slate-400 font-bold italic">কোনো ডাটা পাওয়া যায়নি</td></tr>
+                <tr><td colSpan="6" className="p-10 text-center text-slate-400 font-bold animate-pulse">ডাটা লোড হচ্ছে...</td></tr>
+              ) : displayRecords.length === 0 ? (
+                <tr><td colSpan="6" className="p-10 text-center text-slate-400 font-bold italic">এই মাসে কোনো {activeTab === 'bills' ? 'বিল' : 'চালান'} পাওয়া যায়নি</td></tr>
               ) : (
-                records.map((record) => (
+                displayRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50 transition-colors group">
                     <td className="p-4 pl-6 text-xs font-bold text-slate-500">
                       {new Date(record.created_at).toLocaleDateString('en-GB')}
                     </td>
-                    <td className="p-4 text-center">
-                      <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase ${record.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                        {record.status === 'paid' ? 'BILL' : 'CHALAN'}
-                      </span>
-                    </td>
                     <td className="p-4 font-black text-slate-900">
-                      {record.status === 'paid' ? record.bill_no : record.chalan_no}
-                      {record.status === 'paid' && <span className="block text-[9px] text-slate-400 font-normal uppercase">Ref: {record.chalan_no}</span>}
+                      {activeTab === 'bills' ? record.bill_no : record.chalan_no}
+                      {activeTab === 'bills' && record.chalan_no && <span className="block text-[9px] text-slate-400 font-normal uppercase mt-0.5">Ref: {record.chalan_no}</span>}
                     </td>
                     <td className="p-4 font-bold">
                       {getCustomerData(record).name}
@@ -287,7 +320,7 @@ const BillManager = () => {
         </div>
       )}
 
-      {/* 🖨️ ভিউ ও প্রিন্ট মডাল (আগের মতো) */}
+      {/* 🖨️ ভিউ ও প্রিন্ট মডাল */}
       {viewRecord && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="bg-white p-8 rounded-[2.5rem] border shadow-2xl animate-in zoom-in-95 w-full max-w-4xl max-h-[90vh] flex flex-col">
