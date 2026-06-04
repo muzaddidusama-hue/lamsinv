@@ -195,7 +195,7 @@ const BillManager = () => {
           onClick={() => setActiveTab('bills')} 
           className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'bills' ? 'bg-green-600 text-white shadow-lg shadow-green-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
         >
-          🧾 বিলের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{bills.length}</span>
+          🧾 বিল ও চালানের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{bills.length}</span>
         </button>
         <button 
           onClick={() => setActiveTab('chalans')} 
