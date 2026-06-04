@@ -23,9 +23,9 @@ const BillManager = () => {
 
   useEffect(() => { 
     fetchAllRecords(); 
-  }, [selectedMonth]); // মাস পরিবর্তন হলেই ডাটা রিফ্রেশ হবে
+  }, [selectedMonth]); 
 
-  // 🔴 মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
+  // মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
   const fetchAllRecords = async () => {
     setLoading(true);
     try {
@@ -152,12 +152,12 @@ const BillManager = () => {
 
   const handleDownload = () => {
     const printItems = viewItems.map(item => ({ ...item.products, quantity: item.quantity, total_price: item.total_price, unit_price: item.unit_price }));
-    downloadPDF(viewRecord, getCustomerData(viewRecord), printItems, viewRecord.status === 'paid' ? 'Bill' : 'Challan');
+    downloadPDF(viewRecord, getCustomerData(viewRecord), printItems, activeTab === 'bills' ? 'Bill' : 'Challan');
   };
 
-  // 🔴 রেকর্ডগুলোকে দুই ভাগে ভাগ করা
-  const bills = records.filter(r => r.status === 'paid');
-  const chalans = records.filter(r => r.status === 'hold');
+  // 🔴 রেকর্ডগুলোকে দুই ভাগে ভাগ করা (পেন্ডিং লজিক সরানো হয়েছে)
+  const bills = records.filter(r => r.status === 'paid' || r.bill_no);
+  const chalans = records.filter(r => r.chalan_no); // জেনারেট হওয়া সকল চালান
   const displayRecords = activeTab === 'bills' ? bills : chalans;
 
   return (
@@ -199,9 +199,9 @@ const BillManager = () => {
         </button>
         <button 
           onClick={() => setActiveTab('chalans')} 
-          className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'chalans' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
+          className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'chalans' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
         >
-          ⏳ পেন্ডিং চালান <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{chalans.length}</span>
+          📦 চালানের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{chalans.length}</span>
         </button>
       </div>
 
@@ -209,7 +209,7 @@ const BillManager = () => {
       <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
         <div className="overflow-x-auto custom-scrollbar min-h-[400px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className={`border-b text-[10px] font-black tracking-wider uppercase ${activeTab === 'bills' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'}`}>
+            <thead className={`border-b text-[10px] font-black tracking-wider uppercase ${activeTab === 'bills' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
               <tr>
                 <th className="p-4 pl-6">তারিখ</th>
                 <th className="p-4">{activeTab === 'bills' ? 'বিল নাম্বার' : 'চালান নাম্বার'}</th>
@@ -291,6 +291,7 @@ const BillManager = () => {
                   <select value={editForm.status} onChange={e => setEditForm({...editForm, status: e.target.value})} className="w-full p-3 border rounded-xl font-bold bg-slate-50">
                     <option value="hold">Hold (Chalan)</option>
                     <option value="paid">Paid (Bill)</option>
+                    <option value="completed">Completed (Transfer)</option>
                   </select>
                 </div>
                 <div>
@@ -311,7 +312,7 @@ const BillManager = () => {
 
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsEditModalOpen(false)} className="flex-1 p-4 rounded-xl font-bold bg-slate-100 text-slate-600">ক্যান্সেল</button>
-                <button type="submit" disabled={savingEdit} className="flex-1 p-4 rounded-xl font-black bg-orange-600 hover:bg-orange-700 text-white shadow-lg disabled:opacity-50">
+                <button type="submit" disabled={savingEdit} className="flex-1 p-4 rounded-xl font-black bg-blue-600 hover:bg-blue-700 text-white shadow-lg disabled:opacity-50">
                   {savingEdit ? 'সেভ হচ্ছে...' : 'সেভ করুন'}
                 </button>
               </div>
@@ -326,17 +327,17 @@ const BillManager = () => {
           <div className="bg-white p-8 rounded-[2.5rem] border shadow-2xl animate-in zoom-in-95 w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-6 mb-6 gap-4">
               <div>
-                <span className={`text-[10px] font-black px-3 py-1 rounded-md uppercase ${viewRecord.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                  {viewRecord.status === 'paid' ? 'PAID BILL' : 'PENDING CHALAN'}
+                <span className={`text-[10px] font-black px-3 py-1 rounded-md uppercase ${activeTab === 'bills' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {activeTab === 'bills' ? 'BILL DOCUMENT' : 'CHALAN DOCUMENT'}
                 </span>
-                <h2 className="text-2xl font-black text-slate-900 uppercase mt-2">NO: {viewRecord.status === 'paid' ? viewRecord.bill_no : viewRecord.chalan_no}</h2>
-                {viewRecord.status === 'paid' && <p className="text-sm font-bold text-slate-400">Ref Challan: {viewRecord.chalan_no}</p>}
+                <h2 className="text-2xl font-black text-slate-900 uppercase mt-2">NO: {activeTab === 'bills' ? viewRecord.bill_no : viewRecord.chalan_no}</h2>
+                {activeTab === 'bills' && viewRecord.chalan_no && <p className="text-sm font-bold text-slate-400">Ref Challan: {viewRecord.chalan_no}</p>}
               </div>
               <div className="flex gap-2">
                 <button 
                   onClick={() => {
                     const pItems = viewItems.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price, unit_price: i.unit_price}));
-                    viewRecord.status === 'paid' ? printBill(viewRecord, getCustomerData(viewRecord), pItems) : printChallan(viewRecord, getCustomerData(viewRecord), pItems);
+                    activeTab === 'bills' ? printBill(viewRecord, getCustomerData(viewRecord), pItems) : printChallan(viewRecord, getCustomerData(viewRecord), pItems);
                   }} 
                   className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg"
                 >
@@ -362,7 +363,7 @@ const BillManager = () => {
                     </>
                   )}
                   <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-3 mb-1">Date</p>
-                  <p className="font-bold text-slate-600">{new Date(viewRecord.created_at).toLocaleDateString()}</p>
+                  <p className="font-bold text-slate-600">{new Date(viewRecord.created_at).toLocaleDateString('en-GB')}</p>
                 </div>
               </div>
               <table className="w-full text-left mb-6">
