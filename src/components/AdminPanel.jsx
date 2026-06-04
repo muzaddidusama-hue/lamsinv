@@ -279,7 +279,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
 
         {/* কন্টেন্ট লোড এরিয়া */}
         <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1">
-          {view === 'dashboard' && <Dashboard />}
+          {view === 'dashboard' && <Dashboard setView={setView} />}
           {view === 'nawabpur_billing' && <NawabpurBilling />}
           {view === 'smart_scan' && <SmartUpload />} 
           {view === 'product_entry' && <ProductEntry />}
