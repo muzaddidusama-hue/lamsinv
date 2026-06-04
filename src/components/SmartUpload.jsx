@@ -17,7 +17,31 @@ const SmartUpload = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [matchedItems, setMatchedItems] = useState([]);
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { 
+    fetchProducts(); 
+    
+    // 🔴 গ্লোবাল পেস্ট ইভেন্ট লিসেনার যুক্ত করা হলো (Ctrl+V / Cmd+V এর জন্য)
+    const handlePaste = (e) => {
+      const items = e.clipboardData.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            setImageFile(file);
+            setPreview(URL.createObjectURL(file));
+          }
+          break; // একটি ইমেজ পেস্ট হলেই লুপ ব্রেক করবে
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    
+    // ক্লিনআপ ফাংশন (কম্পোনেন্ট আনমাউন্ট হলে লিসেনার রিমুভ করবে)
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, []);
 
   const fetchProducts = async () => {
     const { data, error } = await supabase.from('products').select('*');
@@ -57,7 +81,7 @@ const SmartUpload = () => {
     let maxScore = 0;
 
     dbProducts.forEach(product => {
-      // 🔴 ফিক্স লজিক: ইউজার যে হাউজ সিলেক্ট করেছেন, শুধুমাত্র সেই হাউজের প্রোডাক্ট ম্যাচ করানো হবে
+      // ইউজার যে হাউজ সিলেক্ট করেছেন, শুধুমাত্র সেই হাউজের প্রোডাক্ট ম্যাচ করানো হবে
       if (product.house !== selectedHouse) return;
 
       const brand = (product.name || '').toLowerCase().trim();
@@ -195,7 +219,6 @@ const SmartUpload = () => {
         customerId = newCust.id;
       }
 
-      // 🔴 রিকোয়েস্ট অনুযায়ী ইউনিক কনস্ট্রেইন বহাল রাখা হয়েছে
       const chalanPayload = {
         bill_no: extractedData.bill_no || "N/A",
         chalan_no: extractedData.chalan_no || `AUTO-${Date.now().toString().slice(-6)}`,
@@ -222,7 +245,7 @@ const SmartUpload = () => {
             total_price: Number(match.totalPrice)
           }]);
 
-          // 💾 স্টক মাইনাস করার সময় সিলেক্টেড হাউজের প্রোডাক্টের স্টক থেকেই মাইনাস হবে
+          // স্টক মাইনাস করার সময় সিলেক্টেড হাউজের প্রোডাক্টের স্টক থেকেই মাইনাস হবে
           const currentStock = match.matchedProduct.stock_quantity || 0;
           const newStock = currentStock - Number(match.quantity);
           await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id);
@@ -253,14 +276,13 @@ const SmartUpload = () => {
             </div>
         </div>
 
-        {/* সোর্স হাউজ সিলেকশন এরিয়া টপ প্যানেলে নিয়ে আসা হয়েছে */}
         <div className="bg-white p-6 rounded-2xl border shadow-sm mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="text-sm font-black text-slate-700 uppercase tracking-tight">🏢 স্ক্যান করার পূর্বে সঠিক বিলিং সোর্স সিলেক্ট করুন:</span>
           <select 
             value={selectedHouse} 
             onChange={(e) => {
               setSelectedHouse(e.target.value);
-              if(extractedData) initiateSave(); // হাউজ চেঞ্জ হলে যেন ম্যাচিং রি-ক্যালকুলেট হয়
+              if(extractedData) initiateSave(); 
             }} 
             className="w-full md:w-64 p-3 bg-orange-50 border border-orange-200 rounded-xl font-black text-orange-800 outline-none cursor-pointer shadow-sm focus:border-orange-500"
           >
@@ -269,17 +291,32 @@ const SmartUpload = () => {
           </select>
         </div>
 
-        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 flex flex-col items-center">
-          <input type="file" accept="image/*" onChange={(e) => {
-            const file = e.target.files[0];
-            if (file) { setImageFile(file); setPreview(URL.createObjectURL(file)); }
-          }} className="mb-6 block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-8 file:rounded-2xl file:border-0 file:bg-orange-50 file:text-orange-700 font-bold cursor-pointer" />
+        {/* 🔴 ইমেজ আপলোড ও পেস্ট সেকশন */}
+        <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 flex flex-col items-center relative">
+          
+          <div className="w-full text-center border-2 border-dashed border-slate-200 rounded-3xl p-8 mb-6 bg-slate-50 hover:bg-slate-100 transition-colors">
+            <p className="text-slate-500 font-bold mb-4">
+              🖼️ Click to browse, or <span className="text-orange-600 font-black px-2 py-1 bg-orange-100 rounded-lg">Ctrl + V</span> to paste an image here
+            </p>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={(e) => {
+                const file = e.target.files[0];
+                if (file) { setImageFile(file); setPreview(URL.createObjectURL(file)); }
+              }} 
+              className="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-8 file:rounded-2xl file:border-0 file:bg-orange-100 file:text-orange-700 font-bold cursor-pointer mx-auto max-w-xs" 
+            />
+          </div>
+
           {preview && <img src={preview} alt="Preview" className="max-h-72 rounded-3xl mb-6 shadow-xl border-8 border-slate-50" />}
+          
           <button onClick={handleScanImage} disabled={isLoading || !imageFile} className="w-full bg-orange-600 text-white py-5 rounded-[1.5rem] font-black text-xl hover:bg-slate-900 transition-all shadow-xl disabled:bg-slate-200">
-            {isLoading ? '🤖 AI দিয়ে স্ক্যান হচ্ছে...' : `${uploadMode} স্ক্যান করুন`}
+            {isLoading ? '🤖 AI দিয়ে স্ক্যান হচ্ছে...' : `${uploadMode} স্ক্যান করুন`}
           </button>
         </div>
 
+        {/* এক্সট্রাক্টেড ডাটা ভিউ (আগের মতোই) */}
         {extractedData && extractedData.items && (
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-orange-100 animate-in fade-in zoom-in duration-300">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
