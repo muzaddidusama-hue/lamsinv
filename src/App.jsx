@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import PublicCatalog from './components/PublicCatalog';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login'; // 📥 নতুন তৈরি করা Login কম্পোনেন্টটি ইম্পোর্ট করা হলো
@@ -43,6 +44,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+      <SpeedInsights />
       
       {/* ইউজার লগইন অবস্থায় থাকলে এডমিন প্যানেল দেখাবে */}
       {isAdmin ? (
