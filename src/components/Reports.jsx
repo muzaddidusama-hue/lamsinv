@@ -620,8 +620,6 @@ const Reports = () => {
                   </div>
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th></tr></thead>
-// 🔴 লেজার হিস্ট্রি টেবিলের tbody অংশটি এভাবে আপডেট করুন:
-
 <tbody className="divide-y font-bold text-slate-700">
   {combinedLedgerHistory.map((l, i) => (
     <tr key={i} className="hover:bg-slate-50 transition-colors group">
@@ -639,25 +637,32 @@ const Reports = () => {
       </td>
       {/* 🔴 ডিলিট বাটন কলাম */}
       <td className="p-4 text-center">
-        <button 
-          onClick={async () => {
-            if (window.confirm("এই এন্ট্রিটি কি ডিলিট করতে চান? এটি টোটাল হিসাব থেকেও বাদ হবে।")) {
-              try {
-                // লেজার টেবিল থেকে ডিলিট করার কোড
-                const { error } = await supabase.from('ledger').delete().eq('id', l.id);
-                if (error) throw error;
-                
-                alert("রেকর্ড মুছে ফেলা হয়েছে!");
-                generateReport(); // পুরো রিপোর্ট রিফ্রেশ করে টোটাল আপডেট করার জন্য
-              } catch (err) {
-                alert("মুছতে সমস্যা হয়েছে!");
-              }
-            }
-          }}
-          className="text-red-400 hover:text-red-600 font-black px-2 py-1 rounded"
-        >
-          🗑️
-        </button>
+<button 
+  onClick={async () => {
+    // 🔴 চেক: শুধু ledger টেবিলের ডাটা হলে ID থাকবে, তাই শুধুমাত্র সেগুলোই ডিলিট করা যাবে
+    if (!l.id) {
+      alert("দুঃখিত! এই রেকর্ডটি সরাসরি ডিলিট করা যাবে না কারণ এটি সেলস চালান থেকে এসেছে।");
+      return;
+    }
+    
+    if (window.confirm("এই এন্ট্রিটি কি ডিলিট করতে চান?")) {
+      try {
+        const { error } = await supabase.from('ledger').delete().eq('id', l.id);
+        if (error) throw error;
+        
+        alert("রেকর্ড মুছে ফেলা হয়েছে!");
+        generateReport(); // ডাটা রিফ্রেশ
+      } catch (err) {
+        alert("মুছতে সমস্যা হয়েছে!");
+        console.error(err);
+      }
+    }
+  }}
+  className={`text-red-400 hover:text-red-600 font-black px-2 py-1 rounded ${!l.id ? 'opacity-30 cursor-not-allowed' : ''}`}
+  disabled={!l.id}
+>
+  🗑️
+</button>
       </td>
     </tr>
   ))}
