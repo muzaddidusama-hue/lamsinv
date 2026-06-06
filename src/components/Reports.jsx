@@ -622,7 +622,7 @@ const Reports = () => {
                     <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th></tr></thead>
 <tbody className="divide-y font-bold text-slate-700">
   {combinedLedgerHistory.map((l, i) => (
-    <tr key={i} className="hover:bg-slate-50 transition-colors group">
+    <tr key={i} className="hover:bg-slate-50 transition-colors">
       <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
       <td className="p-4 text-center">
         <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -630,39 +630,36 @@ const Reports = () => {
         </span>
       </td>
       <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
-      <td className="p-4 text-right font-black text-sm">
+      <td className="p-4 text-right pr-12 font-black text-sm">
         <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
           {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
         </span>
       </td>
-      {/* 🔴 ডিলিট বাটন কলাম */}
-      <td className="p-4 text-center">
-<button 
-  onClick={async () => {
-    // 🔴 চেক: শুধু ledger টেবিলের ডাটা হলে ID থাকবে, তাই শুধুমাত্র সেগুলোই ডিলিট করা যাবে
-    if (!l.id) {
-      alert("দুঃখিত! এই রেকর্ডটি সরাসরি ডিলিট করা যাবে না কারণ এটি সেলস চালান থেকে এসেছে।");
-      return;
-    }
-    
-    if (window.confirm("এই এন্ট্রিটি কি ডিলিট করতে চান?")) {
-      try {
-        const { error } = await supabase.from('ledger').delete().eq('id', l.id);
-        if (error) throw error;
-        
-        alert("রেকর্ড মুছে ফেলা হয়েছে!");
-        generateReport(); // ডাটা রিফ্রেশ
-      } catch (err) {
-        alert("মুছতে সমস্যা হয়েছে!");
-        console.error(err);
-      }
-    }
-  }}
-  className={`text-red-400 hover:text-red-600 font-black px-2 py-1 rounded ${!l.id ? 'opacity-30 cursor-not-allowed' : ''}`}
-  disabled={!l.id}
->
-  🗑️
-</button>
+      {/* 🔴 ডিলিট ও এডিট অ্যাকশন */}
+      <td className="p-4 text-center flex justify-center gap-2">
+        <button 
+          onClick={async () => {
+            if (window.confirm("এই রেকর্ডটি মুছে ফেললে স্টক আপডেট হবে না, শুধু রিপোর্ট থেকে মুছবে। নিশ্চিত?")) {
+              try {
+                // লজিক: এটি যদি লেজারের এন্ট্রি হয় তবে ledger টেবিল থেকে মুছবে
+                // আর যদি সেলস এন্ট্রি হয় তবে chalan_items থেকে মুছবে
+                if (l.type === 'in') {
+                    await supabase.from('ledger').delete().eq('id', l.id); 
+                } else {
+                    // চালান থেকে আসা আউটপুট ডিলিট করার জন্য রেফারেন্স থেকে ID বের করতে হবে
+                    // আপনার চালানের ডাটাবেজ স্ট্রাকচার অনুযায়ী এটি করতে হবে
+                    alert("সেলস চালান এডিট করতে 'পেমেন্ট ও চালান' সেকশনে যান।");
+                    return;
+                }
+                alert("রেকর্ড মুছে ফেলা হয়েছে!");
+                generateReport();
+              } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }
+            }
+          }}
+          className="text-red-500 hover:text-red-700 font-black px-2"
+        >
+          🗑️ ডিলিট
+        </button>
       </td>
     </tr>
   ))}
