@@ -18,7 +18,7 @@ const Reports = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [allProducts, setAllProducts] = useState([]);
-  const [rawProducts, setRawProducts] = useState([]); // 🔴 নতুন: রিয়েল-টাইম স্টক ক্যালকুলেশনের জন্য
+  const [rawProducts, setRawProducts] = useState([]); 
   const [productSearch, setProductSearch] = useState('');
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
@@ -33,33 +33,11 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // 🔴 আল্ট্রা-স্মার্ট ডাইনামিক মডেল এক্সট্রাক্টর (Regex Based)
+  // 🔴 ফিক্সড: স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
+  // এর ফলে "Sunland Extreme - 50W" এবং "Powerland - 50W" কখনোই এক হবে না।
   const getStandardKey = (name) => {
     if (!name) return 'unknown';
-    const t = name.toLowerCase();
-    
-    // ১. ব্র্যান্ড রিকগনিশন
-    const brands = ['ae solar', 'inhenergy', 'solaron', 'talegent', 'solax', 'sunrise', 'jarrett', 'deye', 'lefn', 'suer', 'jfy', 'ae'];
-    const b = brands.find(brand => t.includes(brand)) || 'other_brand';
-    
-    // ২. ডাইনামিক মডেল এক্সট্রাকশন
-    let m = 'other_model';
-    
-    if (t.match(/si-?\d+k-?[ts]2/)) {
-      m = t.match(/si-?\d+k-?[ts]2/)[0].replace(/-/g, ''); // SI-10K-T2 -> si10kt2
-    } else if (t.match(/\d+tl\+?/)) {
-      m = t.match(/\d+tl\+?/)[0]; // 3000tl, 20000tl+
-    } else if (t.match(/\d+(\.\d+)?kw/)) {
-      m = t.match(/\d+(\.\d+)?kw/)[0]; // 3kw, 4.5kw
-    } else if (t.match(/\d+va/)) {
-      m = t.match(/\d+va/)[0]; // 1000va
-    } else if (t.match(/\d+w/)) {
-      m = t.match(/\d+w/)[0]; // 550w
-    } else if (t.match(/\d+ks2/)) {
-      m = t.match(/\d+ks2/)[0]; // 3ks2
-    }
-    
-    return `${b}_${m}`; 
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '');
   };
 
   const totals = useMemo(() => {
@@ -93,48 +71,45 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  // 🔴 ফিক্সড লেজার সামারি: রিয়েল-টাইম হাউজ স্টক সহ
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    // ১. প্রথমে রিয়েল-টাইম স্টক লোড করা (rawProducts থেকে)
     rawProducts.forEach(p => {
       const fullName = `${p.name || ''} ${p.model || ''}`.trim();
       const key = getStandardKey(fullName);
-      const mapKey = key.includes('other_model') ? fullName : key;
       
-      if (!summaryMap.has(mapKey)) {
-        summaryMap.set(mapKey, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
       }
       
-      const entry = summaryMap.get(mapKey);
+      const entry = summaryMap.get(key);
       const houseName = p.house || 'Head Office';
       if (entry.stocks[houseName] !== undefined) {
         entry.stocks[houseName] += parseInt(p.stock_quantity) || 0;
       }
     });
 
-    // ২. এবার লেজারের ইন-আউট যোগ করা
     const processItem = (item, type) => {
       if (!item.product) return;
+      const qty = parseInt(item.quantity) || 0;
+      if (qty === 0) return; // 🔴 ফিক্সড: ভুল ডাটা বাদ দেওয়া
+
       const key = getStandardKey(item.product);
-      const mapKey = key.includes('other_model') ? item.product.trim() : key;
       
-      if (!summaryMap.has(mapKey)) {
-        summaryMap.set(mapKey, { product: item.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
       }
       
       if (type === 'in') {
-        summaryMap.get(mapKey).totalIn += parseInt(item.quantity) || 0;
+        summaryMap.get(key).totalIn += qty;
       } else {
-        summaryMap.get(mapKey).totalOut += parseInt(item.quantity) || 0;
+        summaryMap.get(key).totalOut += qty;
       }
     };
 
     ledgerData.forEach(item => processItem(item, 'in'));
     salesOutData.forEach(item => processItem(item, 'out'));
 
-    // একদম খালি/অকেজো প্রোডাক্ট ফিল্টার করে বাদ দেওয়া
     return Array.from(summaryMap.values()).filter(
       item => item.totalIn > 0 || item.totalOut > 0 || item.stocks['Head Office'] > 0 || item.stocks['Showroom'] > 0
     );
@@ -150,15 +125,16 @@ const Reports = () => {
     
     ledgerData.forEach(l => {
       const lKey = getStandardKey(l.product);
-      if ((!targetKey.includes('other_model') && lKey === targetKey) || (l.product === ledgerSearch)) {
-        history.push({ date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: l.quantity });
+      if (lKey === targetKey || l.product === ledgerSearch) {
+        // 🔴 ফিক্সড: ডিলিট করার সুবিধার জন্য id যুক্ত করা হলো এবং parseInt করা হলো
+        history.push({ id: l.id, date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: parseInt(l.quantity) || 0 });
       }
     });
     
     salesOutData.forEach(s => {
       const sKey = getStandardKey(s.product);
-      if ((!targetKey.includes('other_model') && sKey === targetKey) || (s.product === ledgerSearch)) {
-        history.push({ date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: s.quantity });
+      if (sKey === targetKey || s.product === ledgerSearch) {
+        history.push({ id: null, date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: parseInt(s.quantity) || 0 });
       }
     });
     
@@ -193,7 +169,7 @@ const Reports = () => {
   const fetchAllProducts = async () => {
     const { data } = await supabase.from('products').select('id, name, model, category, house, stock_quantity').order('name', { ascending: true });
     if (data) {
-      setRawProducts(data); // রিয়েল-টাইম স্টকের জন্য
+      setRawProducts(data);
       const uniqueProds = [];
       const keys = new Set();
       data.forEach(p => {
@@ -564,7 +540,7 @@ const Reports = () => {
             </div>
           )}
 
-          {/* 🔴 আপডেট হওয়া লেজার রিপোর্ট সেকশন */}
+          {/* 🔴 আপডেট হওয়া লেজার রিপোর্ট সেকশন */}
           {reportType === 'ledger_report' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -619,54 +595,53 @@ const Reports = () => {
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
                   </div>
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
-                    <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th></tr></thead>
-<tbody className="divide-y font-bold text-slate-700">
-  {combinedLedgerHistory.map((l, i) => (
-    <tr key={i} className="hover:bg-slate-50 transition-colors">
-      <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
-      <td className="p-4 text-center">
-        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-          {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
-        </span>
-      </td>
-      <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
-      <td className="p-4 text-right pr-12 font-black text-sm">
-        <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
-          {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
-        </span>
-      </td>
-      {/* 🔴 ডিলিট ও এডিট অ্যাকশন */}
-      <td className="p-4 text-center flex justify-center gap-2">
-        <button 
-          onClick={async () => {
-            if (window.confirm("এই রেকর্ডটি মুছে ফেললে স্টক আপডেট হবে না, শুধু রিপোর্ট থেকে মুছবে। নিশ্চিত?")) {
-              try {
-                // লজিক: এটি যদি লেজারের এন্ট্রি হয় তবে ledger টেবিল থেকে মুছবে
-                // আর যদি সেলস এন্ট্রি হয় তবে chalan_items থেকে মুছবে
-                if (l.type === 'in') {
-                    await supabase.from('ledger').delete().eq('id', l.id); 
-                } else {
-                    // চালান থেকে আসা আউটপুট ডিলিট করার জন্য রেফারেন্স থেকে ID বের করতে হবে
-                    // আপনার চালানের ডাটাবেজ স্ট্রাকচার অনুযায়ী এটি করতে হবে
-                    alert("সেলস চালান এডিট করতে 'পেমেন্ট ও চালান' সেকশনে যান।");
-                    return;
-                }
-                alert("রেকর্ড মুছে ফেলা হয়েছে!");
-                generateReport();
-              } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }
-            }
-          }}
-          className="text-red-500 hover:text-red-700 font-black px-2"
-        >
-          🗑️ ডিলিট
-        </button>
-      </td>
-    </tr>
-  ))}
-  {combinedLedgerHistory.length === 0 && (
-    <tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
-  )}
-</tbody>
+                    <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th><th className="p-4 text-center">অ্যাকশন</th></tr></thead>
+                    <tbody className="divide-y font-bold text-slate-700">
+                      {combinedLedgerHistory.map((l, i) => (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                          <td className="p-4 text-center">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
+                          <td className="p-4 text-right pr-4 font-black text-sm">
+                            <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
+                              {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
+                            </span>
+                          </td>
+                          {/* 🔴 ডিলিট বাটন (সরাসরি ডাটাবেজ থেকে মুছবে) */}
+                          <td className="p-4 text-center">
+                            <button 
+                              onClick={async () => {
+                                const confirmMsg = "এই এন্ট্রিটি মুছে ফেললে ডাটাবেজ থেকে চিরতরে চলে যাবে। নিশ্চিত?";
+                                if (window.confirm(confirmMsg)) {
+                                  try {
+                                    if (l.type === 'in' && l.id) {
+                                       await supabase.from('ledger').delete().eq('id', l.id);
+                                    } else {
+                                       alert("চালান থেকে আসা এন্ট্রিগুলো ডিলিট করতে 'পেমেন্ট ও চালান' বা 'বিলের তালিকা' সেকশনে যান।");
+                                       return;
+                                    }
+                                    alert("রেকর্ড মুছে ফেলা হয়েছে!");
+                                    generateReport(); 
+                                  } catch (err) {
+                                    alert("ডিলিট করতে সমস্যা হয়েছে!");
+                                    console.error(err);
+                                  }
+                                }
+                              }}
+                              className={`text-red-500 hover:text-red-700 font-black px-2 ${!l.id && l.type==='out' ? 'opacity-30 cursor-not-allowed' : ''}`}
+                              disabled={!l.id && l.type === 'out'}
+                            >
+                              🗑️ ডিলিট
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {combinedLedgerHistory.length === 0 && (<tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
+                    </tbody>
                   </table>
                 </div>
               )}
