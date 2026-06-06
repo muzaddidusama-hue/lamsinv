@@ -51,6 +51,7 @@ const Dashboard = ({ setView }) => {
     return val === true || String(val).toLowerCase() === 'true';
   };
 
+  // 🔴 ফিক্সড লজিক: ইন-হাউজ স্টক ট্রান্সফারের ডাটাবেজ কনফ্লিক্ট ঠিক করা হয়েছে
   const handleAction = async (actionType) => {
     setProcessing(true);
     try {
@@ -58,14 +59,32 @@ const Dashboard = ({ setView }) => {
 
       if (actionType === 'transfer') {
         if (!isTransferMode) throw new Error("অবৈধ রিকোয়েস্ট!");
+        
         for (let itm of modalItems) {
+          // ১. সোর্স হাউজ থেকে কমানো
           const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
-          if (sourceP) await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
+          if (sourceP) {
+            await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
+          }
           
+          // ২. টার্গেট হাউজে বাড়ানো বা নতুন তৈরি করা
           const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('model', itm.products.model).eq('house', selectedItem.transfer_to).maybeSingle();
-          if (targetP) await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
-          else await supabase.from('products').insert([{ ...itm.products, id: undefined, stock_quantity: itm.quantity, house: selectedItem.transfer_to }]);
+          
+          if (targetP) {
+            // যদি ঐ হাউজে আগে থেকেই এই প্রোডাক্ট থাকে, তাহলে স্টক যোগ হবে
+            await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
+          } else {
+            // যদি ঐ হাউজে প্রোডাক্টটি না থাকে, তবে নতুন করে এন্ট্রি হবে (আগের ID বাদ দিয়ে)
+            const { id, created_at, stock_quantity, house, ...cleanProductData } = itm.products;
+            
+            await supabase.from('products').insert([{ 
+              ...cleanProductData, 
+              stock_quantity: itm.quantity, 
+              house: selectedItem.transfer_to 
+            }]);
+          }
         }
+        // ৩. চালানের স্ট্যাটাস কমপ্লিট করে দেওয়া
         await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
       } 
       
@@ -82,8 +101,13 @@ const Dashboard = ({ setView }) => {
         await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: finalBillNo }).eq('id', selectedItem.id);
       }
       
-      alert('সফল হয়েছে!'); setSelectedItem(null); fetchDashboardData();
-    } catch (e) { alert(e.message || 'ত্রুটি হয়েছে'); console.error(e); }
+      alert('✅ সফল হয়েছে!'); 
+      setSelectedItem(null); 
+      fetchDashboardData();
+    } catch (e) { 
+      alert(e.message || 'ত্রুটি হয়েছে'); 
+      console.error(e); 
+    }
     setProcessing(false);
   };
 
@@ -113,8 +137,6 @@ const Dashboard = ({ setView }) => {
 
   return (
     <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 font-['Inter'] pb-20">
-      
-      {/* 🔴 স্ট্যাটাস কার্ডস */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: 'Pending Action', val: holdChalans.length, color: 'bg-orange-500', icon: '⏳' },
@@ -130,9 +152,7 @@ const Dashboard = ({ setView }) => {
         ))}
       </div>
 
-      {/* 🔴 মেইন গ্রিড */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        
         <div className="xl:col-span-3 space-y-4">
           <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Pending Action</h2>
           <div className="space-y-3">
@@ -188,7 +208,6 @@ const Dashboard = ({ setView }) => {
         </div>
       </div>
 
-      {/* 🔴 নতুন যোগ করা ২টি বাটন */}
       <div className="flex flex-col md:flex-row gap-6 mt-8 pt-8 border-t border-slate-200">
         <button 
           onClick={() => setView && setView('billing')} 
@@ -207,7 +226,6 @@ const Dashboard = ({ setView }) => {
         </button>
       </div>
 
-      {/* 🔴 সম্পূর্ণ মডাল কোড রিস্টোর করা হলো */}
       {selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4">
           <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
