@@ -620,17 +620,51 @@ const Reports = () => {
                   </div>
                   <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
                     <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th></tr></thead>
-                    <tbody className="divide-y font-bold text-slate-700">
-                      {combinedLedgerHistory.map((l, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
-                          <td className="p-4 text-center"><span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}</span></td>
-                          <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
-                          <td className="p-4 text-right pr-12 font-black text-sm"><span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>{l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS</span></td>
-                        </tr>
-                      ))}
-                      {combinedLedgerHistory.length === 0 && (<tr><td colSpan="4" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
-                    </tbody>
+// 🔴 লেজার হিস্ট্রি টেবিলের tbody অংশটি এভাবে আপডেট করুন:
+
+<tbody className="divide-y font-bold text-slate-700">
+  {combinedLedgerHistory.map((l, i) => (
+    <tr key={i} className="hover:bg-slate-50 transition-colors group">
+      <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+      <td className="p-4 text-center">
+        <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
+        </span>
+      </td>
+      <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
+      <td className="p-4 text-right font-black text-sm">
+        <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
+          {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
+        </span>
+      </td>
+      {/* 🔴 ডিলিট বাটন কলাম */}
+      <td className="p-4 text-center">
+        <button 
+          onClick={async () => {
+            if (window.confirm("এই এন্ট্রিটি কি ডিলিট করতে চান? এটি টোটাল হিসাব থেকেও বাদ হবে।")) {
+              try {
+                // লেজার টেবিল থেকে ডিলিট করার কোড
+                const { error } = await supabase.from('ledger').delete().eq('id', l.id);
+                if (error) throw error;
+                
+                alert("রেকর্ড মুছে ফেলা হয়েছে!");
+                generateReport(); // পুরো রিপোর্ট রিফ্রেশ করে টোটাল আপডেট করার জন্য
+              } catch (err) {
+                alert("মুছতে সমস্যা হয়েছে!");
+              }
+            }
+          }}
+          className="text-red-400 hover:text-red-600 font-black px-2 py-1 rounded"
+        >
+          🗑️
+        </button>
+      </td>
+    </tr>
+  ))}
+  {combinedLedgerHistory.length === 0 && (
+    <tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>
+  )}
+</tbody>
                   </table>
                 </div>
               )}
