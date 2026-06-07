@@ -14,6 +14,10 @@ const NawabpurBilling = () => {
   
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
+  // 🔴 নতুন: প্রোডাক্ট সার্চের জন্য কাস্টম স্টেট
+  const [productSearchText, setProductSearchText] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  
   const [qty, setQty] = useState('');
   const [cart, setCart] = useState([]);
   
@@ -23,14 +27,25 @@ const NawabpurBilling = () => {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [isManualBill, setIsManualBill] = useState(false);
   const [manualBillNo, setManualBillNo] = useState('');
-  // 🔴 নতুন: ম্যানুয়াল ডেট ইনপুট
   const [manualDate, setManualDate] = useState(''); 
 
   useEffect(() => { fetchAvailableProducts(); }, []);
 
   const fetchAvailableProducts = async () => {
-    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0).order('name');
-    if (data) setProducts(data);
+    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0);
+    if (data) {
+      // 🔴 ফিক্স: প্রোডাক্টগুলোকে নাম এবং মডেল অনুযায়ী A-Z সিরিয়ালে সাজানো
+      const sortedData = data.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        const modelA = (a.model || '').toLowerCase();
+        const modelB = (b.model || '').toLowerCase();
+        return modelA.localeCompare(modelB, undefined, { numeric: true });
+      });
+      setProducts(sortedData);
+    }
   };
 
   const handleCustomerSearch = async (e) => {
@@ -49,7 +64,7 @@ const NawabpurBilling = () => {
   };
 
   const addToCart = () => {
-    if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
+    if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক প্রোডাক্ট এবং পরিমাণ দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
     if (parseInt(qty) > product.stock_quantity) return alert(`স্টকে মাত্র ${product.stock_quantity} পিস আছে!`);
     
@@ -62,7 +77,7 @@ const NawabpurBilling = () => {
         qty: parseInt(qty), 
         total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
     }]);
-    setSelectedProduct(''); setQty('');
+    setSelectedProduct(''); setQty(''); setProductSearchText(''); // ফিল্ড রিসেট
   };
 
   const handleCartDataChange = (index, field, value) => {
@@ -105,8 +120,6 @@ const NawabpurBilling = () => {
 
       const finalBillNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
       const chalanNo = `CHL-DIR-${Date.now().toString().slice(-6)}`;
-      
-      // 🔴 ম্যানুয়াল ডেট লজিক: ইনপুট থাকলে সেটা, না থাকলে বর্তমান সময়
       const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
 
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
@@ -117,11 +130,11 @@ const NawabpurBilling = () => {
         total_amount: cart.reduce((acc, item) => acc + item.total, 0), 
         house: house, 
         customer_id: customerId,
-        customer_name: finalName, // 🔴 নিশ্চিত করা হলো নাম সেভ হবে
-        phone: phone, // 🔴 নিশ্চিত করা হলো ফোন সেভ হবে
-        address: address, // 🔴 নিশ্চিত করা হলো অ্যাড্রেস সেভ হবে
+        customer_name: finalName,
+        phone: phone,
+        address: address,
         is_in_house: false,
-        created_at: finalCreatedAt // 🔴 ম্যানুয়াল ডেট যুক্ত করা হলো
+        created_at: finalCreatedAt
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
@@ -154,6 +167,11 @@ const NawabpurBilling = () => {
     setLoading(false);
   };
 
+  // ড্রপডাউনের জন্য সার্চ ফিল্টার
+  const displayedProducts = products.filter(p => 
+    `${p.name} ${p.model}`.toLowerCase().includes(productSearchText.toLowerCase())
+  );
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-blue-600 p-6 rounded-3xl border shadow-sm text-white gap-4">
@@ -161,7 +179,6 @@ const NawabpurBilling = () => {
            <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
            <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
         </div>
-        {/* 🔴 ম্যানুয়াল ডেট ইনপুট UI */}
         <div className="bg-blue-700/50 p-3 rounded-xl border border-blue-500 w-full md:w-auto">
            <label className="text-[10px] font-bold text-blue-200 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
            <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-white font-bold outline-none w-full" />
@@ -184,10 +201,43 @@ const NawabpurBilling = () => {
           
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">প্রোডাক্ট নির্বাচন</h2>
-            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600">
-              <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
-              {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
-            </select>
+            
+            {/* 🔴 কাস্টম স্মার্ট সার্চেবল ড্রপডাউন */}
+            <div className="relative w-full">
+              <input 
+                type="text" 
+                placeholder="প্রোডাক্ট সার্চ করে সিলেক্ট করুন..."
+                value={productSearchText}
+                onChange={(e) => {
+                  setProductSearchText(e.target.value);
+                  setShowProductDropdown(true);
+                  setSelectedProduct(''); 
+                }}
+                onFocus={() => setShowProductDropdown(true)}
+                onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              {showProductDropdown && (
+                <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-64 overflow-y-auto custom-scrollbar">
+                  {displayedProducts.length > 0 ? displayedProducts.map(p => (
+                    <div 
+                      key={p.id} 
+                      onClick={() => {
+                        setSelectedProduct(p.id);
+                        setProductSearchText(`${p.name} - ${p.model} [স্টক: ${p.stock_quantity}]`);
+                        setShowProductDropdown(false);
+                      }}
+                      className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer font-bold text-sm text-slate-700"
+                    >
+                      📦 {p.name} - {p.model} <span className="text-blue-600 ml-1">[স্টক: {p.stock_quantity}]</span>
+                    </div>
+                  )) : (
+                    <div className="p-4 text-center text-slate-400 text-sm font-bold">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3">
               <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600" />
               <button onClick={addToCart} className="flex-1 bg-blue-600 text-white px-8 rounded-2xl font-bold hover:bg-blue-700 transition-all whitespace-nowrap">Add</button>
@@ -247,7 +297,6 @@ const NawabpurBilling = () => {
         </div>
       </div>
 
-      {/* Success Modal */}
       {showSuccessModal && generatedData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95 text-center">
@@ -264,4 +313,5 @@ const NawabpurBilling = () => {
     </div>
   );
 };
+
 export default NawabpurBilling;

@@ -6,7 +6,6 @@ const StockManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // হাউজ ফিল্টার স্টেট
   const [activeHouse, setActiveHouse] = useState('Head Office'); 
   
   const [updateModal, setUpdateModal] = useState(false);
@@ -15,8 +14,9 @@ const StockManagement = () => {
   const [newValue, setNewValue] = useState('');
   const [purchaseSource, setPurchaseSource] = useState('Import');
   
-  // 🔴 নতুন: মডালের ভেতরের প্রোডাক্ট সার্চ ফিল্টার
-  const [modalProductSearch, setModalProductSearch] = useState('');
+  // 🔴 নতুন: মডালের সার্চেবল ড্রপডাউনের স্টেট
+  const [modalProductSearchText, setModalProductSearchText] = useState('');
+  const [showModalProductDropdown, setShowModalProductDropdown] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -24,23 +24,28 @@ const StockManagement = () => {
 
   const fetchProducts = async () => {
     setLoading(true);
-    // ডাটাবেজ থেকেই নাম অনুযায়ী A-Z সর্ট করে আনা হচ্ছে
-    const { data, error } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (!error && data) setProducts(data);
+    const { data, error } = await supabase.from('products').select('*');
+    if (!error && data) {
+      // 🔴 ফিক্স: প্রোডাক্টগুলোকে নাম এবং মডেল অনুযায়ী A-Z সিরিয়ালে সাজানো
+      const sortedData = data.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        const modelA = (a.model || '').toLowerCase();
+        const modelB = (b.model || '').toLowerCase();
+        return modelA.localeCompare(modelB, undefined, { numeric: true });
+      });
+      setProducts(sortedData);
+    }
     setLoading(false);
   };
 
   const toggleAvailability = async (product) => {
     const newStatus = product.availability === 'in stock' ? 'out of stock' : 'in stock';
-    
     try {
-      const { error } = await supabase
-        .from('products')
-        .update({ availability: newStatus })
-        .eq('id', product.id);
-
+      const { error } = await supabase.from('products').update({ availability: newStatus }).eq('id', product.id);
       if (error) throw error;
-
       setProducts(products.map(p => p.id === product.id ? { ...p, availability: newStatus } : p));
     } catch (error) {
       alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে!');
@@ -51,8 +56,6 @@ const StockManagement = () => {
     if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
     
     let updateData = {};
-    
-    // আপডেট লজিক: স্টক যোগ, স্টক বিয়োগ এবং প্রাইস আপডেট
     if (modalType === 'stock') {
       updateData = { stock_quantity: selectedProduct.stock_quantity + parseInt(newValue) };
     } else if (modalType === 'reduce_stock') {
@@ -67,15 +70,14 @@ const StockManagement = () => {
       const { error } = await supabase.from('products').update(updateData).eq('id', selectedProduct.id);
       if (error) throw error;
 
-      // নতুন স্টক ইনপুট হলেই স্বয়ংক্রিয়ভাবে 'ledger' টেবিলে ডাটা এন্ট্রি হবে
       if (modalType === 'stock') {
         const { error: ledgerError } = await supabase.from('ledger').insert([
           {
             product: `${selectedProduct.name} - ${selectedProduct.model}`,
             quantity: parseInt(newValue),
-            date: new Date().toISOString().split('T')[0], // YYYY-MM-DD ফরম্যাট
-            in: new Date().toISOString(), // সম্পূর্ণ ISO টাইমস্ট্যাম্প
-            source: purchaseSource // Import অথবা Out Purchase সোর্স
+            date: new Date().toISOString().split('T')[0],
+            in: new Date().toISOString(), 
+            source: purchaseSource 
           }
         ]);
         if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
@@ -93,7 +95,7 @@ const StockManagement = () => {
     setUpdateModal(false);
     setSelectedProduct(null);
     setNewValue('');
-    setModalProductSearch(''); // সার্চ ইনপুট রিসেট
+    setModalProductSearchText(''); // রিসেট
   };
 
   const filteredProducts = products.filter(p => 
@@ -103,19 +105,10 @@ const StockManagement = () => {
   );
 
   // 🔴 মডালের ড্রপডাউনের জন্য সাজানো এবং ফিল্টার করা প্রোডাক্ট লিস্ট
-  const modalDropdownProducts = products
-    .filter(p => p.house === activeHouse)
-    .filter(p => {
-      const searchStr = modalProductSearch.toLowerCase();
-      return p.name.toLowerCase().includes(searchStr) || p.model.toLowerCase().includes(searchStr);
-    })
-    // A-Z সর্ট লজিক (প্রথমে নাম, তারপর মডেল)
-    .sort((a, b) => {
-      const nameCompare = a.name.localeCompare(b.name);
-      if (nameCompare !== 0) return nameCompare;
-      // নাম যদি এক হয়, তবে মডেল অনুযায়ী সর্ট করবে
-      return a.model.localeCompare(b.model);
-    });
+  const modalDisplayedProducts = products.filter(p => 
+    (p.house === activeHouse) && 
+    `${p.name} ${p.model}`.toLowerCase().includes(modalProductSearchText.toLowerCase())
+  );
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-4 pb-20 px-2 md:px-0" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -224,29 +217,41 @@ const StockManagement = () => {
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">প্রোডাক্ট নির্বাচন করুন</label>
                 
-                {/* 🔴 নতুন: প্রোডাক্ট ফিল্টারের জন্য সার্চ ইনপুট */}
-                <input 
-                  type="text" 
-                  placeholder="এখানে মডেল বা নাম লিখে সার্চ করুন..." 
-                  value={modalProductSearch}
-                  onChange={(e) => setModalProductSearch(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold outline-none focus:border-blue-500 transition-colors"
-                />
-                
-                {/* 🔴 আপডেট: সার্চেবল এবং সাজানো ড্রপডাউন */}
-                <select 
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer h-24 custom-scrollbar"
-                  onChange={(e) => setSelectedProduct(products.find(p => p.id === parseInt(e.target.value)))}
-                  size={modalProductSearch ? 5 : 1} // সার্চ করলে লিস্ট বড় করে দেখাবে
-                >
-                  <option value="">সিলেক্ট করুন...</option>
-                  {modalDropdownProducts.map(p => (
-                    <option key={p.id} value={p.id} className="py-2 border-b border-slate-100">
-                      {p.name} - {p.model} (বর্তমান: {modalType === 'price' ? `${p.unit_price}৳` : `${p.stock_quantity} pcs`})
-                    </option>
-                  ))}
-                  {modalDropdownProducts.length === 0 && <option disabled>কোনো রেজাল্ট পাওয়া যায়নি</option>}
-                </select>
+                {/* 🔴 কাস্টম স্মার্ট সার্চেবল ড্রপডাউন */}
+                <div className="relative w-full">
+                  <input 
+                    type="text" 
+                    placeholder="প্রোডাক্ট সার্চ করে সিলেক্ট করুন..."
+                    value={modalProductSearchText}
+                    onChange={(e) => {
+                      setModalProductSearchText(e.target.value);
+                      setShowModalProductDropdown(true);
+                      setSelectedProduct(null); 
+                    }}
+                    onFocus={() => setShowModalProductDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowModalProductDropdown(false), 200)}
+                    className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600"
+                  />
+                  {showModalProductDropdown && (
+                    <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-60 overflow-y-auto custom-scrollbar">
+                      {modalDisplayedProducts.length > 0 ? modalDisplayedProducts.map(p => (
+                        <div 
+                          key={p.id} 
+                          onClick={() => {
+                            setSelectedProduct(p);
+                            setModalProductSearchText(`${p.name} - ${p.model}`);
+                            setShowModalProductDropdown(false);
+                          }}
+                          className="p-3 border-b border-slate-50 hover:bg-slate-100 cursor-pointer font-bold text-sm text-slate-700"
+                        >
+                          📦 {p.name} - {p.model} <span className="text-slate-500 ml-1">({modalType === 'price' ? `${p.unit_price}৳` : `স্টক: ${p.stock_quantity}`})</span>
+                        </div>
+                      )) : (
+                        <div className="p-4 text-center text-slate-400 text-sm font-bold">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* সোর্স শুধু স্টক যোগ করার সময় দেখাবে */}

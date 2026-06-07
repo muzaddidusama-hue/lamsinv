@@ -10,7 +10,6 @@ const BillingSystem = () => {
   const [transferTo, setTransferTo] = useState('Showroom');
   const [isManualChalan, setIsManualChalan] = useState(false);
   const [manualChalanNo, setManualChalanNo] = useState('');
-  // 🔴 নতুন: ম্যানুয়াল ডেট ইনপুট
   const [manualDate, setManualDate] = useState(''); 
 
   const [phone, setPhone] = useState('');
@@ -22,6 +21,10 @@ const BillingSystem = () => {
   
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
+  // 🔴 নতুন: প্রোডাক্ট সার্চের জন্য কাস্টম স্টেট
+  const [productSearchText, setProductSearchText] = useState('');
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+
   const [qty, setQty] = useState('');
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -36,8 +39,20 @@ const BillingSystem = () => {
   useEffect(() => { fetchAvailableProducts(); }, [house]);
 
   const fetchAvailableProducts = async () => {
-    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0).order('name');
-    if (data) setProducts(data);
+    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0);
+    if (data) {
+      // 🔴 ফিক্স: প্রোডাক্টগুলোকে নাম এবং মডেল অনুযায়ী A-Z সিরিয়ালে সাজানো
+      const sortedData = data.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        const modelA = (a.model || '').toLowerCase();
+        const modelB = (b.model || '').toLowerCase();
+        return modelA.localeCompare(modelB, undefined, { numeric: true });
+      });
+      setProducts(sortedData);
+    }
   };
 
   const handleCustomerSearch = async (e) => {
@@ -69,7 +84,7 @@ const BillingSystem = () => {
         qty: parseInt(qty), 
         total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
     }]);
-    setSelectedProduct(''); setQty('');
+    setSelectedProduct(''); setQty(''); setProductSearchText(''); // ফিল্ড রিসেট
   };
 
   const handleCartDataChange = (index, field, value) => {
@@ -143,7 +158,6 @@ const BillingSystem = () => {
           unit_price: item.unit_price, 
           total_price: item.total 
         }]);
-        // চালান হোল্ড অবস্থায় স্টক কমবে না।
         itemsForPrint.push({ ...item, quantity: item.qty, total_price: item.total });
       }
 
@@ -193,6 +207,11 @@ const BillingSystem = () => {
     setLoading(false);
   };
 
+  // ড্রপডাউনের জন্য সার্চ ফিল্টার
+  const displayedProducts = products.filter(p => 
+    `${p.name} ${p.model}`.toLowerCase().includes(productSearchText.toLowerCase())
+  );
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border shadow-sm gap-4">
@@ -200,7 +219,6 @@ const BillingSystem = () => {
            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          {/* 🔴 ম্যানুয়াল ডেট ইনপুট UI */}
           <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 w-full sm:w-auto">
              <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
              <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-slate-800 font-bold outline-none text-sm w-full" />
@@ -250,28 +268,61 @@ const BillingSystem = () => {
              )}
           </div>
           
-<div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-  <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
-  <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900">
-    <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
-    {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
-  </select>
-  <div className="flex gap-3">
-    <input 
-      type="number" 
-      value={qty} 
-      onChange={(e) => setQty(e.target.value)} 
-      placeholder="পরিমাণ" 
-      className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" 
-    />
-    <button 
-      onClick={addToCart} 
-      className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap"
-    >
-      Add
-    </button>
-  </div>
-</div>
+          <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
+            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
+            
+            {/* 🔴 কাস্টম স্মার্ট সার্চেবল ড্রপডাউন */}
+            <div className="relative w-full">
+              <input 
+                type="text" 
+                placeholder="প্রোডাক্ট সার্চ করে সিলেক্ট করুন..."
+                value={productSearchText}
+                onChange={(e) => {
+                  setProductSearchText(e.target.value);
+                  setShowProductDropdown(true);
+                  setSelectedProduct(''); 
+                }}
+                onFocus={() => setShowProductDropdown(true)}
+                onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900"
+              />
+              {showProductDropdown && (
+                <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-64 overflow-y-auto custom-scrollbar">
+                  {displayedProducts.length > 0 ? displayedProducts.map(p => (
+                    <div 
+                      key={p.id} 
+                      onClick={() => {
+                        setSelectedProduct(p.id);
+                        setProductSearchText(`${p.name} - ${p.model} [স্টক: ${p.stock_quantity}]`);
+                        setShowProductDropdown(false);
+                      }}
+                      className="p-3 border-b border-slate-50 hover:bg-slate-100 cursor-pointer font-bold text-sm text-slate-700"
+                    >
+                      📦 {p.name} - {p.model} <span className="text-slate-500 ml-1">[স্টক: {p.stock_quantity}]</span>
+                    </div>
+                  )) : (
+                    <div className="p-4 text-center text-slate-400 text-sm font-bold">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <input 
+                type="number" 
+                value={qty} 
+                onChange={(e) => setQty(e.target.value)} 
+                placeholder="পরিমাণ" 
+                className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" 
+              />
+              <button 
+                onClick={addToCart} 
+                className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap"
+              >
+                Add
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="lg:col-span-8">
