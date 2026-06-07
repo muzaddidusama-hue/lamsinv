@@ -61,12 +61,11 @@ const NawabpurBilling = () => {
     setCustomerSearchText(''); setShowSuggestions(false);
   };
 
-  const addToCart = () => {
-    if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক প্রোডাক্ট এবং পরিমাণ দিন');
+const addToCart = () => {
+    if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
-    if (parseInt(qty) > product.stock_quantity) return alert(`স্টকে মাত্র ${product.stock_quantity} পিস আছে!`);
     
-    setCart([...cart, { 
+setCart([...cart, { 
         product_id: product.id, 
         name: product.name, 
         model: product.model, 
