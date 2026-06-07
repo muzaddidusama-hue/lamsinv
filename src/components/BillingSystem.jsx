@@ -21,7 +21,6 @@ const BillingSystem = () => {
   
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
-  // 🔴 নতুন: প্রোডাক্ট সার্চের জন্য কাস্টম স্টেট
   const [productSearchText, setProductSearchText] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
@@ -41,7 +40,6 @@ const BillingSystem = () => {
   const fetchAvailableProducts = async () => {
     const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0);
     if (data) {
-      // 🔴 ফিক্স: প্রোডাক্টগুলোকে নাম এবং মডেল অনুযায়ী A-Z সিরিয়ালে সাজানো
       const sortedData = data.sort((a, b) => {
         const nameA = (a.name || '').toLowerCase();
         const nameB = (b.name || '').toLowerCase();
@@ -84,7 +82,7 @@ const BillingSystem = () => {
         qty: parseInt(qty), 
         total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
     }]);
-    setSelectedProduct(''); setQty(''); setProductSearchText(''); // ফিল্ড রিসেট
+    setSelectedProduct(''); setQty(''); setProductSearchText(''); 
   };
 
   const handleCartDataChange = (index, field, value) => {
@@ -114,16 +112,37 @@ const BillingSystem = () => {
     setLoading(true);
     try {
       let customerId = null;
-      let finalName = name || 'Walk-in';
-      let customerData = { name: finalName, phone, address };
+      let finalName = name.trim() || 'Walk-in';
+      let finalPhone = phone.trim() || null;
+      let finalAddress = address.trim() || null;
+      let customerData = { name: finalName, phone: finalPhone, address: finalAddress };
 
       if (!isInHouse) {
-        const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', phone).maybeSingle();
+        let existingCust = null;
+
+        if (finalPhone) {
+          const { data } = await supabase.from('customers').select('id').eq('phone', finalPhone).maybeSingle();
+          existingCust = data;
+        }
+        if (!existingCust && finalName !== 'Walk-in') {
+          const { data } = await supabase.from('customers').select('id').eq('name', finalName).maybeSingle();
+          existingCust = data;
+        }
+
         if (existingCust) {
           customerId = existingCust.id;
-          await supabase.from('customers').update({ name: finalName, address }).eq('id', customerId);
-        } else {
-          const { data: newCust } = await supabase.from('customers').insert([{ phone, name: finalName, address }]).select().single();
+          const updatePayload = {};
+          if (finalName !== 'Walk-in') updatePayload.name = finalName;
+          if (finalPhone) updatePayload.phone = finalPhone;
+          if (finalAddress) updatePayload.address = finalAddress;
+          
+          if (Object.keys(updatePayload).length > 0) {
+            await supabase.from('customers').update(updatePayload).eq('id', customerId);
+          }
+        } else if (finalName !== 'Walk-in' || finalPhone) {
+          const { data: newCust } = await supabase.from('customers').insert([{ 
+            name: finalName, phone: finalPhone, address: finalAddress 
+          }]).select().single();
           customerId = newCust?.id;
         }
       } else {
@@ -140,11 +159,11 @@ const BillingSystem = () => {
         house, 
         customer_id: customerId,
         customer_name: finalName,
-        phone: phone,
-        address: address, 
+        phone: finalPhone,
+        address: finalAddress, 
         is_in_house: isInHouse, 
         transfer_to: isInHouse ? transferTo : null,
-        created_at: finalCreatedAt // 🔴 ম্যানুয়াল ডেট যুক্ত
+        created_at: finalCreatedAt
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
@@ -207,7 +226,6 @@ const BillingSystem = () => {
     setLoading(false);
   };
 
-  // ড্রপডাউনের জন্য সার্চ ফিল্টার
   const displayedProducts = products.filter(p => 
     `${p.name} ${p.model}`.toLowerCase().includes(productSearchText.toLowerCase())
   );
@@ -259,7 +277,13 @@ const BillingSystem = () => {
                 <div className="space-y-4">
                   <div className="relative">
                     <input type="text" value={customerSearchText} onChange={handleCustomerSearch} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="স্মার্ট সার্চ (নাম/মোবাইল)..." className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none" />
-                    {showSuggestions && <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">{customerSuggestions.map(c => <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold">{c.name} - {c.phone}</div>)}</div>}
+                    {showSuggestions && <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                      {customerSuggestions.map(c => (
+                        <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold">
+                          {c.name} {c.phone ? `- ${c.phone}` : ''}
+                        </div>
+                      ))}
+                    </div>}
                   </div>
                   <input type="text" placeholder="মোবাইল" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
                   <input type="text" placeholder="নাম" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
@@ -271,7 +295,6 @@ const BillingSystem = () => {
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
             <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
             
-            {/* 🔴 কাস্টম স্মার্ট সার্চেবল ড্রপডাউন */}
             <div className="relative w-full">
               <input 
                 type="text" 
@@ -308,19 +331,8 @@ const BillingSystem = () => {
             </div>
 
             <div className="flex gap-3">
-              <input 
-                type="number" 
-                value={qty} 
-                onChange={(e) => setQty(e.target.value)} 
-                placeholder="পরিমাণ" 
-                className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" 
-              />
-              <button 
-                onClick={addToCart} 
-                className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap"
-              >
-                Add
-              </button>
+              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" />
+              <button onClick={addToCart} className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap">Add</button>
             </div>
           </div>
         </div>
@@ -331,36 +343,19 @@ const BillingSystem = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
-                    <th className="pb-4">Item</th>
-                    <th className="pb-4 text-center w-24">Qty</th>
-                    <th className="pb-4 text-center w-36">Price (Editable)</th>
-                    <th className="pb-4 text-right">Total</th>
-                    <th className="pb-4"></th>
+                    <th className="pb-4">Item</th><th className="pb-4 text-center w-24">Qty</th><th className="pb-4 text-center w-36">Price (Editable)</th><th className="pb-4 text-right">Total</th><th className="pb-4"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {cart.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-4 font-bold text-slate-800">
-                        {item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span>
-                      </td>
+                      <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
                       <td className="py-4 text-center">
-                        <input 
-                          type="number"
-                          value={item.qty}
-                          onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)}
-                          className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900"
-                        />
+                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900" />
                       </td>
                       <td className="py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <input 
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)}
-                            className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none focus:border-orange-500"
-                            placeholder="0"
-                          />
+                          <input type="number" value={item.unit_price} onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)} className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none focus:border-orange-500" placeholder="0"/>
                           <span className="text-slate-400 text-[11px]">৳</span>
                         </div>
                       </td>
@@ -381,7 +376,7 @@ const BillingSystem = () => {
 
       {showSuccessModal && generatedData && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-lg shadow-2xl animate-in zoom-in-95">
+          <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
             {!quickBillMode ? (
               <div className="text-center">
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
