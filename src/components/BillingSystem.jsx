@@ -10,6 +10,8 @@ const BillingSystem = () => {
   const [transferTo, setTransferTo] = useState('Showroom');
   const [isManualChalan, setIsManualChalan] = useState(false);
   const [manualChalanNo, setManualChalanNo] = useState('');
+  // 🔴 নতুন: ম্যানুয়াল ডেট ইনপুট
+  const [manualDate, setManualDate] = useState(''); 
 
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
@@ -97,30 +99,37 @@ const BillingSystem = () => {
     setLoading(true);
     try {
       let customerId = null;
-      let customerData = { name, phone, address };
+      let finalName = name || 'Walk-in';
+      let customerData = { name: finalName, phone, address };
 
       if (!isInHouse) {
         const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', phone).maybeSingle();
         if (existingCust) {
           customerId = existingCust.id;
-          await supabase.from('customers').update({ name, address }).eq('id', customerId);
+          await supabase.from('customers').update({ name: finalName, address }).eq('id', customerId);
         } else {
-          const { data: newCust } = await supabase.from('customers').insert([{ phone, name, address }]).select().single();
-          customerId = newCust.id;
+          const { data: newCust } = await supabase.from('customers').insert([{ phone, name: finalName, address }]).select().single();
+          customerId = newCust?.id;
         }
       } else {
         customerData = { name: `Transfer: ${house} to ${transferTo}`, phone: '-', address: '-' };
       }
 
       const chalanNo = isManualChalan ? manualChalanNo : `CHL-${Date.now().toString().slice(-6)}`;
+      const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
+
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
         chalan_no: chalanNo, 
         status: 'hold', 
         total_amount: cart.reduce((acc, item) => acc + item.total, 0), 
         house, 
-        customer_id: customerId, 
+        customer_id: customerId,
+        customer_name: finalName,
+        phone: phone,
+        address: address, 
         is_in_house: isInHouse, 
-        transfer_to: isInHouse ? transferTo : null
+        transfer_to: isInHouse ? transferTo : null,
+        created_at: finalCreatedAt // 🔴 ম্যানুয়াল ডেট যুক্ত
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
@@ -134,20 +143,19 @@ const BillingSystem = () => {
           unit_price: item.unit_price, 
           total_price: item.total 
         }]);
-        // চালান হোল্ড অবস্থায় স্টক কমবে না।
+        // চালান হোল্ড অবস্থায় স্টক কমবে না।
         itemsForPrint.push({ ...item, quantity: item.qty, total_price: item.total });
       }
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo('');
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo(''); setManualDate('');
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
     
-    setLoading(false); // 🔴 ফিক্স: `loading(false)` টাইপো মুছে দিয়েছি।
+    setLoading(false);
   };
 
-  // 🔴 ফিক্স: কুইক বিল করার সময় পেমেন্ট স্ট্যাটাস আপডেটের সাথে সাথে স্টক কমানোর লজিক যুক্ত করা হলো
   const handleQuickBillConfirm = async () => {
     if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');
     
@@ -155,7 +163,6 @@ const BillingSystem = () => {
     try {
       const finalBillNo = isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
 
-      // ১. ডাটাবেজ থেকে রিয়েল-টাইম স্টক কমানো
       for (let itm of generatedData.items) {
         const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
         if (p) {
@@ -163,7 +170,6 @@ const BillingSystem = () => {
         }
       }
 
-      // ২. চালানের স্ট্যাটাস 'paid' এবং বিল নম্বর আপডেট করা
       const { error } = await supabase.from('chalans').update({ 
         status: 'paid', 
         payment_method: paymentMethod, 
@@ -179,7 +185,7 @@ const BillingSystem = () => {
       
       setShowSuccessModal(false);
       setQuickBillMode(false);
-      fetchAvailableProducts(); // স্টক কমার পর UI আপডেট
+      fetchAvailableProducts(); 
     } catch (e) { 
       alert("সমস্যা হয়েছে!"); 
       console.error(e); 
@@ -189,11 +195,20 @@ const BillingSystem = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
-      <div className="flex justify-between items-center bg-white p-6 rounded-3xl border shadow-sm">
-        <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
-        <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
-          {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}
-        </button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border shadow-sm gap-4">
+        <div>
+           <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
+        </div>
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
+          {/* 🔴 ম্যানুয়াল ডেট ইনপুট UI */}
+          <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 w-full sm:w-auto">
+             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
+             <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-slate-800 font-bold outline-none text-sm w-full" />
+          </div>
+          <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
+            {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -242,7 +257,6 @@ const BillingSystem = () => {
     {products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model} [স্টক: {p.stock_quantity}]</option>))}
   </select>
   <div className="flex gap-3">
-    {/* 🔴 ফিক্স: flex-1 সরিয়ে w-36 করা হয়েছে যাতে ট্যাবে ইনপুট বক্সটি সাইড থেকে ছোট ও ফিক্সড থাকে */}
     <input 
       type="number" 
       value={qty} 
@@ -250,7 +264,6 @@ const BillingSystem = () => {
       placeholder="পরিমাণ" 
       className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" 
     />
-    {/* 🔴 ফিক্স: flex-1 এবং whitespace-nowrap দেওয়ার ফলে বাটনটি বাকি খালি জায়গা সুন্দরভাবে দখল করবে এবং কখনো হাইড হবে না */}
     <button 
       onClick={addToCart} 
       className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap"
@@ -346,7 +359,6 @@ const BillingSystem = () => {
                   <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
                 </select>
                 
-                {/* 🔴 ফিক্স: এখন এই বাটনটিতে ক্লিক করলে ডাটাবেজে আপডেট হবে এবং বিল প্রিন্ট হবে */}
                 <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
                 
                 <div className="flex justify-center">

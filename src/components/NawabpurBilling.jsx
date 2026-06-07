@@ -4,7 +4,7 @@ import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 
 const NawabpurBilling = () => {
-  const house = 'Showroom'; // ফিক্সড শোরুম 
+  const house = 'Showroom';
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -20,9 +20,11 @@ const NawabpurBilling = () => {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generatedData, setGeneratedData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('Cash'); // Default Cash
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [isManualBill, setIsManualBill] = useState(false);
   const [manualBillNo, setManualBillNo] = useState('');
+  // 🔴 নতুন: ম্যানুয়াল ডেট ইনপুট
+  const [manualDate, setManualDate] = useState(''); 
 
   useEffect(() => { fetchAvailableProducts(); }, []);
 
@@ -80,7 +82,6 @@ const NawabpurBilling = () => {
     setCart(updatedCart);
   };
 
-  // সরাসরি বিল জেনারেট (কোনো চালান বা হোল্ড নেই)
   const handleDirectBill = async () => {
     if (!phone && !name) return alert('কাস্টমারের তথ্য দিন (নাম বা মোবাইল)!');
     if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
@@ -90,37 +91,42 @@ const NawabpurBilling = () => {
     setLoading(true);
     try {
       let customerId = null;
-      let customerData = { name: name || 'Walk-in', phone, address };
+      let finalName = name || 'Walk-in';
+      let customerData = { name: finalName, phone, address };
 
-      // কাস্টোমার ম্যানেজমেন্ট
       const { data: existingCust } = await supabase.from('customers').select('id').eq('phone', phone).maybeSingle();
       if (existingCust) {
         customerId = existingCust.id;
-        await supabase.from('customers').update({ name, address }).eq('id', customerId);
+        await supabase.from('customers').update({ name: finalName, address }).eq('id', customerId);
       } else if (phone) {
-        const { data: newCust } = await supabase.from('customers').insert([{ phone, name, address }]).select().single();
+        const { data: newCust } = await supabase.from('customers').insert([{ phone, name: finalName, address }]).select().single();
         customerId = newCust?.id;
       }
 
       const finalBillNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
       const chalanNo = `CHL-DIR-${Date.now().toString().slice(-6)}`;
+      
+      // 🔴 ম্যানুয়াল ডেট লজিক: ইনপুট থাকলে সেটা, না থাকলে বর্তমান সময়
+      const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
 
-      // 1. ক্রিয়েট চালান (Direct Paid Status)
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
         chalan_no: chalanNo, 
         bill_no: finalBillNo,
-        status: 'paid', // সরাসরি পেইড
+        status: 'paid',
         payment_method: paymentMethod,
         total_amount: cart.reduce((acc, item) => acc + item.total, 0), 
         house: house, 
-        customer_id: customerId, 
-        is_in_house: false
+        customer_id: customerId,
+        customer_name: finalName, // 🔴 নিশ্চিত করা হলো নাম সেভ হবে
+        phone: phone, // 🔴 নিশ্চিত করা হলো ফোন সেভ হবে
+        address: address, // 🔴 নিশ্চিত করা হলো অ্যাড্রেস সেভ হবে
+        is_in_house: false,
+        created_at: finalCreatedAt // 🔴 ম্যানুয়াল ডেট যুক্ত করা হলো
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
 
       const itemsForPrint = [];
-      // 2. চ্যালান আইটেম যোগ এবং রিয়েলটাইম স্টক মাইনাস
       for (let item of cart) {
         await supabase.from('chalan_items').insert([{ 
           chalan_id: chalanData.id, 
@@ -141,8 +147,7 @@ const NawabpurBilling = () => {
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
       
-      // কার্ট রিসেট
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash');
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash'); setManualDate('');
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
     
@@ -151,10 +156,15 @@ const NawabpurBilling = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
-      <div className="flex justify-between items-center bg-blue-600 p-6 rounded-3xl border shadow-sm text-white">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-blue-600 p-6 rounded-3xl border shadow-sm text-white gap-4">
         <div>
            <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
            <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
+        </div>
+        {/* 🔴 ম্যানুয়াল ডেট ইনপুট UI */}
+        <div className="bg-blue-700/50 p-3 rounded-xl border border-blue-500 w-full md:w-auto">
+           <label className="text-[10px] font-bold text-blue-200 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
+           <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-white font-bold outline-none w-full" />
         </div>
       </div>
 
