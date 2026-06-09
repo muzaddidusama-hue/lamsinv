@@ -33,11 +33,11 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  // 🔴 নতুন: ইনভার্টার সিরিয়ালের স্টেট
   const [invSerials, setInvSerials] = useState([]);
   const [serialSearch, setSerialSearch] = useState('');
 
   // 🔴 ফিক্সড: স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
-  // এর ফলে "Sunland Extreme - 50W" এবং "Powerland - 50W" কখনোই এক হবে না।
   const getStandardKey = (name) => {
     if (!name) return 'unknown';
     return name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -74,42 +74,51 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-const getLedgerSummary = () => {
+  // 🔴 ফিক্সড লেজার সামারি: ইন ও আউট নিখুঁতভাবে মার্জ করার লজিক
+  const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    // সব প্রোডাক্টের মাস্টার লিস্ট তৈরি (ইন ও আউট এর জন্য)
-    const allProductsInvolved = new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)]);
-
-    allProductsInvolved.forEach(productName => {
-      const key = getStandardKey(productName);
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: productName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
-      }
-    });
-
-    // স্টক ইন (Import)
-    ledgerData.forEach(item => {
-      const key = getStandardKey(item.product);
-      if (summaryMap.has(key)) summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
-    });
-
-    // স্টক আউট (Sales)
-    salesOutData.forEach(item => {
-      const key = getStandardKey(item.product);
-      if (summaryMap.has(key)) summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
-    });
-
-    // বর্তমান স্টক যোগ করা (হাউজ অনুযায়ী)
+    // ১. প্রথমে রিয়েল-টাইম স্টক লোড করা (rawProducts থেকে)
     rawProducts.forEach(p => {
-      const fullName = `${p.name || ''} ${p.model || ''}`.trim();
+      const fullName = `${p.name || ''} - ${p.model || ''}`.trim(); // লেজারের ফরম্যাট
       const key = getStandardKey(fullName);
-      if (summaryMap.has(key)) {
-        const houseName = p.house || 'Head Office';
-        summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      }
+      
+      const entry = summaryMap.get(key);
+      const houseName = p.house || 'Head Office';
+      if (entry.stocks[houseName] !== undefined) {
+        entry.stocks[houseName] += parseInt(p.stock_quantity) || 0;
       }
     });
 
-    return Array.from(summaryMap.values());
+    // ২. লেজার ইন এবং আউট প্রসেস করা
+    const processItem = (item, type) => {
+      if (!item.product) return;
+      const qty = parseInt(item.quantity) || 0;
+      if (qty === 0) return;
+
+      const key = getStandardKey(item.product);
+      
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      }
+      
+      if (type === 'in') {
+        summaryMap.get(key).totalIn += qty;
+      } else {
+        summaryMap.get(key).totalOut += qty;
+      }
+    };
+
+    ledgerData.forEach(item => processItem(item, 'in'));
+    salesOutData.forEach(item => processItem(item, 'out'));
+
+    return Array.from(summaryMap.values()).filter(
+      item => item.totalIn > 0 || item.totalOut > 0 || item.stocks['Head Office'] > 0 || item.stocks['Showroom'] > 0
+    );
   };
 
   const ledgerSummaryList = getLedgerSummary();
@@ -122,15 +131,14 @@ const getLedgerSummary = () => {
     
     ledgerData.forEach(l => {
       const lKey = getStandardKey(l.product);
-      if (lKey === targetKey || l.product === ledgerSearch) {
-        // 🔴 ফিক্সড: ডিলিট করার সুবিধার জন্য id যুক্ত করা হলো এবং parseInt করা হলো
+      if (lKey === targetKey) {
         history.push({ id: l.id, date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: parseInt(l.quantity) || 0 });
       }
     });
     
     salesOutData.forEach(s => {
       const sKey = getStandardKey(s.product);
-      if (sKey === targetKey || s.product === ledgerSearch) {
+      if (sKey === targetKey) {
         history.push({ id: null, date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: parseInt(s.quantity) || 0 });
       }
     });
@@ -153,14 +161,15 @@ const getLedgerSummary = () => {
     generateReport();
   }, [startDate, endDate]); 
 
+  // 🔴 নতুন: ইনভার্টার সিরিয়াল ফেচ করা
   useEffect(() => {
-  if (reportType === 'serial_history') fetchInvSerials();
-}, [reportType]);
+    if (reportType === 'serial_history') fetchInvSerials();
+  }, [reportType]);
 
-const fetchInvSerials = async () => {
-  const { data } = await supabase.from('inv_sl').select('*');
-  if (data) setInvSerials(data);
-};
+  const fetchInvSerials = async () => {
+    const { data } = await supabase.from('inv_sl').select('*');
+    if (data) setInvSerials(data);
+  };
 
   useEffect(() => {
     fetchAllCustomers(); 
@@ -210,7 +219,8 @@ const fetchInvSerials = async () => {
         chalans.forEach(ch => {
           if (ch.status === 'paid' && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.category || ''} ${item.products?.model || ''} ${item.products?.name || ''}`.trim();
+              // 🔴 ফিক্সড: প্রোডাক্ট নাম ঠিক লেজারের ফরম্যাটে বানানো হলো যাতে ম্যাচ করে
+              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
               extractedOutItems.push({
                 product: pName,
@@ -377,11 +387,11 @@ const fetchInvSerials = async () => {
             { id: 'product', label: 'প্রোডাক্ট সেলস রিপোর্ট' },
             { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
             { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' },
-            { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' }
-            { id: 'serial_history', label: 'ইনভার্টার সিরিয়াল' }
+            { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' },
+            { id: 'serial_history', label: 'ইনভার্টার সিরিয়াল' } // 🔴 নতুন ট্যাব
           ].map(tab => (
             <button 
-              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); }}
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); setSerialSearch(''); }}
               className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-bold text-[11px] transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
             >
               {tab.label}
@@ -547,42 +557,6 @@ const fetchInvSerials = async () => {
             </div>
           )}
 
-
-          {reportType === 'serial_history' && (
-  <div className="space-y-4 animate-in fade-in">
-    <input 
-      type="text" 
-      placeholder="সিরিয়াল নাম্বার লিখে সার্চ করুন..." 
-      value={serialSearch} 
-      onChange={(e) => setSerialSearch(e.target.value)}
-      className="w-full p-4 border rounded-2xl font-bold" 
-    />
-    <div className="overflow-x-auto border rounded-xl bg-white">
-      <table className="w-full text-left text-xs">
-        <thead className="bg-slate-50 font-black uppercase text-slate-400">
-          <tr>
-            <th className="p-4">মডেল</th><th className="p-4">সিরিয়াল</th><th className="p-4">কাস্টমার</th><th className="p-4">ঠিকানা</th><th className="p-4">সার্ভিস হিস্টোরি</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y font-bold text-slate-700">
-          {invSerials
-            .filter(s => s.sl_no?.includes(serialSearch))
-            .map((s, i) => (
-              <tr key={i} className="hover:bg-slate-50">
-                <td className="p-4">{s.model_name}</td>
-                <td className="p-4 font-mono">{s.sl_no}</td>
-                <td className="p-4">{s.customer_name}</td>
-                <td className="p-4">{s.address}</td>
-                <td className="p-4">{s.service_history || 'No history'}</td>
-              </tr>
-            ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
-
-          {/* 🔴 আপডেট হওয়া লেজার রিপোর্ট সেকশন */}
           {reportType === 'ledger_report' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
@@ -653,7 +627,6 @@ const fetchInvSerials = async () => {
                               {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
                             </span>
                           </td>
-                          {/* 🔴 ডিলিট বাটন (সরাসরি ডাটাবেজ থেকে মুছবে) */}
                           <td className="p-4 text-center">
                             <button 
                               onClick={async () => {
@@ -687,6 +660,56 @@ const fetchInvSerials = async () => {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 🔴 নতুন: ইনভার্টার সিরিয়াল হিস্ট্রি ট্যাব */}
+          {reportType === 'serial_history' && (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              <div className="bg-slate-50 p-4 rounded-xl border">
+                <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 ইনভার্টার সিরিয়াল সার্চ</label>
+                <input 
+                  type="text" 
+                  value={serialSearch} 
+                  onChange={(e) => setSerialSearch(e.target.value)} 
+                  placeholder="সিরিয়ালের কিছু ডিজিট লিখুন..." 
+                  className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" 
+                />
+              </div>
+              <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5">
+                  ইনভার্টার সিরিয়াল ও কাস্টমার রেকর্ড
+                </div>
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
+                        <th className="p-4">মডেল নাম</th>
+                        <th className="p-4">সিরিয়াল নাম্বার</th>
+                        <th className="p-4">কাস্টোমার নাম</th>
+                        <th className="p-4">ঠিকানা</th>
+                        <th className="p-4">সার্ভিস হিস্টোরি</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y font-bold text-slate-700">
+                      {invSerials
+                        .filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase()))
+                        .map((s, i) => (
+                          <tr key={i} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4">{s.model_name}</td>
+                            <td className="p-4 font-mono text-blue-600">{s.sl_no}</td>
+                            <td className="p-4">{s.customer_name}</td>
+                            <td className="p-4">{s.address}</td>
+                            <td className="p-4">{s.service_history || 'N/A'}</td>
+                          </tr>
+                      ))}
+                      {invSerials.filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase())).length === 0 && (
+                        <tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">কোনো সিরিয়াল পাওয়া যায়নি</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
