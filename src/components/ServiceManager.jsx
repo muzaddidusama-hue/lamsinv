@@ -2,28 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ServiceManager = () => {
-  const [searchNo, setSearchNo] = useState(''); // বিল, চালান বা সিরিয়াল নম্বর সার্চ
+  const [searchNo, setSearchNo] = useState(''); 
   const [record, setRecord] = useState(null); 
-  const [inverterItem, setInverterItem] = useState(null); 
+  // 🔴 ফিক্স: একাধিক ইনভার্টার সাপোর্ট করার জন্য অ্যারে ব্যবহার করা হলো
+  const [inverterItems, setInverterItems] = useState([]); 
   const [serialNumbers, setSerialNumbers] = useState([]); 
   const [saleDate, setSaleDate] = useState(''); 
   const [savedSerials, setSavedSerials] = useState([]); 
 
-  // সেকশন ২-এর জন্য ফর্ম স্টেট
   const [loading, setLoading] = useState(false);
   const [serviceLoading, setServiceLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
 
-  // 📝 সেকশন ৩ (ডাইরেক্ট সিরিয়াল এন্ট্রি) এর জন্য স্টেটস
   const [standaloneSerial, setStandaloneSerial] = useState('');
   const [standaloneInvType, setStandaloneInvType] = useState('Hybrid');
-  const [standaloneInvModel, setStandaloneInvModel] = useState(''); // 🔴 নতুন: মডেল স্টেট
+  const [standaloneInvModel, setStandaloneInvModel] = useState(''); 
   const [standaloneCustName, setStandaloneCustName] = useState('');
   const [standaloneAddress, setStandaloneAddress] = useState('');
-  const [showStandaloneForm, setShowStandaloneForm] = useState(false); // 🔴 নতুন: টগল স্টেট
+  const [showStandaloneForm, setShowStandaloneForm] = useState(false); 
 
-  // ডাটাবেজের কলাম স্ট্রাকচার অনুযায়ী স্টেট
   const [dbRowData, setDbRowData] = useState({
     bill_no: '', chalan_no: '', inv_type: 'Hybrid', inv_model: '', sl_no: '', customer_name: '', address: '',
     serv_1_date: '', serv_1_problem: '', serv_1_amount: '', remarks1: '',
@@ -37,14 +35,13 @@ const ServiceManager = () => {
     date: '', problem: '', amount: '', remarks: ''
   });
 
-  // 🔍 অল-ইন-ওয়ান সার্চ (বিল নম্বর / চালান নম্বর / সিরিয়াল নম্বর সরাসরি)
   const handleAllInOneSearch = async (e) => {
     e.preventDefault();
     const queryText = searchNo.trim().toUpperCase();
-    if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
+    if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
 
     setLoading(true);
-    setRecord(null); setInverterItem(null); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
+    setRecord(null); setInverterItems([]); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
     resetServiceForm();
 
     try {
@@ -71,16 +68,25 @@ const ServiceManager = () => {
         setSaleDate(mainData.created_at ? new Date(mainData.created_at).toLocaleDateString('bn-BD') : 'পাওয়া যায়নি');
 
         const { data: itemData } = await supabase.from('chalan_items').select(`*, products (*)`).eq('chalan_id', mainData.id);
-        const inverter = itemData?.find(item => item.products?.category?.toLowerCase().includes('inverter') || item.products?.name?.toLowerCase().includes('inverter'));
+        
+        // 🔴 ফিক্স: find() এর বদলে filter() ব্যবহার করা হলো যাতে সব ইনভার্টার আসে
+        const inverters = itemData?.filter(item => 
+          item.products?.category?.toLowerCase().includes('inverter') || 
+          item.products?.name?.toLowerCase().includes('inverter')
+        );
 
-        if (inverter) {
-          setInverterItem(inverter);
-          const { data: existingSerials } = await supabase.from('inv_sl').select('sl_no').eq('chalan_no', mainData.chalan_no);
+        if (inverters && inverters.length > 0) {
+          setInverterItems(inverters);
           
+          const { data: existingSerials } = await supabase.from('inv_sl').select('sl_no').eq('chalan_no', mainData.chalan_no);
           const dbSerials = existingSerials ? existingSerials.map(s => s.sl_no.toUpperCase()) : [];
           setSavedSerials(dbSerials); 
           
-          const mergedSerials = Array.from({ length: inverter.quantity }, (_, index) => dbSerials[index] || "");
+          // 🔴 ফিক্স: সকল ইনভার্টারের মোট কোয়ান্টিটি হিসাব করা
+          let totalQty = 0;
+          inverters.forEach(inv => totalQty += inv.quantity);
+
+          const mergedSerials = Array.from({ length: totalQty }, (_, index) => dbSerials[index] || "");
           setSerialNumbers(mergedSerials);
         }
       } else {
@@ -95,11 +101,22 @@ const ServiceManager = () => {
     setLoading(false);
   };
 
-  // 📝 সেকশন ১: রেগুলার চালানের সিরিয়াল ডাটাবেজে সরাসরি সেভ করা
+  // 🔴 ফিক্স: সিরিয়াল নম্বর সেভ করার সময় ঠিক কোন মডেলের সাথে ট্যাগ হচ্ছে তা বের করার লজিক
   const handleRegisterSerial = async (index) => {
     const currentSerial = serialNumbers[index]?.trim().toUpperCase();
     if (!currentSerial) return alert("অনুগ্রহ করে সিরিয়াল নম্বরটি ইনপুট দিন!");
     
+    // কোন ইনভার্টারটির সিরিয়াল দেওয়া হচ্ছে তা বের করা
+    let accumulatedQty = 0;
+    let targetInverter = null;
+    for (let inv of inverterItems) {
+      accumulatedQty += inv.quantity;
+      if (index < accumulatedQty) {
+        targetInverter = inv;
+        break;
+      }
+    }
+
     setServiceLoading(true);
     resetServiceForm();
 
@@ -115,8 +132,8 @@ const ServiceManager = () => {
         const freshRow = {
           bill_no: record?.bill_no || 'N/A',
           chalan_no: record?.chalan_no || 'N/A',
-          inv_type: inverterItem?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
-          inv_model: inverterItem?.products?.model || 'N/A',
+          inv_type: targetInverter?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
+          inv_model: targetInverter?.products?.model || 'N/A',
           sl_no: currentSerial,
           customer_name: record?.customers?.name || 'Walk-in',
           address: record?.customers?.address || 'N/A'
@@ -133,7 +150,6 @@ const ServiceManager = () => {
     setServiceLoading(false);
   };
 
-  // 📥 সেকশন ৩: ডাইরেক্ট সিরিয়াল এন্ট্রি (বিনা চালানে কাস্টোমার ও মডেল ডাটা সহ)
   const handleStandaloneSerialSubmit = async (e) => {
     e.preventDefault();
     const sl = standaloneSerial.trim().toUpperCase();
@@ -146,7 +162,7 @@ const ServiceManager = () => {
     if (!custName) return alert("কাস্টোমারের নাম দিন!");
 
     setLoading(true);
-    setRecord(null); setInverterItem(null); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
+    setRecord(null); setInverterItems([]); setSerialNumbers([]); setSavedSerials([]); setSaleDate('');
     resetServiceForm();
 
     try {
@@ -156,14 +172,13 @@ const ServiceManager = () => {
       if (data) {
         setDbRowData(data);
         determineNextAvailableSlot(data);
-        alert("ℹ️ এই সিরিয়াল নম্বরের রেকর্ড অলরেডি ডাটাবেজে বিদ্যমান রয়েছে!");
+        alert("ℹ️ এই সিরিয়াল নম্বরের রেকর্ড অলরেডি ডাটাবেজে বিদ্যমান রয়েছে!");
       } else {
-        // 💾 নতুন কাস্টোমার ও ইনভার্টার মডেল সহ পে-লোড
         const freshRow = {
           bill_no: 'N/A', 
           chalan_no: 'N/A', 
           inv_type: standaloneInvType,
-          inv_model: invModel, // কাস্টম মডেল সেভ হবে
+          inv_model: invModel, 
           sl_no: sl,
           customer_name: custName,
           address: custAddr || 'N/A'
@@ -257,7 +272,7 @@ const ServiceManager = () => {
 
       if (updateErr) throw updateErr;
 
-      alert(`✅ 서비스 রেকর্ড-০${slot} সফলভাবে সেভ হয়েছে!`);
+      alert(`✅ সার্ভিস রেকর্ড-০${slot} সফলভাবে সেভ হয়েছে!`);
       setDbRowData(updatedDbRow);
       resetServiceForm();
       determineNextAvailableSlot(updatedDbRow);
@@ -281,7 +296,7 @@ const ServiceManager = () => {
             type="text" 
             value={searchNo} 
             onChange={(e) => setSearchNo(e.target.value)} 
-            placeholder="বিল, চালান অথবা সিরিয়াল নম্বর সরাসরি সার্চ করুন..." 
+            placeholder="বিল, চালান অথবা সিরিয়াল নম্বর সরাসরি সার্চ করুন..." 
             className="flex-1 h-14 px-6 bg-slate-50 border rounded-2xl font-black text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-600" 
           />
           <button type="submit" disabled={loading} className="h-14 px-10 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-colors">
@@ -303,22 +318,35 @@ const ServiceManager = () => {
             
             {dbRowData.sl_no || record ? (
               <div className="space-y-4">
-                <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
-                  <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার টাইপ / নাম</p>
-                  <p className="text-base font-black">
-                    {inverterItem?.products?.name || `${dbRowData.inv_type} Inverter`}
-                  </p>
-                  {/* 🔴 ফিক্স: রেগুলার প্রোডাক্টের মডেল অথবা ৩ নং সেকশনের ম্যানুয়াল মডেল দুইটাই এখানে ডাইনামিকালি শো করবে */}
-                  {(inverterItem?.products?.model || dbRowData.inv_model) && (
-                    <p className="text-xs font-medium text-blue-600">
-                      মডেল: {inverterItem?.products?.model || dbRowData.inv_model}
+                {/* 🔴 ফিক্স: একাধিক ইনভার্টার থাকলে লুপের মাধ্যমে সবগুলোর তথ্য দেখাবে */}
+                {inverterItems.length > 0 ? (
+                  inverterItems.map((inv, idx) => (
+                    <div key={idx} className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
+                      <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার টাইপ / নাম</p>
+                      <p className="text-base font-black">
+                        {inv.products?.name}
+                      </p>
+                      <p className="text-xs font-medium text-blue-600">
+                        মডেল: {inv.products?.model}
+                      </p>
+                      <p className="text-xs font-black text-slate-500 mt-1">পরিমাণ: {inv.quantity} পিস</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-4 bg-blue-50 text-blue-700 rounded-2xl border border-blue-100">
+                    <p className="text-xs font-bold uppercase text-blue-500">ইনভার্টার টাইপ / নাম</p>
+                    <p className="text-base font-black">
+                      {dbRowData.inv_type} Inverter
                     </p>
-                  )}
-                </div>
+                    <p className="text-xs font-medium text-blue-600">
+                      মডেল: {dbRowData.inv_model}
+                    </p>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border">
                   <div><span className="text-slate-400 block">বিক্রয়ের তারিখ</span><span className="font-black text-slate-700 text-sm">{saleDate || 'বিনা চালানে এন্ট্রি'}</span></div>
-                  <div><span className="text-slate-400 block">ওয়ারেন্টি কাল</span><span className="font-black text-slate-700 text-sm">{inverterItem?.products?.warranty || '১ বছর'}</span></div>
+                  <div><span className="text-slate-400 block">ওয়ারেন্টি কাল</span><span className="font-black text-slate-700 text-sm">{inverterItems[0]?.products?.warranty || '১ বছর'}</span></div>
                   <div className="pt-2 border-t col-span-2">
                     <span className="text-slate-400 block">গ্রাহকের নাম</span>
                     <span className="font-black text-slate-800">{record?.customers?.name || dbRowData?.customer_name || 'Walk-in'}</span>
@@ -329,11 +357,11 @@ const ServiceManager = () => {
                   </div>
                   <div className="pt-2 border-t">
                     <span className="text-slate-400 block">চালান নং</span>
-                    <span className="font-bold text-slate-600 text-xs">{dbRowData.chalan_no || '—'}</span>
+                    <span className="font-bold text-slate-600 text-xs">{dbRowData.chalan_no || record?.chalan_no || '—'}</span>
                   </div>
                   <div className="pt-2 border-t">
                     <span className="text-slate-400 block">বিল নং</span>
-                    <span className="font-bold text-slate-600 text-xs">{dbRowData.bill_no || '—'}</span>
+                    <span className="font-bold text-slate-600 text-xs">{dbRowData.bill_no || record?.bill_no || '—'}</span>
                   </div>
                 </div>
 
@@ -364,11 +392,11 @@ const ServiceManager = () => {
                 )}
               </div>
             ) : (
-              <div className="text-center py-6 text-slate-300 italic text-sm">চালান অথবা সিরিয়াল সার্চ করলে এখানে ডিটেইলস আসবে।</div>
+              <div className="text-center py-6 text-slate-300 italic text-sm">চালান অথবা সিরিয়াল সার্চ করলে এখানে ডিটেইলস আসবে।</div>
             )}
           </div>
 
-          {/* 🔴 ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি (কলালাক্সিবল ও মডেল ফিল্ড সহ) */}
+          {/* 🔴 ৩. ডাইরেক্ট সিরিয়াল এন্ট্রি */}
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
             <h3 
               onClick={() => setShowStandaloneForm(!showStandaloneForm)} 
@@ -389,7 +417,6 @@ const ServiceManager = () => {
                     <option value="On-Grid">On-Grid Inverter</option>
                   </select>
                 </div>
-                {/* 🔴 নতুন ইনপুট ফিল্ড: ইনভার্টার মডেল */}
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block uppercase mb-1">ইনভার্টার মডেল</label>
                   <input 
