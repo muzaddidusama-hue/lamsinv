@@ -36,9 +36,10 @@ const Reports = () => {
   const [invSerials, setInvSerials] = useState([]);
   const [serialSearch, setSerialSearch] = useState('');
 
-  // ফিক্সড: স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
-  const getStandardKey = (name, id) => {
-    return id ? `prod_${id}` : name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  // 🔴 স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
+  const getStandardKey = (name) => {
+    if (!name) return 'unknown';
+    return name.toLowerCase().replace(/[^a-z0-9]/g, '');
   };
 
   const totals = useMemo(() => {
@@ -72,50 +73,56 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
+  // 🔴 আপনার স্ক্রিনশটের হুবহু লজিক (মাস্টার লিস্ট দিয়ে ইন-আউট মার্চ করা)
   const getLedgerSummary = () => {
     const summaryMap = new Map();
+
+    // সব প্রোডাক্টের মাস্টার লিস্ট তৈরি (ইন ও আউট এর জন্য)
+    const allProductsInvolved = new Set([
+      ...rawProducts.map(p => `${p.name || ''} - ${p.model || ''}`.trim()),
+      ...ledgerData.map(l => l.product),
+      ...salesOutData.map(s => s.product)
+    ]);
+
+    allProductsInvolved.forEach(productName => {
+      if (!productName) return;
+      const key = getStandardKey(productName);
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: productName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      }
+    });
 
     // বর্তমান স্টক যোগ করা (হাউজ অনুযায়ী)
     rawProducts.forEach(p => {
       const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
       const key = getStandardKey(fullName);
-      
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
-      }
-      
-      const entry = summaryMap.get(key);
-      const houseName = p.house || 'Head Office';
-      if (entry.stocks[houseName] !== undefined) {
-        entry.stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      if (summaryMap.has(key)) {
+        const houseName = p.house || 'Head Office';
+        summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
       }
     });
 
-    const processItem = (item, type, pId) => {
+    // স্টক ইন (Import)
+    ledgerData.forEach(item => {
       if (!item.product) return;
-      const qty = parseInt(item.quantity) || 0;
-      if (qty === 0) return;
-
-      const key = pId ? `prod_${pId}` : getStandardKey(item.product);
-      
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+      const key = getStandardKey(item.product);
+      if (summaryMap.has(key)) {
+        summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
       }
-      
-      if (type === 'in') {
-        summaryMap.get(key).totalIn += qty;
-      } else {
-        summaryMap.get(key).totalOut += qty;
+    });
+
+    // স্টক আউট (Sales)
+    salesOutData.forEach(item => {
+      if (!item.product) return;
+      const key = getStandardKey(item.product);
+      if (summaryMap.has(key)) {
+        summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
       }
-    };
+    });
 
-    ledgerData.forEach(item => processItem(item, 'in', item.product_id));
-    salesOutData.forEach(item => processItem(item, 'out', item.product_id));
-
-    // 🔴 ফিক্সড: লেজার লিস্টকে A-Z এবং নাম্বার অনুযায়ী (যেমন 8K আগে, 10K পরে) সাজানো হলো
     return Array.from(summaryMap.values())
       .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.stocks['Head Office'] > 0 || item.stocks['Showroom'] > 0)
-      .sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }));
+      .sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' })); // A-Z ও নাম্বার অনুযায়ী সর্টিং
   };
 
   const ledgerSummaryList = getLedgerSummary();
@@ -154,9 +161,10 @@ const Reports = () => {
     })
     .sort((a, b) => b.amount - a.amount) : [];
 
-  useEffect(() => { generateReport(); }, [startDate, endDate]); 
+  useEffect(() => {
+    generateReport();
+  }, [startDate, endDate]); 
 
-  // 🔴 ইনভার্টার সিরিয়াল ফেচ করা
   useEffect(() => {
     if (reportType === 'serial_history') fetchInvSerials();
   }, [reportType]);
@@ -177,7 +185,7 @@ const Reports = () => {
   };
 
   const fetchAllProducts = async () => {
-    const { data } = await supabase.from('products').select('*');
+    const { data } = await supabase.from('products').select('id, name, model, category, house, stock_quantity').order('name', { ascending: true });
     if (data) {
       setRawProducts(data);
       const uniqueProds = [];
@@ -222,8 +230,7 @@ const Reports = () => {
                 date: ch.created_at ? ch.created_at.split('T')[0] : '',
                 timestamp: ch.created_at,
                 type: 'out',
-                source: `Sold to: ${cName} (Bill: #${ch.bill_no || 'N/A'})`,
-                product_id: item.product_id
+                source: `Sold to: ${cName} (Bill: #${ch.bill_no || 'N/A'})`
               });
             });
           }
@@ -353,7 +360,7 @@ const Reports = () => {
     } else executeDownload();
   };
 
-  // 🔴 সার্ভিস হিস্টোরি ক্যালকুলেশন লজিক
+  // 🔴 সার্ভিস হিস্টোরি ও ডেট ক্যালকুলেট করার লজিক
   const getServiceDetails = (inv) => {
     let count = 0;
     let lastDate = 'N/A';
@@ -554,8 +561,8 @@ const Reports = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 ইনপুট প্রোডাক্ট সার্চ (লেজার)</label>
-                  <input type="text" value={ledgerSearch} onChange={handleLedgerSearchAction} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="যেমন: Inhenergy..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
-                  {showLedgerSuggestions && ledgerSuggestions.length > 0 && (<div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">{ledgerSuggestions.map((name, i) => (<div key={i} onClick={() => { setLedgerSearch(name); setShowLedgerSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {name}</div>))}</div>)}
+                  <input type="text" value={ledgerSearch} onChange={(e) => { setLedgerSearch(e.target.value); setShowLedgerSuggestions(true); }} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="যেমন: Inhenergy..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  {showLedgerSuggestions && ledgerSearch.length > 0 && (<div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">{ledgerSummaryList.filter(l => l.product.toLowerCase().includes(ledgerSearch.toLowerCase())).map((item, i) => (<div key={i} onClick={() => { setLedgerSearch(item.product); setShowLedgerSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {item.product}</div>))}</div>)}
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
@@ -625,14 +632,23 @@ const Reports = () => {
         </div>
       )}
 
-      {/* 🔴 ইনভার্টার সিরিয়াল হিস্ট্রি রেন্ডার সেকশন */}
+      {/* 🔴 ইনভার্টার সিরিয়াল হিস্ট্রি ট্যাব */}
       {reportType === 'serial_history' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           <div className="bg-white p-4 rounded-2xl border shadow-sm">
             <label className="text-[10px] font-black text-slate-400 block mb-2 uppercase tracking-widest">🔍 ইনভার্টার সিরিয়াল সার্চ</label>
-            <input type="text" placeholder="সিরিয়ালের কিছু অংশ লিখুন..." value={serialSearch} onChange={e => setSerialSearch(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-xl font-bold outline-none focus:border-blue-500" />
+            <input 
+              type="text" 
+              value={serialSearch} 
+              onChange={(e) => setSerialSearch(e.target.value)} 
+              placeholder="সিরিয়ালের কিছু ডিজিট লিখুন..." 
+              className="w-full p-4 bg-slate-50 border rounded-xl font-bold outline-none focus:border-blue-500" 
+            />
           </div>
           <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5">
+              ইনভার্টার সিরিয়াল ও কাস্টমার রেকর্ড
+            </div>
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
               <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="bg-slate-50 border-b sticky top-0 z-10 shadow-sm">
@@ -645,29 +661,31 @@ const Reports = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y font-bold text-slate-700">
-                  {invSerials.filter(s => s.sl_no?.toLowerCase().includes(serialSearch.toLowerCase())).map((s, i) => {
-                    const { count, lastDate } = getServiceDetails(s);
-                    return (
-                      <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="p-4">
-                          <span className="block text-slate-900 text-sm">{s.model_name || s.inv_type}</span>
-                          <span className="text-blue-600 font-mono mt-0.5 block tracking-wider">{s.sl_no}</span>
-                        </td>
-                        <td className="p-4">
-                          <span className="block text-slate-800">{s.customer_name || 'N/A'}</span>
-                          <span className="text-[10px] text-slate-400 block mt-0.5 truncate max-w-[200px]" title={s.address}>{s.address || 'ঠিকানা নেই'}</span>
-                        </td>
-                        <td className="p-4 text-center text-slate-500">{s.created_at ? new Date(s.created_at).toLocaleDateString('bn-BD') : 'N/A'}</td>
-                        <td className="p-4 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-[10px] uppercase tracking-widest ${count > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                            {count} বার
-                          </span>
-                        </td>
-                        <td className="p-4 text-center text-slate-500">{lastDate}</td>
-                      </tr>
-                    );
+                  {invSerials
+                    .filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase()))
+                    .map((s, i) => {
+                      const { count, lastDate } = getServiceDetails(s);
+                      return (
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4">
+                            <span className="block text-slate-900 text-sm">{s.model_name || s.inv_type}</span>
+                            <span className="text-blue-600 font-mono mt-0.5 block tracking-wider">{s.sl_no}</span>
+                          </td>
+                          <td className="p-4">
+                            <span className="block text-slate-800">{s.customer_name || 'N/A'}</span>
+                            <span className="text-[10px] text-slate-400 block mt-0.5 truncate max-w-[200px]" title={s.address}>{s.address || 'ঠিকানা নেই'}</span>
+                          </td>
+                          <td className="p-4 text-center text-slate-500">{s.created_at ? new Date(s.created_at).toLocaleDateString('bn-BD') : 'N/A'}</td>
+                          <td className="p-4 text-center">
+                            <span className={`px-3 py-1 rounded-lg text-[10px] uppercase tracking-widest ${count > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                              {count} বার
+                            </span>
+                          </td>
+                          <td className="p-4 text-center text-slate-500">{lastDate}</td>
+                        </tr>
+                      );
                   })}
-                  {invSerials.filter(s => s.sl_no?.toLowerCase().includes(serialSearch.toLowerCase())).length === 0 && (
+                  {invSerials.filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase())).length === 0 && (
                     <tr><td colSpan="5" className="p-10 text-center text-slate-400 italic">কোনো সিরিয়াল পাওয়া যায়নি</td></tr>
                   )}
                 </tbody>
@@ -762,35 +780,6 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* কাস্টোমার বিল পপ-আপ মডাল */}
-      {selectedCustomerBills && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
-              <div><p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-1">কাস্টোমার অর্ডার হিস্ট্রি</p><h3 className="text-2xl font-black text-slate-800">👤 {selectedCustomerBills.name}</h3><p className="text-sm font-bold text-slate-500 mt-1">📞 {selectedCustomerBills.phone}</p></div>
-              <div className="flex flex-col items-end gap-2"><button onClick={() => setSelectedCustomerBills(null)} className="w-10 h-10 bg-slate-100 rounded-full hover:bg-red-500 hover:text-white font-bold flex items-center justify-center">✕</button><span className="text-xs font-black text-green-600 bg-green-50 px-3 py-1 rounded-md">Total Paid: {selectedCustomerBills.amount} ৳</span></div>
-            </div>
-            <div className="overflow-y-auto pr-2 custom-scrollbar flex-1 space-y-6">
-              {selectedCustomerBills.bills.map((bill, i) => (
-                <div key={i} className="bg-slate-50 border border-slate-200 p-5 md:p-6 rounded-3xl">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
-                    <div><div className="flex items-center gap-2 mb-1"><span className="bg-green-600 text-white text-[8px] font-black uppercase px-2 py-0.5 rounded-full">Paid</span><p className="font-black text-slate-900 text-lg">#{bill.bill_no || 'N/A'}</p></div><p className="text-[10px] font-bold text-slate-400 uppercase">Ref Chalan: {bill.chalan_no}</p></div>
-                    <div className="md:text-right"><p className="font-black text-slate-800 text-xl">{bill.total_amount} ৳</p><p className="text-[10px] font-bold text-slate-400 uppercase">{new Date(bill.created_at).toLocaleDateString()} • via {bill.payment_method}</p></div>
-                  </div>
-                  <table className="w-full text-left text-xs bg-white border border-slate-100 rounded-2xl overflow-hidden">
-                    <thead className="bg-slate-100/50 text-[10px] uppercase font-black text-slate-400"><tr><th className="p-3">Item Details</th><th className="p-3 text-center">Qty</th><th className="p-3 text-right">Total</th></tr></thead>
-                    <tbody className="divide-y divide-slate-50 font-bold">
-                      {bill.chalan_items?.map((item, j) => (
-                        <tr key={j}><td className="p-3 text-slate-700">{item.products?.name} <span className="text-[10px] font-bold text-slate-400 block">{item.products?.model} ({item.products?.category})</span></td><td className="p-3 text-center text-blue-600">{item.quantity} pcs</td><td className="p-3 text-right text-slate-900">{item.total_price} ৳</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
