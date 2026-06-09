@@ -33,6 +33,9 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
+  const [invSerials, setInvSerials] = useState([]);
+  const [serialSearch, setSerialSearch] = useState('');
+
   // 🔴 ফিক্সড: স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
   // এর ফলে "Sunland Extreme - 50W" এবং "Powerland - 50W" কখনোই এক হবে না।
   const getStandardKey = (name) => {
@@ -71,48 +74,42 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  const getLedgerSummary = () => {
+const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    rawProducts.forEach(p => {
-      const fullName = `${p.name || ''} ${p.model || ''}`.trim();
-      const key = getStandardKey(fullName);
-      
+    // সব প্রোডাক্টের মাস্টার লিস্ট তৈরি (ইন ও আউট এর জন্য)
+    const allProductsInvolved = new Set([...ledgerData.map(l => l.product), ...salesOutData.map(s => s.product)]);
+
+    allProductsInvolved.forEach(productName => {
+      const key = getStandardKey(productName);
       if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
-      }
-      
-      const entry = summaryMap.get(key);
-      const houseName = p.house || 'Head Office';
-      if (entry.stocks[houseName] !== undefined) {
-        entry.stocks[houseName] += parseInt(p.stock_quantity) || 0;
+        summaryMap.set(key, { product: productName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
       }
     });
 
-    const processItem = (item, type) => {
-      if (!item.product) return;
-      const qty = parseInt(item.quantity) || 0;
-      if (qty === 0) return; // 🔴 ফিক্সড: ভুল ডাটা বাদ দেওয়া
-
+    // স্টক ইন (Import)
+    ledgerData.forEach(item => {
       const key = getStandardKey(item.product);
-      
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: item.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
-      }
-      
-      if (type === 'in') {
-        summaryMap.get(key).totalIn += qty;
-      } else {
-        summaryMap.get(key).totalOut += qty;
-      }
-    };
+      if (summaryMap.has(key)) summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
+    });
 
-    ledgerData.forEach(item => processItem(item, 'in'));
-    salesOutData.forEach(item => processItem(item, 'out'));
+    // স্টক আউট (Sales)
+    salesOutData.forEach(item => {
+      const key = getStandardKey(item.product);
+      if (summaryMap.has(key)) summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
+    });
 
-    return Array.from(summaryMap.values()).filter(
-      item => item.totalIn > 0 || item.totalOut > 0 || item.stocks['Head Office'] > 0 || item.stocks['Showroom'] > 0
-    );
+    // বর্তমান স্টক যোগ করা (হাউজ অনুযায়ী)
+    rawProducts.forEach(p => {
+      const fullName = `${p.name || ''} ${p.model || ''}`.trim();
+      const key = getStandardKey(fullName);
+      if (summaryMap.has(key)) {
+        const houseName = p.house || 'Head Office';
+        summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      }
+    });
+
+    return Array.from(summaryMap.values());
   };
 
   const ledgerSummaryList = getLedgerSummary();
@@ -155,6 +152,15 @@ const Reports = () => {
   useEffect(() => {
     generateReport();
   }, [startDate, endDate]); 
+
+  useEffect(() => {
+  if (reportType === 'serial_history') fetchInvSerials();
+}, [reportType]);
+
+const fetchInvSerials = async () => {
+  const { data } = await supabase.from('inv_sl').select('*');
+  if (data) setInvSerials(data);
+};
 
   useEffect(() => {
     fetchAllCustomers(); 
@@ -372,6 +378,7 @@ const Reports = () => {
             { id: 'customer', label: 'কাস্টোমার রিপোর্ট' },
             { id: 'product_wise', label: 'প্রোডাক্ট ওয়াইজ রিপোর্ট' },
             { id: 'ledger_report', label: 'লেজার রিপোর্ট (In & Out)' }
+            { id: 'serial_history', label: 'ইনভার্টার সিরিয়াল' }
           ].map(tab => (
             <button 
               key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); }}
@@ -539,6 +546,41 @@ const Reports = () => {
               ) : (<div className="text-center py-16 border border-dashed rounded-2xl text-slate-400 font-medium italic text-xs">সার্চ করে প্রোডাক্ট সিলেক্ট করুন।</div>)}
             </div>
           )}
+
+
+          {reportType === 'serial_history' && (
+  <div className="space-y-4 animate-in fade-in">
+    <input 
+      type="text" 
+      placeholder="সিরিয়াল নাম্বার লিখে সার্চ করুন..." 
+      value={serialSearch} 
+      onChange={(e) => setSerialSearch(e.target.value)}
+      className="w-full p-4 border rounded-2xl font-bold" 
+    />
+    <div className="overflow-x-auto border rounded-xl bg-white">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-slate-50 font-black uppercase text-slate-400">
+          <tr>
+            <th className="p-4">মডেল</th><th className="p-4">সিরিয়াল</th><th className="p-4">কাস্টমার</th><th className="p-4">ঠিকানা</th><th className="p-4">সার্ভিস হিস্টোরি</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y font-bold text-slate-700">
+          {invSerials
+            .filter(s => s.sl_no?.includes(serialSearch))
+            .map((s, i) => (
+              <tr key={i} className="hover:bg-slate-50">
+                <td className="p-4">{s.model_name}</td>
+                <td className="p-4 font-mono">{s.sl_no}</td>
+                <td className="p-4">{s.customer_name}</td>
+                <td className="p-4">{s.address}</td>
+                <td className="p-4">{s.service_history || 'No history'}</td>
+              </tr>
+            ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
 
           {/* 🔴 আপডেট হওয়া লেজার রিপোর্ট সেকশন */}
           {reportType === 'ledger_report' && (
