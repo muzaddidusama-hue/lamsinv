@@ -742,7 +742,7 @@ const Reports = () => {
       {/* 🏛️ ডাইনামিক এ৪ পোর্ট্রেট ফরমাল PDF লেআউট (Hidden) */}
       <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '210mm', padding: '20mm 15mm', boxSizing: 'border-box', fontFamily: "Times New Roman, serif", lineHeight: '1.4' }}>
         <div className="pb-4 mb-6 flex justify-between items-start" style={{ borderBottom: '2px solid #0f172a' }}>
-          <div><h1 className="text-3xl font-bold tracking-tight uppercase">LAMS POWER</h1><p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p></div>
+          <div><h1 className="text-3xl font-bold tracking-tight uppercase">LAMS POWER</h1><p className="text-[10px] text-slate-500 #0f172a' font-bold uppercase mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p></div>
           <div className="text-right"><div className="border border-slate-900 px-4 py-1 bg-slate-50 font-bold text-xs uppercase tracking-wider">{reportType === 'ledger_report' ? 'Inventory Ledger Statement' : 'Financial Sales Statement'}</div><p className="text-[10px] text-slate-700 mt-2 font-bold">Period: {startDate} to {endDate}</p></div>
         </div>
         <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50">
