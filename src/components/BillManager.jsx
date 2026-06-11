@@ -10,7 +10,7 @@ const BillManager = () => {
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const [activeTab, setActiveTab] = useState('bills'); // 'bills' বা 'chalans'
-  const [searchNo, setSearchNo] = useState('');
+  const [searchQuery, setSearchQuery] = useState(''); // স্মার্ট সার্চের জন্য
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   
@@ -25,7 +25,7 @@ const BillManager = () => {
     fetchAllRecords(); 
   }, [selectedMonth]); 
 
-  // মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
+  // মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
   const fetchAllRecords = async () => {
     setLoading(true);
     try {
@@ -48,30 +48,6 @@ const BillManager = () => {
       setRecords(data || []);
     } catch (error) {
       console.error('Error fetching records:', error);
-    }
-    setLoading(false);
-  };
-
-  // সার্চ লজিক
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchNo.trim()) {
-      fetchAllRecords();
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('chalans')
-        .select(`*, customers(name, phone, address), chalan_items(quantity, products(name, model))`)
-        .or(`bill_no.ilike.%${searchNo.trim()}%,chalan_no.ilike.%${searchNo.trim()}%`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setRecords(data || []);
-    } catch (error) {
-      alert("রেকর্ড খুঁজে পাওয়া যায়নি!");
     }
     setLoading(false);
   };
@@ -155,15 +131,34 @@ const BillManager = () => {
     downloadPDF(viewRecord, getCustomerData(viewRecord), printItems, activeTab === 'bills' ? 'Bill' : 'Challan');
   };
 
-  // 🔴 রেকর্ডগুলোকে দুই ভাগে ভাগ করা (পেন্ডিং লজিক সরানো হয়েছে)
+  // 🔴 রেকর্ডগুলোকে দুই ভাগে ভাগ করা
   const bills = records.filter(r => r.status === 'paid' || r.bill_no);
-  const chalans = records.filter(r => r.chalan_no); // জেনারেট হওয়া সকল চালান
-  const displayRecords = activeTab === 'bills' ? bills : chalans;
+  const chalans = records.filter(r => r.chalan_no);
+  
+  // 🔴 স্মার্ট লাইভ সার্চ ফিল্টারিং লজিক (উক্ত মাসের মধ্যে)
+  let displayRecords = activeTab === 'bills' ? bills : chalans;
+  
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase().trim();
+    displayRecords = displayRecords.filter(record => {
+      const billNo = (record.bill_no || '').toLowerCase();
+      const chalanNo = (record.chalan_no || '').toLowerCase();
+      const customerName = (record.customer_name || record.customers?.name || '').toLowerCase();
+      const customerPhone = (record.phone || record.customers?.phone || '').toLowerCase();
+
+      return (
+        billNo.includes(query) ||
+        chalanNo.includes(query) ||
+        customerName.includes(query) ||
+        customerPhone.includes(query)
+      );
+    });
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6 pb-12 p-4" style={{ fontFamily: "'Hind Siliguri', 'Inter', sans-serif" }}>
       
-      {/* 🔍 টপ বার ও সার্চ (Month Filter সহ) */}
+      {/* 🔍 টপ বার ও স্মার্ট সার্চ (Month Filter সহ) */}
       <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col lg:flex-row justify-between items-center gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-800">📋 বিল ও চালানের তালিকা</h2>
@@ -176,36 +171,36 @@ const BillManager = () => {
             onChange={(e) => setSelectedMonth(e.target.value)} 
             className="h-12 px-4 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl font-black outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           />
-          <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto">
+          <form onSubmit={(e) => e.preventDefault()} className="flex gap-2 w-full md:w-auto">
             <input 
               type="text" 
-              value={searchNo} 
-              onChange={(e) => setSearchNo(e.target.value)} 
-              placeholder="সার্চ নাম্বার..." 
-              className="w-full md:w-48 h-12 px-4 bg-slate-50 border rounded-xl font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-blue-500" 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              placeholder="নাম, মোবাইল বা বিল/চালান নং..." 
+              className="w-full md:w-64 h-12 px-4 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-xs" 
             />
             <button type="submit" className="h-12 px-6 bg-slate-900 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors">সার্চ</button>
           </form>
         </div>
       </div>
 
-      {/* 🔴 ট্যাব সিলেকশন (২টা আলাদা সেকশন) */}
+      {/* 🔴 ট্যাব সিলেকশন */}
       <div className="flex gap-4">
         <button 
-          onClick={() => setActiveTab('bills')} 
+          onClick={() => { setActiveTab('bills'); setSearchQuery(''); }} 
           className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'bills' ? 'bg-green-600 text-white shadow-lg shadow-green-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
         >
           🧾 বিলের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{bills.length}</span>
         </button>
         <button 
-          onClick={() => setActiveTab('chalans')} 
+          onClick={() => { setActiveTab('chalans'); setSearchQuery(''); }} 
           className={`flex-1 md:flex-none px-8 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-center gap-2 ${activeTab === 'chalans' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white text-slate-600 border hover:bg-slate-50'}`}
         >
           📦 চালানের তালিকা <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{chalans.length}</span>
         </button>
       </div>
 
-      {/* 📋 মেইন ডাটা টেবিল (List View) */}
+      {/* 📋 মেইন ডাটা টেবিল */}
       <div className="bg-white border rounded-[2rem] shadow-sm overflow-hidden animate-in fade-in duration-300">
         <div className="overflow-x-auto custom-scrollbar min-h-[400px]">
           <table className="w-full text-left text-sm whitespace-nowrap">
@@ -223,7 +218,11 @@ const BillManager = () => {
               {loading ? (
                 <tr><td colSpan="6" className="p-10 text-center text-slate-400 font-bold animate-pulse">ডাটা লোড হচ্ছে...</td></tr>
               ) : displayRecords.length === 0 ? (
-                <tr><td colSpan="6" className="p-10 text-center text-slate-400 font-bold italic">এই মাসে কোনো {activeTab === 'bills' ? 'বিল' : 'চালান'} পাওয়া যায়নি</td></tr>
+                <tr>
+                  <td colSpan="6" className="p-10 text-center text-slate-400 font-bold italic">
+                    {searchQuery ? 'সার্চ করা তথ্যের কোনো রেকর্ড পাওয়া যায়নি' : `এই মাসে কোনো ${activeTab === 'bills' ? 'বিল' : 'চালান'} পাওয়া যায়নি`}
+                  </td>
+                </tr>
               ) : (
                 displayRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50 transition-colors group">
@@ -236,6 +235,13 @@ const BillManager = () => {
                     </td>
                     <td className="p-4 font-bold">
                       {getCustomerData(record).name}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-slate-400 font-mono">{getCustomerData(record).phone}</span>
+                        {/* 🔴 আপডেট: হাউজের নাম শো করার জন্য ব্যাজ যুক্ত করা হয়েছে */}
+                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${record.house === 'Showroom' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                          {record.house === 'Showroom' ? 'Showroom' : 'HO'}
+                        </span>
+                      </div>
                     </td>
                     <td className="p-4 text-xs text-slate-500 truncate max-w-[200px]" title={getProductSummary(record.chalan_items)}>
                       {getProductSummary(record.chalan_items)}
