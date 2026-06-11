@@ -261,9 +261,21 @@ setCart([...cart, {
               )}
             </div>
 
-            <div className="flex gap-3">
-              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600" />
-              <button onClick={addToCart} className="flex-1 bg-blue-600 text-white px-8 rounded-2xl font-bold hover:bg-blue-700 transition-all whitespace-nowrap">Add</button>
+            {/* 🔴 ফিক্স: ফ্লেক্স কলাম করে বাটনটিকে নিচে দেওয়া হলো যাতে ঢাকা না পড়ে */}
+            <div className="flex flex-col gap-3">
+              <input 
+                type="number" 
+                value={qty} 
+                onChange={(e) => setQty(e.target.value)} 
+                placeholder="পরিমাণ (Qty)" 
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600" 
+              />
+              <button 
+                onClick={addToCart} 
+                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-md"
+              >
+                ➕ Add Product
+              </button>
             </div>
           </div>
         </div>
