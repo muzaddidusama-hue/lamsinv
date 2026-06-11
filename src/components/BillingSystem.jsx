@@ -105,7 +105,7 @@ const addToCart = () => {
   };
 
   const handleGenerateChallan = async () => {
-    if (!isInHouse && (!phone || !name)) return alert('কাস্টমারের তথ্য দিন!');
+    if (!isInHouse && !name.trim()) return alert('কাস্টমারের নাম দিন!');
     if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
     if (isManualChalan && !manualChalanNo) return alert('ম্যানুয়াল চালান নম্বর দিন!');
 
