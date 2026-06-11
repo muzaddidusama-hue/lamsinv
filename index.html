@@ -11,6 +11,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <style>
       /* গ্লোবাল ফন্ট ফ্যামিলি সেটআপ */
@@ -18,7 +19,7 @@
         font-family: 'Hind Siliguri', sans-serif;
       }
 
-      /* স্ক্রলবার মডার্ন লুক দেওয়ার জন্য */
+      /* স্ক্রলবার মডার্ন লুক দেওয়ার জন্য */
       ::-webkit-scrollbar {
         width: 8px;
       }
@@ -41,11 +42,49 @@
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
+
+      /* SweetAlert পপ-আপের ভেতরে Hind Siliguri ফন্ট নিশ্চিত করার জন্য */
+      .swal2-popup, .swal2-title, .swal2-content, .swal2-html-container, .swal2-confirm {
+        font-family: 'Hind Siliguri', sans-serif !important;
+      }
     </style>
   </head>
   <body class="bg-slate-50 antialiased">
     <div id="root"></div>
 
     <script type="module" src="/src/main.jsx"></script>
+
+    <script>
+      window.alert = function(message) {
+        // মেসেজের ধরনের ওপর ভিত্তি করে আইকন ডাইনামিক করা
+        let iconType = 'info';
+        let titleText = 'বিজ্ঞপ্তি';
+
+        const lowerMessage = message.toLowerCase();
+        
+        if (lowerMessage.includes('ত্রুটি') || lowerMessage.includes('error') || lowerMessage.includes('দুঃখিত') || lowerMessage.includes('অবৈধ')) {
+          iconType = 'error';
+          titleText = 'ভুল হয়েছে!';
+        } else if (lowerMessage.includes('সফল') || lowerMessage.includes('✅') || lowerMessage.includes('সাকসেস') || lowerMessage.includes('সেভ')) {
+          iconType = 'success';
+          titleText = 'সফল হয়েছে!';
+        } else if (lowerMessage.includes('ইতোমধ্যে') || lowerMessage.includes('বিদ্যমান') || lowerMessage.includes('🔒') || lowerMessage.includes('⚠️') || lowerMessage.includes('মাত্র')) {
+          iconType = 'warning';
+          titleText = 'সতর্কতা!';
+        }
+
+        // সুইট অ্যালার্ট ডায়ালগ ট্রিগার
+        Swal.fire({
+          title: titleText,
+          text: message,
+          icon: iconType,
+          confirmButtonText: 'ঠিক আছে',
+          confirmButtonColor: '#2563eb', // LAMS এর কর্পোরেট ব্লু কালার থিম
+          customClass: {
+            popup: 'rounded-[2rem] shadow-xl border border-slate-100'
+          }
+        });
+      };
+    </script>
   </body>
 </html>
