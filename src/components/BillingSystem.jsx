@@ -120,9 +120,9 @@ const addToCart = () => {
       if (!isInHouse) {
         let existingCust = null;
 
-        if (finalPhone) {
-          const { data } = await supabase.from('customers').select('id').eq('phone', finalPhone).maybeSingle();
-          existingCust = data;
+if (finalPhone) {
+    const { data } = await supabase.from('customers').select('id').eq('phone', finalPhone).limit(1);
+    if (data && data.length > 0) existingCust = data[0];
         }
         if (!existingCust && finalName !== 'Walk-in') {
           const { data } = await supabase.from('customers').select('id').eq('name', finalName).maybeSingle();

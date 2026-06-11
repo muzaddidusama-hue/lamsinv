@@ -104,7 +104,7 @@ setCart([...cart, {
     try {
       let customerId = null;
       let finalName = name.trim() || 'Walk-in';
-      let finalPhone = phone.trim() || null;
+      let finalPhone = phone.trim() === '' ? null : phone.trim();
       let finalAddress = address.trim() || null;
       let customerData = { name: finalName, phone: finalPhone, address: finalAddress };
 
@@ -130,11 +130,14 @@ setCart([...cart, {
         if (Object.keys(updatePayload).length > 0) {
           await supabase.from('customers').update(updatePayload).eq('id', customerId);
         }
-      } else if (finalName !== 'Walk-in' || finalPhone) {
-        const { data: newCust } = await supabase.from('customers').insert([{ 
-          name: finalName, phone: finalPhone, address: finalAddress 
-        }]).select().single();
-        customerId = newCust?.id;
+} else if (finalName !== 'Walk-in' || finalPhone) {
+  // 🔴 ফোন না থাকলেও শুধু নাম দিয়ে কাস্টমার টেবিলে এন্ট্রি নেওয়ার অনুমতি দেওয়া হলো
+  const { data: newCust, error: custErr } = await supabase.from('customers').insert([{ 
+    name: finalName, 
+    phone: finalPhone, // এখানে null যাবে যদি ইনপুট খালি থাকে
+    address: finalAddress 
+  }]).select().single();
+  if (!custErr) customerId = newCust?.id;
       }
 
       const finalBillNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
