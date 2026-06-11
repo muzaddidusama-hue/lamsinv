@@ -51,7 +51,7 @@ const Dashboard = ({ setView }) => {
     return val === true || String(val).toLowerCase() === 'true';
   };
 
-  // 🔴 ফিক্সড লজিক: ইন-হাউজ স্টক ট্রান্সফারের ডাটাবেজ কনফ্লিক্ট ঠিক করা হয়েছে
+  // ইন-হাউজ স্টক ট্রান্সফারের ডাটাবেজ কনফ্লিক্ট ঠিক করা হয়েছে
   const handleAction = async (actionType) => {
     setProcessing(true);
     try {
@@ -74,7 +74,7 @@ const Dashboard = ({ setView }) => {
             // যদি ঐ হাউজে আগে থেকেই এই প্রোডাক্ট থাকে, তাহলে স্টক যোগ হবে
             await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
           } else {
-            // যদি ঐ হাউজে প্রোডাক্টটি না থাকে, তবে নতুন করে এন্ট্রি হবে (আগের ID বাদ দিয়ে)
+            // যদি ঐ হাউজে প্রোডাক্টটি না থাকে, তবে নতুন করে এন্ট্রি হবে (আগের ID বাদ দিয়ে)
             const { id, created_at, stock_quantity, house, ...cleanProductData } = itm.products;
             
             await supabase.from('products').insert([{ 
@@ -84,7 +84,7 @@ const Dashboard = ({ setView }) => {
             }]);
           }
         }
-        // ৩. চালানের স্ট্যাটাস কমপ্লিট করে দেওয়া
+        // ৩. চালানের স্ট্যাটাস কমপ্লিট করে দেওয়া
         await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
       } 
       
@@ -199,7 +199,16 @@ const Dashboard = ({ setView }) => {
             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
               {lowStockProducts.map(p => (
                 <div key={p.id} onClick={() => handleViewDetails(p, 'product')} className="bg-white p-4 rounded-2xl border border-red-50 flex items-center justify-between hover:shadow-md cursor-pointer transition-all">
-                  <div><p className="font-black text-slate-800 text-sm">{p.name}</p><p className="text-[10px] font-bold text-slate-400 uppercase">{p.model}</p></div>
+                  <div>
+                    <p className="font-black text-slate-800 text-sm">{p.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase">{p.model}</p>
+                      {/* 🔴 আপডেট: হাউজের নাম দেখানোর জন্য ব্যাজ যুক্ত করা হয়েছে */}
+                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                        {p.house === 'Showroom' ? 'Showroom' : 'HO'}
+                      </span>
+                    </div>
+                  </div>
                   <div className={`px-3 py-1 rounded-lg font-black text-xs ${p.stock_quantity < 10 ? 'bg-red-500 text-white' : 'bg-orange-100 text-orange-600'}`}>{p.stock_quantity}</div>
                 </div>
               ))}
