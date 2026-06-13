@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import Barcode from 'react-barcode';
 import html2canvas from 'html2canvas';
-import Swal from 'sweetalert2'; // 🔴 সরাসরি ইম্পোর্ট করা হলো
+import Swal from 'sweetalert2'; 
 
 const LabelPrint = () => {
   const [activeTab, setActiveTab] = useState('print');
@@ -57,7 +57,6 @@ const LabelPrint = () => {
     setBarcodePos(prev => ({ ...prev, [axis]: parseFloat(value) }));
   };
 
-  // 🔴 আপডেট করা হ্যান্ডলার
   const handleAddNewTemplate = async (e) => {
     e.preventDefault();
     if (!newModel || !uploadFile || !newWidth || !newHeight) {
@@ -90,7 +89,6 @@ const LabelPrint = () => {
 
       if (dbErr) throw dbErr;
 
-      // 🔴 সফল হওয়ার পর কাস্টম ডায়ালগ
       fetchTemplates();
       const result = await Swal.fire({
         title: 'সফল হয়েছে!',
@@ -104,7 +102,6 @@ const LabelPrint = () => {
         customClass: { popup: 'rounded-[2rem]' }
       });
 
-      // ফর্ম ফিল্ডগুলো রিসেট করা
       setNewModel('');
       setNewBrand('');
       setNewWidth('');
@@ -113,16 +110,12 @@ const LabelPrint = () => {
       const fileInput = document.getElementById('file-upload');
       if (fileInput) fileInput.value = '';
 
-      // ইউজারের সিদ্ধান্তের ওপর ভিত্তি করে নেভিগেশন
       if (result.isConfirmed) {
-        setActiveTab('print'); // ওকে দিলে প্রিন্ট ট্যাবে যাবে
-      } else {
-        // রিট্রাই দিলে এই পেজেই থাকবে
+        setActiveTab('print'); 
       }
 
     } catch (error) {
       console.error(error);
-      // 🔴 এরর হলে এই পেজেই থাকবে এবং এরর মেসেজ দেখাবে
       Swal.fire({
         title: 'এরর!',
         text: 'টেমপ্লেট সেভ করতে সমস্যা হয়েছে! ' + (error.message || ''),
@@ -137,6 +130,7 @@ const LabelPrint = () => {
 
   const selectedTemplateData = templates.find(t => t.id.toString() === selectedModel);
 
+  // 🔴 আপডেট: রিয়্যাক্ট-সেইফ হিডেন আইফ্রেম প্রিন্ট লজিক
   const handlePrint = () => {
     if (!selectedModel) {
       Swal.fire('সতর্কতা', 'মডেল সিলেক্ট করুন!', 'warning');
@@ -148,49 +142,71 @@ const LabelPrint = () => {
     }
 
     const printContents = printRef.current.innerHTML;
-    const originalContents = document.body.innerHTML;
-
     const w = selectedTemplateData?.width || 100;
     const h = selectedTemplateData?.height || 150;
 
-    const printStyle = `
-      <style>
-        @media print {
-          @page { margin: 0; size: A4 portrait; }
-          body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-          .page-break { page-break-after: always; }
-          .a4-wrapper {
-             width: 210mm;
-             height: 297mm;
-             padding-top: 10mm;
-             padding-left: 10mm;
-             box-sizing: border-box;
-          }
-          .sticker-container { 
-            position: relative; 
-            width: ${w}mm; 
-            height: ${h}mm; 
-            overflow: hidden; 
-            border: 1px dashed #ccc;
-          }
-          .template-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 1; }
-          .barcode-overlay { 
-            position: absolute; 
-            left: ${barcodePos.x}%; 
-            top: ${barcodePos.y}%; 
-            transform: translate(-50%, -50%) scale(${barcodePos.scale});
-            z-index: 10; 
-            display: flex; 
-            justify-content: center; 
-          }
-        }
-      </style>
-    `;
+    // একটি হিডেন আইফ্রেম তৈরি করা হচ্ছে, যাতে মেইন পেজে কোনো এফেক্ট না পড়ে
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-1000px';
+    printFrame.style.left = '-1000px';
+    document.body.appendChild(printFrame);
 
-    document.body.innerHTML = printStyle + printContents;
-    window.print();
-    document.body.innerHTML = originalContents;
-    window.location.reload(); 
+    const frameDoc = printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(`
+      <html>
+        <head>
+          <title>LAMS Print Label</title>
+          <style>
+            @media print {
+              @page { margin: 0; size: A4 portrait; }
+              body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
+              .page-break { page-break-after: always; }
+              .a4-wrapper {
+                 width: 210mm;
+                 height: 297mm;
+                 padding-top: 10mm;
+                 padding-left: 10mm;
+                 box-sizing: border-box;
+              }
+              .sticker-container { 
+                position: relative; 
+                width: ${w}mm; 
+                height: ${h}mm; 
+                overflow: hidden; 
+                border: 1px dashed #ccc;
+              }
+              .template-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 1; }
+              .barcode-overlay { 
+                position: absolute; 
+                left: ${barcodePos.x}%; 
+                top: ${barcodePos.y}%; 
+                transform: translate(-50%, -50%) scale(${barcodePos.scale});
+                z-index: 10; 
+                display: flex; 
+                justify-content: center; 
+              }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContents}
+        </body>
+      </html>
+    `);
+    frameDoc.close();
+
+    // ছবিগুলো রেন্ডার হওয়ার জন্য একটু সময় দিয়ে প্রিন্ট কমান্ড ফায়ার করা
+    setTimeout(() => {
+      printFrame.contentWindow.focus();
+      printFrame.contentWindow.print();
+      
+      // প্রিন্ট ডায়ালগ বন্ধ হওয়ার পর আইফ্রেম রিমুভ করা
+      setTimeout(() => {
+        document.body.removeChild(printFrame);
+      }, 1000);
+    }, 500); 
   };
 
   const handleDownloadImage = async () => {
@@ -420,7 +436,6 @@ const LabelPrint = () => {
 
             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
               <label className="text-[10px] font-black text-orange-600 uppercase mb-2 block">ব্ল্যাংক স্টিকারের ছবি (যেখানে বারকোডের জায়গা ফাঁকা)</label>
-              {/* 🔴 id অ্যাড করা হয়েছে ফাইল ক্লিয়ারের জন্য */}
               <input id="file-upload" type="file" accept="image/*" onChange={e=>setUploadFile(e.target.files[0])} className="w-full p-3 bg-white border rounded-xl font-bold outline-none" required />
             </div>
             <button type="submit" disabled={uploading} className="w-full py-5 bg-orange-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-orange-700 disabled:opacity-50 active:scale-95 transition-all">
@@ -430,7 +445,6 @@ const LabelPrint = () => {
         </div>
       )}
 
-      {/* 🖨️ হিডেন A4 প্রিন্ট সেকশন */}
       <div className="hidden">
         <div ref={printRef}>
           {serials.map((serial, i) => (
