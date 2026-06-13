@@ -17,6 +17,7 @@ import SmartUpload from "./SmartUpload";
 import ReturnManager from './ReturnManager';
 import ServiceManager from "./ServiceManager"; 
 import UserManagement from "./UserManagement";
+import LabelPrint from './LabelPrint';
 
 const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const [view, setView] = useState('dashboard');
@@ -44,6 +45,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       subItems: [
         { id: 'product_entry', label: 'প্রোডাক্ট এন্ট্রি' },
         { id: 'stock_management', label: 'স্টক ম্যানেজমেন্ট' },
+        { id: 'label_print', label: 'লেবেল প্রিন্ট' },
       ]
     },
 {
@@ -293,6 +295,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           {view === 'reports' && <Reports />}
           {view === 'false_billing' && <FalseBilling />}
           {view === 'return_manager' && <ReturnManager />}
+          {view === 'label_print' && <LabelPrint />}
           {view === 'frontend_custom' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <FrontEndCustom />}
           {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
         </div>
