@@ -23,8 +23,8 @@ const Reports = () => {
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
 
-  const [ledgerData, setLedgerData] = useState([]);
-  const [salesOutData, setSalesOutData] = useState([]); 
+  // 🔴 আপডেট: সমন্বিত ট্রানজেকশন স্টেট
+  const [allTransactions, setAllTransactions] = useState([]); 
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
   const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
@@ -33,11 +33,9 @@ const Reports = () => {
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
 
-  // 🔴 নতুন: ইনভার্টার সিরিয়ালের স্টেট
   const [invSerials, setInvSerials] = useState([]);
   const [serialSearch, setSerialSearch] = useState('');
 
-  // 🔴 ফিক্সড: স্পেস এবং স্পেশাল ক্যারেক্টার রিমুভ করে স্ট্রিং ম্যাচিং
   const getStandardKey = (name) => {
     if (!name) return 'unknown';
     return name.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -74,47 +72,30 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  // 🔴 ফিক্সড লেজার সামারি: মাস্টার লিস্ট ব্যবহার করে ইন-আউট মার্জ ও সর্টিং
+  // 🔴 আপডেট: সমন্বিত লেজার সামারি
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    const allProductsInvolved = new Set([
-      ...rawProducts.map(p => `${p.name || ''} - ${p.model || ''}`.trim()),
-      ...ledgerData.map(l => l.product),
-      ...salesOutData.map(s => s.product)
-    ]);
-
-    allProductsInvolved.forEach(productName => {
-      if (!productName) return;
-      const key = getStandardKey(productName);
-      if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: productName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
-      }
-    });
-
+    // 1. ডাটাবেজ থেকে বর্তমান রিয়েল স্টক সেট করা
     rawProducts.forEach(p => {
       const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
       const key = getStandardKey(fullName);
-      if (summaryMap.has(key)) {
-        const houseName = p.house || 'Head Office';
-        summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
       }
+      const houseName = p.house || 'Head Office';
+      summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
     });
 
-    ledgerData.forEach(item => {
-      if (!item.product) return;
-      const key = getStandardKey(item.product);
-      if (summaryMap.has(key)) {
-        summaryMap.get(key).totalIn += parseInt(item.quantity) || 0;
+    // 2. ট্রানজেকশন হিস্ট্রি থেকে টোটাল ইন ও আউট কাউন্ট করা
+    allTransactions.forEach(t => {
+      if (!t.product) return;
+      const key = getStandardKey(t.product);
+      if (!summaryMap.has(key)) {
+        summaryMap.set(key, { product: t.product, totalIn: 0, totalOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
       }
-    });
-
-    salesOutData.forEach(item => {
-      if (!item.product) return;
-      const key = getStandardKey(item.product);
-      if (summaryMap.has(key)) {
-        summaryMap.get(key).totalOut += parseInt(item.quantity) || 0;
-      }
+      if (t.type === 'in') summaryMap.get(key).totalIn += t.quantity;
+      if (t.type === 'out') summaryMap.get(key).totalOut += t.quantity;
     });
 
     return Array.from(summaryMap.values())
@@ -124,27 +105,14 @@ const Reports = () => {
 
   const ledgerSummaryList = getLedgerSummary();
 
+  // 🔴 আপডেট: স্পেসিফিক প্রোডাক্টের ডিটেইলড লেজার
   const getIndividualLedgerHistory = () => {
     if (!ledgerSearch) return [];
-    
     const targetKey = getStandardKey(ledgerSearch);
-    const history = [];
     
-    ledgerData.forEach(l => {
-      const lKey = getStandardKey(l.product);
-      if (lKey === targetKey) {
-        history.push({ id: l.id, date: l.date, timestamp: l.in || l.date, type: 'in', source: l.source || 'Import', quantity: parseInt(l.quantity) || 0 });
-      }
-    });
-    
-    salesOutData.forEach(s => {
-      const sKey = getStandardKey(s.product);
-      if (sKey === targetKey) {
-        history.push({ id: null, date: s.date, timestamp: s.timestamp, type: 'out', source: s.source, quantity: parseInt(s.quantity) || 0 });
-      }
-    });
-    
-    return history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    return allTransactions
+      .filter(t => getStandardKey(t.product) === targetKey)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
   const combinedLedgerHistory = getIndividualLedgerHistory();
@@ -162,7 +130,6 @@ const Reports = () => {
     generateReport();
   }, [startDate, endDate]); 
 
-  // 🔴 ইনভার্টার সিরিয়াল ফেচ
   useEffect(() => {
     if (reportType === 'serial_history') fetchInvSerials();
   }, [reportType]);
@@ -215,28 +182,66 @@ const Reports = () => {
       if (error) throw error;
       processReportData(chalans || []);
 
-      const extractedOutItems = [];
+      // 🔴 আপডেট: ট্রানজেকশন (In/Out) লজিক ঢেলে সাজানো হয়েছে
+      const extractedTrans = [];
+      
       if (chalans) {
         chalans.forEach(ch => {
+          // ১. শুধু পেইড বিলগুলো (বিক্রয় / আউট)
           if (ch.status === 'paid' && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              // 🔴 ফিক্সড: প্রোডাক্ট নাম লেজারের ফরম্যাটে বানানো হলো (Name - Model)
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
-              extractedOutItems.push({
-                product: pName,
-                quantity: item.quantity,
+              extractedTrans.push({
+                id: `sale_${ch.id}_${item.id}`,
                 date: ch.created_at ? ch.created_at.split('T')[0] : '',
                 timestamp: ch.created_at,
+                product: pName,
                 type: 'out',
-                source: `Sold to: ${cName} (Bill: #${ch.bill_no || 'N/A'})`
+                house: ch.house || 'Head Office',
+                quantity: item.quantity,
+                source: `Sold to: ${cName}`,
+                ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`
+              });
+            });
+          }
+          
+          // ২. ট্রান্সফার রেকর্ড (এক হাউজ থেকে আরেক হাউজে)
+          if (ch.status === 'completed' && ch.is_in_house && ch.chalan_items) {
+            ch.chalan_items.forEach(item => {
+              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+              
+              // সোর্স হাউজ থেকে মাইনাস (Out)
+              extractedTrans.push({
+                id: `tr_out_${ch.id}_${item.id}`,
+                date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                timestamp: ch.created_at,
+                product: pName,
+                type: 'out',
+                house: ch.house, // যেখান থেকে যাচ্ছে
+                quantity: item.quantity,
+                source: `Transfer Out (To ${ch.transfer_to})`,
+                ref: `Chl: #${ch.chalan_no}`
+              });
+
+              // ডেস্টিনেশন হাউজে প্লাস (In)
+              extractedTrans.push({
+                id: `tr_in_${ch.id}_${item.id}`,
+                date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                timestamp: ch.created_at,
+                product: pName,
+                type: 'in',
+                house: ch.transfer_to, // যেখানে যাচ্ছে
+                quantity: item.quantity,
+                source: `Transfer In (From ${ch.house})`,
+                ref: `Chl: #${ch.chalan_no}`
               });
             });
           }
         });
       }
-      setSalesOutData(extractedOutItems);
 
+      // ৩. ম্যানুয়াল এন্ট্রি (লেজার টেবিল থেকে)
       const { data: ledger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -244,7 +249,24 @@ const Reports = () => {
         .lte('date', endDate)
         .order('date', { ascending: false });
 
-      if (!ledgerErr && ledger) setLedgerData(ledger);
+      if (!ledgerErr && ledger) {
+        ledger.forEach(l => {
+          extractedTrans.push({
+            id: `leg_${l.id}`,
+            dbId: l.id, // ডিলিট করার জন্য ডাটাবেজ আইডি
+            date: l.date,
+            timestamp: l.in || l.date,
+            product: l.product,
+            type: l.type || 'in',
+            house: l.house || 'Head Office', // যদি হাউজ না থাকে
+            quantity: parseInt(l.quantity) || 0,
+            source: l.source || 'Import / Manual Entry',
+            ref: 'Manual Entry'
+          });
+        });
+      }
+
+      setAllTransactions(extractedTrans);
 
     } catch (error) {
       console.error(error);
@@ -359,7 +381,6 @@ const Reports = () => {
     } else executeDownload();
   };
 
-  // 🔴 সার্ভিস হিস্টোরি ও ডেট ক্যালকুলেট করার লজিক
   const getServiceDetails = (inv) => {
     let count = 0;
     let lastDate = 'N/A';
@@ -376,7 +397,6 @@ const Reports = () => {
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* ফিল্টার কন্ট্রোল বার */}
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 items-end">
         <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -393,7 +413,6 @@ const Reports = () => {
         </button>
       </div>
 
-      {/* নেভিগেশন ট্যাব বার */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-slate-100 p-2 rounded-xl border border-slate-200">
         <div className="flex flex-wrap gap-2 flex-1">
           {[
@@ -621,61 +640,77 @@ const Reports = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center bg-orange-50 p-4 rounded-xl">
-                    <p className="text-xs font-black text-orange-700">🎯 খতিয়ান ট্র্যাক: <span className="text-sm font-black text-slate-900 ml-1">{ledgerSearch}</span></p>
-                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-400 bg-white border px-3 py-1 rounded-lg">← সার্বিক তালিকা</button>
+                  <div className="flex justify-between items-center bg-orange-50 p-4 rounded-xl border border-orange-100">
+                    <p className="text-xs font-black text-orange-700 flex flex-col md:flex-row md:items-center gap-1">
+                      <span>🎯 খতিয়ান ট্র্যাক:</span> 
+                      <span className="text-sm font-black text-slate-900 md:ml-1">{ledgerSearch}</span>
+                    </p>
+                    <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-500 bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 active:scale-95 transition-all">← সার্বিক তালিকা</button>
                   </div>
-                  <table className="w-full text-left text-xs bg-white border rounded-xl overflow-hidden">
-                    <thead><tr className="bg-slate-900 text-white text-[10px] uppercase"><th className="p-4">তারিখ (Date)</th><th className="p-4 text-center">লেনদেনের ধরন</th><th className="p-4 text-center">রেফারেন্স / কাস্টমার সোর্স (Source/Ref)</th><th className="p-4 text-right pr-12">পরিমাণ (Qty)</th><th className="p-4 text-center">অ্যাকশন</th></tr></thead>
-                    <tbody className="divide-y font-bold text-slate-700">
-                      {combinedLedgerHistory.map((l, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-4">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
-                          <td className="p-4 text-center">
-                            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {l.type === 'in' ? 'স্টক ইন (+)' : 'বিক্রয় আউট (-)'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center text-slate-500 font-medium">{l.source}</td>
-                          <td className="p-4 text-right pr-4 font-black text-sm">
-                            <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
-                              {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            <button 
-                              onClick={async () => {
-                                const confirmMsg = "এই এন্ট্রিটি মুছে ফেললে ডাটাবেজ থেকে চিরতরে চলে যাবে। নিশ্চিত?";
-                                if (window.confirm(confirmMsg)) {
-                                  try {
-                                    if (l.type === 'in' && l.id) {
-                                       await supabase.from('ledger').delete().eq('id', l.id); 
-                                    } else {
-                                       alert("চালান থেকে আসা এন্ট্রিগুলো ডিলিট করতে 'পেমেন্ট ও চালান' বা 'বিলের তালিকা' সেকশনে যান।");
-                                       return;
-                                    }
-                                    alert("রেকর্ড মুছে ফেলা হয়েছে!");
-                                    generateReport();
-                                  } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }
-                                }
-                              }}
-                              className={`text-red-500 hover:text-red-700 font-black px-2 ${!l.id && l.type==='out' ? 'opacity-30 cursor-not-allowed' : ''}`}
-                              disabled={!l.id && l.type === 'out'}
-                            >
-                              🗑️ ডিলিট
-                            </button>
-                          </td>
+                  <div className="overflow-x-auto border rounded-xl bg-white">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900 text-white text-[10px] uppercase tracking-wider">
+                          <th className="p-4">তারিখ (Date)</th>
+                          <th className="p-4 text-center">হাউজ (House)</th>
+                          <th className="p-4 text-center">লেনদেনের ধরন</th>
+                          <th className="p-4">রেফারেন্স / সোর্স (Ref/Source)</th>
+                          <th className="p-4 text-right pr-8">পরিমাণ (Qty)</th>
+                          <th className="p-4 text-center">অ্যাকশন</th>
                         </tr>
-                      ))}
-                      {combinedLedgerHistory.length === 0 && (<tr><td colSpan="5" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y font-bold text-slate-700">
+                        {combinedLedgerHistory.map((l, i) => (
+                          <tr key={i} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-4 whitespace-nowrap">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
+                            <td className="p-4 text-center">
+                              <span className={`px-2 py-1 rounded text-[9px] font-black uppercase ${l.house === 'Showroom' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {l.house}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center whitespace-nowrap">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase ${l.type === 'in' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {l.type === 'in' ? 'স্টক ইন (+)' : 'স্টক আউট (-)'}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <p className="text-slate-800">{l.source}</p>
+                              {l.ref && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{l.ref}</p>}
+                            </td>
+                            <td className="p-4 text-right pr-8 font-black text-sm whitespace-nowrap">
+                              <span className={l.type === 'in' ? 'text-green-600' : 'text-red-600'}>
+                                {l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS
+                              </span>
+                            </td>
+                            <td className="p-4 text-center">
+                              <button 
+                                onClick={async () => {
+                                  if (!l.dbId) return alert("চালান বা বিল থেকে আসা এন্ট্রিগুলো এখান থেকে ডিলিট করা যাবে না। 'পেমেন্ট ও চালান' সেকশন থেকে ডিলিট বা রিটার্ন করুন।");
+                                  if (window.confirm("এই ম্যানুয়াল এন্ট্রিটি মুছে ফেললে ডাটাবেজ থেকে চিরতরে চলে যাবে। নিশ্চিত?")) {
+                                    try {
+                                      await supabase.from('ledger').delete().eq('id', l.dbId);
+                                      alert("রেকর্ড মুছে ফেলা হয়েছে!");
+                                      generateReport();
+                                    } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }
+                                  }
+                                }}
+                                className={`text-red-500 hover:text-red-700 font-black px-2 ${!l.dbId ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                disabled={!l.dbId}
+                              >
+                                🗑️ ডিলিট
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {combinedLedgerHistory.length === 0 && (<tr><td colSpan="6" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
           )}
           
-          {/* 🔴 ইনভার্টার সিরিয়াল হিস্ট্রি ট্যাব */}
           {reportType === 'serial_history' && (
             <div className="space-y-6 animate-in fade-in duration-200">
               <div className="bg-slate-50 p-4 rounded-xl border">
@@ -824,7 +859,6 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* কাস্টোমার বিল পপ-আপ মডাল */}
       {selectedCustomerBills && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-4xl max-h-[90vh] shadow-2xl flex flex-col animate-in zoom-in-95 duration-200">
