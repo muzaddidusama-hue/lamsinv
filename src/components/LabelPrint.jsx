@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import Barcode from 'react-barcode';
-import html2canvas from 'html2canvas'; // 🔴 ডাউনলোডের জন্য
+import html2canvas from 'html2canvas';
+import Swal from 'sweetalert2'; // 🔴 সরাসরি ইম্পোর্ট করা হলো
 
 const LabelPrint = () => {
   const [activeTab, setActiveTab] = useState('print');
@@ -26,8 +27,8 @@ const LabelPrint = () => {
   // Add New Template State
   const [newModel, setNewModel] = useState('');
   const [newBrand, setNewBrand] = useState('');
-  const [newWidth, setNewWidth] = useState(''); // 🔴 নতুন: প্রস্থ
-  const [newHeight, setNewHeight] = useState(''); // 🔴 নতুন: উচ্চতা
+  const [newWidth, setNewWidth] = useState('');
+  const [newHeight, setNewHeight] = useState('');
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -56,9 +57,13 @@ const LabelPrint = () => {
     setBarcodePos(prev => ({ ...prev, [axis]: parseFloat(value) }));
   };
 
+  // 🔴 আপডেট করা হ্যান্ডলার
   const handleAddNewTemplate = async (e) => {
     e.preventDefault();
-    if (!newModel || !uploadFile || !newWidth || !newHeight) return alert('সবগুলো তথ্য সঠিকভাবে দিন!');
+    if (!newModel || !uploadFile || !newWidth || !newHeight) {
+      Swal.fire('সতর্কতা', 'সবগুলো তথ্য সঠিকভাবে দিন!', 'warning');
+      return;
+    }
     
     setUploading(true);
     try {
@@ -79,39 +84,72 @@ const LabelPrint = () => {
         model_name: newModel,
         brand: newBrand,
         template_url: publicUrl,
-        width: Number(newWidth),    // 🔴 সাইজ সেভ হচ্ছে
-        height: Number(newHeight)   // 🔴 সাইজ সেভ হচ্ছে
+        width: Number(newWidth),
+        height: Number(newHeight)
       }]);
 
       if (dbErr) throw dbErr;
 
-      alert('✅ নতুন স্টিকার টেমপ্লেট ও সাইজ সফলভাবে যুক্ত হয়েছে!');
+      // 🔴 সফল হওয়ার পর কাস্টম ডায়ালগ
+      fetchTemplates();
+      const result = await Swal.fire({
+        title: 'সফল হয়েছে!',
+        text: 'নতুন স্টিকার টেমপ্লেট ও সাইজ সফলভাবে ডাটাবেজে যুক্ত হয়েছে।',
+        icon: 'success',
+        showCancelButton: true,
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#ea580c',
+        confirmButtonText: '🖨️ ওকে (প্রিন্ট করুন)',
+        cancelButtonText: '🔄 রিট্রাই (আরেকটি যুক্ত করুন)',
+        customClass: { popup: 'rounded-[2rem]' }
+      });
+
+      // ফর্ম ফিল্ডগুলো রিসেট করা
       setNewModel('');
       setNewBrand('');
       setNewWidth('');
       setNewHeight('');
       setUploadFile(null);
-      fetchTemplates();
-      setActiveTab('print');
+      const fileInput = document.getElementById('file-upload');
+      if (fileInput) fileInput.value = '';
+
+      // ইউজারের সিদ্ধান্তের ওপর ভিত্তি করে নেভিগেশন
+      if (result.isConfirmed) {
+        setActiveTab('print'); // ওকে দিলে প্রিন্ট ট্যাবে যাবে
+      } else {
+        // রিট্রাই দিলে এই পেজেই থাকবে
+      }
 
     } catch (error) {
       console.error(error);
-      alert('টেমপ্লেট সেভ করতে সমস্যা হয়েছে!');
+      // 🔴 এরর হলে এই পেজেই থাকবে এবং এরর মেসেজ দেখাবে
+      Swal.fire({
+        title: 'এরর!',
+        text: 'টেমপ্লেট সেভ করতে সমস্যা হয়েছে! ' + (error.message || ''),
+        icon: 'error',
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'ঠিক আছে',
+        customClass: { popup: 'rounded-[2rem]' }
+      });
     }
     setUploading(false);
   };
 
   const selectedTemplateData = templates.find(t => t.id.toString() === selectedModel);
 
-  // 🖨️ প্রিন্ট ফাংশন (A4 সাইজে এক্স্যাক্ট পজিশনিং)
   const handlePrint = () => {
-    if (!selectedModel) return alert('মডেল সিলেক্ট করুন!');
-    if (serials.some(s => s.trim() === '')) return alert('সবগুলো সিরিয়াল নম্বর পূরণ করুন!');
+    if (!selectedModel) {
+      Swal.fire('সতর্কতা', 'মডেল সিলেক্ট করুন!', 'warning');
+      return;
+    }
+    if (serials.some(s => s.trim() === '')) {
+      Swal.fire('সতর্কতা', 'সবগুলো সিরিয়াল নম্বর পূরণ করুন!', 'warning');
+      return;
+    }
 
     const printContents = printRef.current.innerHTML;
     const originalContents = document.body.innerHTML;
 
-    // ডাটাবেজ থেকে পাওয়া সাইজ (না থাকলে ডিফল্ট 100x150)
     const w = selectedTemplateData?.width || 100;
     const h = selectedTemplateData?.height || 150;
 
@@ -121,25 +159,20 @@ const LabelPrint = () => {
           @page { margin: 0; size: A4 portrait; }
           body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
           .page-break { page-break-after: always; }
-          
-          /* 🔴 A4 পেজের কন্টেইনার */
           .a4-wrapper {
              width: 210mm;
              height: 297mm;
-             padding-top: 10mm;  /* পেজের উপর থেকে একটু নিচে */
-             padding-left: 10mm; /* পেজের বাম থেকে একটু ডানে */
+             padding-top: 10mm;
+             padding-left: 10mm;
              box-sizing: border-box;
           }
-          
-          /* 🔴 এক্স্যাক্ট স্টিকার সাইজ */
           .sticker-container { 
             position: relative; 
             width: ${w}mm; 
             height: ${h}mm; 
             overflow: hidden; 
-            border: 1px dashed #ccc; /* কাটার সুবিধার জন্য হালকা বর্ডার */
+            border: 1px dashed #ccc;
           }
-          
           .template-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 1; }
           .barcode-overlay { 
             position: absolute; 
@@ -160,13 +193,11 @@ const LabelPrint = () => {
     window.location.reload(); 
   };
 
-  // 📥 ডাউনলোড ইমেজ ফাংশন
   const handleDownloadImage = async () => {
     const element = document.getElementById('live-sticker-preview');
     if (!element) return;
     
     try {
-      // Scale 3 ব্যবহার করা হয়েছে যাতে ছবি ফেটে না যায় (High Resolution)
       const canvas = await html2canvas(element, { scale: 3, useCORS: true });
       const dataUrl = canvas.toDataURL('image/png');
       
@@ -176,7 +207,7 @@ const LabelPrint = () => {
       link.click();
     } catch (err) {
       console.error(err);
-      alert('ছবি ডাউনলোড করতে সমস্যা হয়েছে!');
+      Swal.fire('এরর', 'ছবি ডাউনলোড করতে সমস্যা হয়েছে!', 'error');
     }
   };
 
@@ -249,7 +280,6 @@ const LabelPrint = () => {
                   ))}
                 </div>
                 
-                {/* 🔴 আপডেট: প্রিন্ট এবং ডাউনলোড বাটন */}
                 <div className="flex gap-3 mt-4">
                   <button 
                     onClick={handleDownloadImage} 
@@ -273,10 +303,9 @@ const LabelPrint = () => {
             <div className="bg-slate-100 p-6 rounded-3xl border flex items-center justify-center min-h-[450px]">
               {selectedTemplateData && serials[0] !== undefined ? (
                 <div 
-                  id="live-sticker-preview" // 🔴 আইডি দেওয়া হয়েছে ডাউনলোডের জন্য
+                  id="live-sticker-preview"
                   className="relative shadow-2xl bg-white border overflow-hidden"
                   style={{
-                    // প্রিভিউর জন্য সাইজ ডাইনামিক করা হলো (স্কেল করা)
                     width: `${selectedTemplateData.width * 3}px`, 
                     height: `${selectedTemplateData.height * 3}px`
                   }}
@@ -378,7 +407,6 @@ const LabelPrint = () => {
               <input type="text" value={newModel} onChange={e=>setNewModel(e.target.value)} placeholder="যেমন: SI-3K-T2" className="w-full p-4 border-2 rounded-xl font-bold outline-none focus:border-orange-500" required />
             </div>
             
-            {/* 🔴 নতুন: সাইজ ইনপুট */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">স্টিকারের প্রস্থ / Width (mm)</label>
@@ -392,7 +420,8 @@ const LabelPrint = () => {
 
             <div className="bg-orange-50 p-4 rounded-xl border border-orange-100">
               <label className="text-[10px] font-black text-orange-600 uppercase mb-2 block">ব্ল্যাংক স্টিকারের ছবি (যেখানে বারকোডের জায়গা ফাঁকা)</label>
-              <input type="file" accept="image/*" onChange={e=>setUploadFile(e.target.files[0])} className="w-full p-3 bg-white border rounded-xl font-bold outline-none" required />
+              {/* 🔴 id অ্যাড করা হয়েছে ফাইল ক্লিয়ারের জন্য */}
+              <input id="file-upload" type="file" accept="image/*" onChange={e=>setUploadFile(e.target.files[0])} className="w-full p-3 bg-white border rounded-xl font-bold outline-none" required />
             </div>
             <button type="submit" disabled={uploading} className="w-full py-5 bg-orange-600 text-white rounded-2xl font-black text-lg shadow-lg hover:bg-orange-700 disabled:opacity-50 active:scale-95 transition-all">
               {uploading ? 'আপলোড হচ্ছে...' : 'সেভ টেমপ্লেট'}
