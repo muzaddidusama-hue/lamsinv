@@ -14,6 +14,7 @@ import ProductEntry from './ProductEntry';
 import StockManagement from './StockManagement';
 import FrontEndCustom from './FrontEndCustom';
 import SmartUpload from "./SmartUpload";
+import ReturnManager from './ReturnManager';
 import ServiceManager from "./ServiceManager"; 
 import UserManagement from "./UserManagement";
 
@@ -56,6 +57,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         { id: 'chalans', label: 'পেমেন্ট ও চালান' },
         { id: 'bills', label: 'বিল ও চালানের তালিকা (Bills & Chalan)' },
         { id: 'false_billing', label: 'ফলস বিল/চালান' },
+        { id: 'return_manager', icon: '↩️', label: 'প্রোডাক্ট রিটার্ন (Return)' },
       ]
     },
     { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, 
@@ -290,6 +292,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           {view === 'service_manager' && <ServiceManager />} 
           {view === 'reports' && <Reports />}
           {view === 'false_billing' && <FalseBilling />}
+          {view === 'return_manager' && <ReturnManager />}
           {view === 'frontend_custom' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <FrontEndCustom />}
           {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
         </div>
