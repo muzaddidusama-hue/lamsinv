@@ -62,9 +62,9 @@
 
         const lowerMessage = message.toLowerCase();
         
-        if (lowerMessage.includes('ত্রুটি') || lowerMessage.includes('error') || lowerMessage.includes('দুঃখিত') || lowerMessage.includes('অবৈধ')) {
+if (lowerMessage.includes('ত্রুটি') || lowerMessage.includes('error') || lowerMessage.includes('দুঃখিত') || lowerMessage.includes('অবৈধ') || lowerMessage.includes('সমস্যা') || lowerMessage.includes('ভুল')) {
           iconType = 'error';
-          titleText = 'ভুল হয়েছে!';
+          titleText = 'এরর!';
         } else if (lowerMessage.includes('সফল') || lowerMessage.includes('✅') || lowerMessage.includes('সাকসেস') || lowerMessage.includes('সেভ')) {
           iconType = 'success';
           titleText = 'সফল হয়েছে!';
@@ -73,13 +73,12 @@
           titleText = 'সতর্কতা!';
         }
 
-        // সুইট অ্যালার্ট ডায়ালগ ট্রিগার
         Swal.fire({
           title: titleText,
           text: message,
           icon: iconType,
           confirmButtonText: 'ঠিক আছে',
-          confirmButtonColor: '#2563eb', // LAMS এর কর্পোরেট ব্লু কালার থিম
+          confirmButtonColor: '#2563eb', 
           customClass: {
             popup: 'rounded-[2rem] shadow-xl border border-slate-100'
           }
