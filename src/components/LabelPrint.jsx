@@ -9,7 +9,7 @@ const LabelPrint = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // 🔴 নতুন: প্রিন্ট লিস্ট বা কিউ (Queue) স্টেট
+  // প্রিন্ট লিস্ট বা কিউ (Queue) স্টেট
   const [printQueue, setPrintQueue] = useState([]);
 
   // Editor State
@@ -55,7 +55,6 @@ const LabelPrint = () => {
     setBarcodePos(prev => ({ ...prev, [axis]: parseFloat(value) }));
   };
 
-  // 📥 লিস্টে অ্যাড করার ফাংশন
   const handleAddToQueue = () => {
     if (!selectedModel) return Swal.fire('সতর্কতা', 'মডেল সিলেক্ট করুন!', 'warning');
     if (serials.length === 0 || serials.some(s => s.trim() === '')) {
@@ -64,17 +63,15 @@ const LabelPrint = () => {
 
     const template = templates.find(t => t.id.toString() === selectedModel);
     
-    // নতুন আইটেমগুলো লিস্টে যুক্ত করা হচ্ছে
     const newItems = serials.map(serial => ({
-      id: Math.random().toString(36).substr(2, 9), // ইউনিক আইডি
+      id: Math.random().toString(36).substr(2, 9),
       template,
       serial,
-      barcodePos: { ...barcodePos } // যে পজিশন সেট করা ছিল সেটাই সেভ হবে
+      barcodePos: { ...barcodePos } 
     }));
 
     setPrintQueue([...printQueue, ...newItems]);
     
-    // এন্ট্রি ফিল্ডগুলো ক্লিয়ার করা
     setSerials([]);
     setQuantity('');
     Swal.fire({
@@ -147,7 +144,7 @@ const LabelPrint = () => {
 
   const selectedTemplateData = templates.find(t => t.id.toString() === selectedModel);
 
-  // 🖨️ গ্রিড আকারে প্রিন্ট করার ফাংশন
+  // 🖨️ আপডেট: গ্যাপ ছাড়া একসাথে প্রিন্ট করার লজিক
   const handlePrintAll = () => {
     if (printQueue.length === 0) return Swal.fire('সতর্কতা', 'লিস্টে কোনো স্টিকার নেই!', 'warning');
 
@@ -162,7 +159,6 @@ const LabelPrint = () => {
     const frameDoc = printFrame.contentWindow.document;
     frameDoc.open();
     
-    // 🔴 A4 পেজে ৪টা করে (সাইড বাই সাইড) সাজানোর CSS লজিক
     frameDoc.write(`
       <html>
         <head>
@@ -179,16 +175,19 @@ const LabelPrint = () => {
                  box-sizing: border-box;
                  page-break-after: always;
                  display: flex;
-                 flex-wrap: wrap;        /* জায়গা না পেলে নিচে নামবে */
+                 flex-wrap: wrap;        
                  align-content: flex-start;
                  justify-content: flex-start;
-                 gap: 5mm;               /* স্টিকারগুলোর মাঝের গ্যাপ */
+                 gap: 0; /* 🔴 গ্যাপ শূন্য করে দেওয়া হলো যাতে একসাথে লেগে থাকে */
               }
 
               .sticker-container { 
                 position: relative; 
                 overflow: hidden; 
-                border: 1px dashed #ccc; /* কাটার সুবিধার জন্য বর্ডার */
+                box-sizing: border-box;
+                border: 1px dashed #888; /* 🔴 কাটার সুবিধার জন্য বর্ডার */
+                margin-right: -1px;      /* 🔴 ডাবল লাইন যেন না হয় তার জন্য মার্জিন ওভারল্যাপ */
+                margin-bottom: -1px;     /* 🔴 ডাবল লাইন যেন না হয় তার জন্য মার্জিন ওভারল্যাপ */
               }
               .template-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: fill; z-index: 1; }
               .barcode-overlay { 
@@ -230,7 +229,6 @@ const LabelPrint = () => {
     }
   };
 
-  // 🔴 অ্যারেকে ৪টি করে ভাগ করার হেল্পার ফাংশন
   const chunkArray = (arr, size) => {
     const chunked = [];
     for (let i = 0; i < arr.length; i += size) {
@@ -260,7 +258,6 @@ const LabelPrint = () => {
       {activeTab === 'print' && (
         <div className="space-y-6">
           
-          {/* 🛠️ স্টিকার এডিটর সেকশন */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             <div className="lg:col-span-4 bg-white p-6 rounded-3xl border shadow-sm space-y-5 h-fit">
@@ -330,7 +327,7 @@ const LabelPrint = () => {
                       id="live-sticker-preview"
                       className="relative shadow-2xl bg-white border overflow-hidden mb-4"
                       style={{
-                        width: `${selectedTemplateData.width * 2.5}px`, // প্রিভিউ জুম
+                        width: `${selectedTemplateData.width * 2.5}px`, 
                         height: `${selectedTemplateData.height * 2.5}px`
                       }}
                     >
@@ -415,7 +412,6 @@ const LabelPrint = () => {
 
           </div>
 
-          {/* 📋 প্রিন্ট কিউ (লিস্ট) সেকশন */}
           <div className="bg-white p-6 rounded-3xl border shadow-sm">
             <div className="flex justify-between items-end border-b pb-4 mb-4">
               <div>
@@ -467,7 +463,6 @@ const LabelPrint = () => {
         </div>
       )}
 
-      {/* ➕ Add New Template */}
       {activeTab === 'add_new' && (
         <div className="bg-white p-8 rounded-3xl border shadow-sm max-w-2xl mx-auto">
           <h2 className="text-xl font-black border-b pb-4 mb-6 text-slate-800">নতুন স্টিকার টেমপ্লেট ও সাইজ যুক্ত করুন</h2>
