@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient'; // 🔴 এই লাইনটি মিসিং ছিল!
 import PublicCatalog from './components/PublicCatalog';
 import AdminPanel from './components/AdminPanel';
-import Login from './components/Login'; // 📥 নতুন তৈরি করা Login কম্পোনেন্টটি ইম্পোর্ট করা হলো
+import Login from './components/Login';
 
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   
-  // এমপ্লয়ীর অতিরিক্ত মেটাডাটা ট্র্যাকিং স্টেট
+  // এমপ্লয়ীর অতিরিক্ত মেটাডাটা ট্র্যাকিং স্টেট
   const [userRole, setUserRole] = useState('Staff');
   const [userName, setUserName] = useState('');
 
-  // 🔄 অটো-লগইন সিঙ্ক: পেজ রিলোড দিলেও যেন লগইন সেশন গায়েব না হয়
-useEffect(() => {
+  // 🔄 অটো-লগইন সিঙ্ক: পেজ রিলোড দিলেও যেন লগইন সেশন গায়েব না হয়
+  useEffect(() => {
     // ১. পেজ লোড হওয়ার সাথে সাথে কারেন্ট সেশন চেক করা
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
@@ -39,16 +40,24 @@ useEffect(() => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 🔒 লগআউট মেকানিজম আপডেট
+  // 🔓 নতুন আইডি-পাসওয়ার্ড লগইন সফল হলে এই ফাংশনটি ট্রিগার হবে
+  const handleLoginSuccess = (user) => {
+    setIsAdmin(true);
+    setUserRole(user.role);
+    setUserName(user.name);
+    setShowLogin(false); // লগইন পপ-আপ বন্ধ হবে
+  };
+
+  // 🔒 লগআউট মেকানিজম (সুপাবেজ সেশন ক্লিয়ার করবে)
   const handleLogout = async () => {
-    await supabase.auth.signOut(); // সুপাবেজ থেকে লগআউট
+    await supabase.auth.signOut();
     alert("সফলভাবে লগআউট হয়েছে!");
   };
 
   return (
     <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* ইউজার লগইন অবস্থায় থাকলে এডমিন প্যানেল দেখাবে */}
+      {/* ইউজার লগইন অবস্থায় থাকলে এডমিন প্যানেল দেখাবে */}
       {isAdmin ? (
         <div className="min-h-screen flex flex-col">
           {/* 🔝 টপ ইউজার স্ট্যাটাস বার */}
@@ -75,7 +84,6 @@ useEffect(() => {
           <PublicCatalog onAdminClick={() => setShowLogin(true)} />
           
           {/* 🎯 স্টাফ এক্সেস বাটনে চাপ দিলে নতুন মডার্ন লগইন উইন্ডোটি ওপেন হবে */}
-          {showLogin}
           {showLogin && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
               <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-2 animate-in zoom-in-95 duration-300">
