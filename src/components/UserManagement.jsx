@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
 
-// 🔴 স্পেশাল ক্লায়েন্ট: এটি অ্যাডমিনকে লগআউট না করেই নতুন ইউজার তৈরি করবে
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const authAdminClient = createClient(supabaseUrl, supabaseAnonKey, {
+// 🔴 Auth থেকে ইউজার ডিলিট করতে Service Role Key লাগবে। .env ফাইলে এটি যুক্ত করুন।
+const supabaseServiceKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// 🔴 স্পেশাল ক্লায়েন্ট (অ্যাডমিন পাওয়ার)
+const authAdminClient = createClient(supabaseUrl, supabaseServiceKey, {
   auth: {
-    persistSession: false, // ব্রাউজারে সেশন সেভ করবে না
+    persistSession: false,
     autoRefreshToken: false,
   }
 });
@@ -33,8 +35,8 @@ const UserManagement = () => {
     setNewUser({ ...newUser, [e.target.name]: e.target.value });
   };
 
-  // 🔴 আপডেট করা সাইন-আপ মেথড
-const handleCreateUser = async (e) => {
+  // 🔴 সাইন-আপ মেথড
+  const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUser.emp_id || !newUser.name || !newUser.email || !newUser.password) {
       return alert("সবগুলো ঘর পূরণ করুন!");
@@ -42,7 +44,7 @@ const handleCreateUser = async (e) => {
 
     setLoading(true);
     try {
-      // ১. 🔴 প্রথমে ডাটাবেজে (users টেবিলে) এন্ট্রি করুন (যাতে ট্রিগার একে চিনতে পারে)
+      // ১. প্রথমে ডাটাবেজে এন্ট্রি
       const payload = {
         emp_id: newUser.emp_id.trim().toUpperCase(),
         name: newUser.name.trim(),
@@ -55,7 +57,7 @@ const handleCreateUser = async (e) => {
       const { error: dbError } = await supabase.from('users').insert([payload]);
       if (dbError) throw dbError;
 
-      // ২. 🔴 এরপর স্পেশাল ক্লায়েন্ট দিয়ে Auth একাউন্ট তৈরি করুন
+      // ২. স্পেশাল ক্লায়েন্ট দিয়ে Auth একাউন্ট তৈরি
       const { data: authData, error: authError } = await authAdminClient.auth.signUp({
         email: newUser.email.trim(),
         password: newUser.password.trim(),
@@ -68,7 +70,7 @@ const handleCreateUser = async (e) => {
         }
       });
 
-      // যদি Auth এ কোনো সমস্যা হয়, তবে ডাটাবেজ থেকেও ডিলিট করে দিন (Rollback)
+      // Auth এ সমস্যা হলে রোলব্যাক
       if (authError) {
         await supabase.from('users').delete().eq('email', newUser.email.trim());
         throw authError;
@@ -79,6 +81,34 @@ const handleCreateUser = async (e) => {
       fetchUsers();
     } catch (err) {
       alert("ত্রুটি হয়েছে: " + err.message);
+    }
+    setLoading(false);
+  };
+
+  // 🔴 ইউজার ডিলিট মেথড (Auth + Database)
+  const deleteUser = async (userId, userEmail, empName) => {
+    if (!window.confirm(`সতর্কতা! আপনি কি নিশ্চিতভাবে ${empName}-এর একাউন্টটি মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`)) return;
+
+    setLoading(true);
+    try {
+      // ১. Auth সিস্টেম থেকে ইউজার খুঁজে বের করে ডিলিট করা
+      const { data: authUsers, error: listErr } = await authAdminClient.auth.admin.listUsers();
+      if (!listErr && authUsers?.users) {
+        const authUser = authUsers.users.find(u => u.email === userEmail);
+        if (authUser) {
+          const { error: authDelErr } = await authAdminClient.auth.admin.deleteUser(authUser.id);
+          if (authDelErr) throw authDelErr;
+        }
+      }
+
+      // ২. ডাটাবেজের 'users' টেবিল থেকে ডিলিট করা
+      const { error: dbError } = await supabase.from('users').delete().eq('id', userId);
+      if (dbError) throw dbError;
+      
+      alert("✅ এমপ্লয়ী সফলভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে!");
+      fetchUsers();
+    } catch (err) {
+      alert("ডিলিট করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
@@ -115,28 +145,6 @@ const handleCreateUser = async (e) => {
   };
 
   const toggleUserAccess = async (userId, currentStatus, empName) => {
-
-    const deleteUser = async (userId, userEmail, empName) => {
-    if (!window.confirm(`সতর্কতা! আপনি কি নিশ্চিতভাবে ${empName}-এর একাউন্টটি ডাটাবেজ থেকে মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`)) return;
-
-    setLoading(true);
-    try {
-      // ১. ডাটাবেজের 'users' টেবিল থেকে মুছুন
-      const { error: dbError } = await supabase.from('users').delete().eq('id', userId);
-      if (dbError) throw dbError;
-
-      // ২. সুপাবেজ Auth থেকে মুছুন (এডমিন ক্লায়েন্ট ব্যবহার করে)
-      // নোট: ক্লায়েন্ট সাইড থেকে ডিলিট ইউজার করতে হলে সুপাবেজ Edge Functions ব্যবহার করা ভালো। 
-      // আপাতত, আপনি যদি সুপাবেজ ড্যাশবোর্ড থেকে মুছতে না চান, তবে শুধু ডাটাবেজ থেকে মুছুন।
-      
-      alert("✅ এমপ্লয়ী সফলভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে!");
-      fetchUsers();
-    } catch (err) {
-      alert("ডিলিট করতে সমস্যা হয়েছে: " + err.message);
-    }
-    setLoading(false);
-  };
-
     const msg = currentStatus 
       ? `আপনি কি নিশ্চিতভাবে ${empName}-এর এক্সেস রিমুভ/ব্লক করতে চান?` 
       : `আপনি কি ${empName}-এর এক্সেস পুনরায় চালু করতে চান?`;
@@ -260,9 +268,6 @@ const handleCreateUser = async (e) => {
                         {user.is_active ? 'Active' : 'Blocked'}
                       </span>
                     </td>
-
-
-
                     <td className="p-3 text-center flex items-center justify-center gap-2 pt-4">
                       <button 
                         onClick={() => startEdit(user)}
@@ -274,12 +279,23 @@ const handleCreateUser = async (e) => {
                       {user.emp_id === 'ADMIN100' ? (
                         <span className="text-[10px] italic text-slate-400 min-w-[75px]">মাস্টার ওনার</span>
                       ) : (
-                        <button
-                          onClick={() => toggleUserAccess(user.id, user.is_active, user.name)}
-                          className={`px-3 py-1.5 rounded-lg font-black text-[10px] text-white transition-all min-w-[85px] ${user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
-                        >
-                          {user.is_active ? '⛔ ব্লক' : '⚡ আনব্লক'}
-                        </button>
+                        <>
+                          <button
+                            onClick={() => toggleUserAccess(user.id, user.is_active, user.name)}
+                            className={`px-3 py-1.5 rounded-lg font-black text-[10px] text-white transition-all min-w-[85px] ${user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
+                          >
+                            {user.is_active ? '⛔ ব্লক' : '⚡ আনব্লক'}
+                          </button>
+
+                          {/* 🔴 ডিলিট বাটন যুক্ত করা হলো */}
+                          <button 
+                            onClick={() => deleteUser(user.id, user.email, user.name)}
+                            className="bg-red-100 hover:bg-red-200 text-red-600 font-bold px-2.5 py-1.5 rounded-lg text-[10px] transition-colors"
+                            title="ইউজার ডিলিট করুন"
+                          >
+                            🗑️
+                          </button>
+                        </>
                       )}
                     </td>
                   </tr>
