@@ -10,7 +10,7 @@ function App() {
   const [userRole, setUserRole] = useState('Staff');
   const [userName, setUserName] = useState('');
 
-  // 🔴 নতুন: পাসওয়ার্ড রিকভারি স্টেট
+  // 🔴 পাসওয়ার্ড রিকভারি স্টেট
   const [recoveryMode, setRecoveryMode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
@@ -28,7 +28,7 @@ function App() {
     // লাইভ ইভেন্ট ট্র্যাকার
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       
-      // 🔴 পাসওয়ার্ড রিকভারি ইভেন্ট ধরা
+      // পাসওয়ার্ড রিকভারি ইভেন্ট ধরা
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
       }
@@ -59,7 +59,7 @@ function App() {
     alert("সফলভাবে লগআউট হয়েছে!");
   };
 
-  // 🔴 নতুন পাসওয়ার্ড সেভ করার ফাংশন
+  // 🔴 নতুন পাসওয়ার্ড সেভ করার ফাংশন (লিংকে ক্লিক করে আসার পর)
   const handleUpdateRecoveryPassword = async (e) => {
     e.preventDefault();
     if (newPassword.length < 6) return alert("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে!");
@@ -78,10 +78,34 @@ function App() {
     setUpdatingPassword(false);
   };
 
+  // 🔴 লগইন থাকা অবস্থায় ইমেইলে রিসেট লিংক পাঠানোর ফাংশন
+  const handleSendPasswordReset = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user || !user.email) {
+      return alert("আপনার ইমেইল ঠিকানা খুঁজে পাওয়া যায়নি!");
+    }
+
+    const confirmMsg = `আমরা কি আপনার ${user.email} ঠিকানায় পাসওয়ার্ড পরিবর্তনের লিংক পাঠাবো?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: window.location.origin,
+      });
+      
+      if (error) throw error;
+      
+      alert("✅ আপনার ইমেইলে পাসওয়ার্ড পরিবর্তনের লিংক পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।");
+    } catch (err) {
+      alert("লিংক পাঠাতে সমস্যা হয়েছে: " + err.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* 🔴 পাসওয়ার্ড রিকভারি মডাল (সবার উপরে দেখাবে) */}
+      {/* পাসওয়ার্ড রিকভারি মডাল (সবার উপরে দেখাবে) */}
       {recoveryMode && (
         <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95">
@@ -123,7 +147,17 @@ function App() {
                 {userRole}
               </span>
             </div>
-            <p className="text-slate-400 font-medium hidden md:block">LAMS Power ERP Panel</p>
+            
+            {/* 🔴 ডানদিকের কন্ট্রোল প্যানেল (পাসওয়ার্ড পরিবর্তন বাটন সহ) */}
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={handleSendPasswordReset} 
+                className="bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+              >
+                🔒 পাসওয়ার্ড পরিবর্তন
+              </button>
+              <p className="text-slate-400 font-medium hidden md:block">LAMS Power ERP Panel</p>
+            </div>
           </div>
 
           <div className="flex-1">
