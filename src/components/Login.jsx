@@ -3,24 +3,59 @@ import { supabase } from '../supabaseClient';
 
 const Login = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  const [isResetMode, setIsResetMode] = useState(false); // 🔴 ফরগেট পাসওয়ার্ড মোড ট্র্যাক করার স্টেট
+  
+  // 🔴 OTP পাঠানো হয়েছে কিনা তা ট্র্যাক করার স্টেট
+  const [otpSent, setOtpSent] = useState(false); 
 
-  // রেগুলার লগইন ফাংশন
-  const handleLogin = async (e) => {
+  // ১. OTP পাঠানোর ফাংশন
+  const handleSendOtp = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return alert("ইমেইল এবং পাসওয়ার্ড দুটিই দিন!");
+    if (!email.trim()) return alert("দয়া করে আপনার ইমেইলটি দিন!");
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      // 🔴 সুপাবেজ OTP রিকোয়েস্ট
+      const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        password: password.trim(),
+        options: {
+          shouldCreateUser: false, // 🔒 সিকিউরিটি: বাইরের কেউ নতুন একাউন্ট খুলতে পারবে না
+        }
+      });
+
+      if (error) {
+        if (error.message.includes('Signups not allowed')) {
+            throw new Error("এই ইমেইলটি আমাদের সিস্টেমে রেজিস্টার করা নেই। এডমিনের সাথে যোগাযোগ করুন।");
+        }
+        throw error;
+      }
+
+      alert("✅ আপনার ইমেইলে সিকিউরিটি কোড (OTP) পাঠানো হয়েছে! ইনবক্স বা স্প্যাম চেক করুন।");
+      setOtpSent(true); // OTP ইনপুট বক্স ওপেন করবে
+    } catch (err) {
+      alert("ত্রুটি: " + err.message);
+    }
+    setLoading(false);
+  };
+
+  // ২. OTP ভেরিফাই করে লগইন করার ফাংশন
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp.trim()) return alert("দয়া করে OTP কোডটি দিন!");
+
+    setLoading(true);
+    try {
+      // 🔴 OTP মিলিয়ে দেখা
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otp.trim(),
+        type: 'email'
       });
 
       if (error) throw error;
 
+      // লগইন সফল!
       const userMeta = data.user.user_metadata;
       alert(`🎉 স্বাগতম, ${userMeta.name || 'Admin'}!`);
       
@@ -32,30 +67,7 @@ const Login = ({ onLoginSuccess }) => {
       
     } catch (err) {
       console.error(err);
-      alert("❌ লগইন করতে সমস্যা হয়েছে: " + err.message);
-    }
-    setLoading(false);
-  };
-
-  // 🔴 পাসওয়ার্ড রিসেট লিংক পাঠানোর ফাংশন
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
-    if (!email.trim()) return alert("দয়া করে আপনার ইমেইলটি দিন!");
-    
-    setLoading(true);
-    try {
-      // সুপাবেজের বিল্ট-ইন পাসওয়ার্ড রিসেট রিকোয়েস্ট
-      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin, // ইউজারের ইমেইলে ক্লিক করলে এই সাইটেই ফিরে আসবে
-      });
-      
-      if (error) throw error;
-      
-      alert("✅ আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।");
-      setIsResetMode(false); // লিংক পাঠানোর পর আবার লগইন পেজে নিয়ে যাবে
-      setPassword(''); // পাসওয়ার্ড ফিল্ড ক্লিয়ার করে দেওয়া হলো
-    } catch (err) {
-      alert("ত্রুটি: " + err.message);
+      alert("❌ কোডটি ভুল অথবা মেয়াদোত্তীর্ণ হয়েছে! আবার চেষ্টা করুন।");
     }
     setLoading(false);
   };
@@ -67,11 +79,13 @@ const Login = ({ onLoginSuccess }) => {
       <div>
         <h2 className="text-2xl font-black text-slate-800 uppercase">LAMS Power</h2>
         <p className="text-xs text-slate-400 mt-1">
-          {isResetMode ? 'আপনার ইমেইলে পাসওয়ার্ড রিসেট লিংক পাঠানো হবে' : 'আপনার ইমেইল ও পাসওয়ার্ড দিয়ে লগইন করুন'}
+          {otpSent ? 'আপনার ইমেইলে পাঠানো কোডটি লিখুন' : 'লগইন করতে আপনার ইমেইল ঠিকানা দিন'}
         </p>
       </div>
 
-      <form onSubmit={isResetMode ? handleResetPassword : handleLogin} className="space-y-4 text-left mt-4">
+      <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4 text-left mt-4">
+        
+        {/* ইমেইল ইনপুট (OTP পাঠানোর আগে দেখাবে, অথবা OTP পাঠানোর পর Readonly হয়ে যাবে) */}
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Email Address</label>
           <input 
@@ -79,41 +93,39 @@ const Login = ({ onLoginSuccess }) => {
             placeholder="example@lamspower.com" 
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full p-4 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" 
+            disabled={otpSent} // OTP পাঠানোর পর ইমেইল এডিট করা যাবে না
+            className={`w-full p-4 border rounded-xl font-bold outline-none transition-all ${otpSent ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-slate-900'}`} 
             required
           />
         </div>
         
-        {/* যদি রিসেট মোডে না থাকে, তবেই পাসওয়ার্ড ফিল্ড দেখাবে */}
-        {!isResetMode && (
-          <div className="space-y-1">
-            <div className="flex justify-between items-center px-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Password</label>
-              {/* 🔴 ফরগেট পাসওয়ার্ড বাটন */}
-              <button type="button" onClick={() => setIsResetMode(true)} className="text-[10px] font-black text-orange-600 hover:text-orange-700 hover:underline">
-                পাসওয়ার্ড ভুলে গেছেন?
-              </button>
-            </div>
+        {/* OTP ইনপুট বক্স (শুধুমাত্র OTP পাঠানোর পর দেখাবে) */}
+        {otpSent && (
+          <div className="space-y-1 animate-in slide-in-from-bottom-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Security Code (OTP)</label>
             <input 
-              type="password" 
-              placeholder="••••••••" 
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full p-4 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" 
-              required={!isResetMode}
+              type="text" 
+              placeholder="00000000" 
+              value={otp}
+              onChange={e => setOtp(e.target.value)}
+              className="w-full p-4 bg-orange-50 border border-orange-200 rounded-xl font-black text-center tracking-[0.5em] text-lg outline-none focus:ring-2 focus:ring-orange-500 transition-all text-slate-800" 
+              required
             />
           </div>
         )}
 
         <button type="submit" disabled={loading} className="w-full h-14 mt-2 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95">
-          {loading ? (isResetMode ? 'পাঠানো হচ্ছে...' : 'লগইন হচ্ছে...') : (isResetMode ? 'রিসেট লিংক পাঠান ✉️' : 'লগইন করুন')}
+          {loading ? 'প্রসেসিং...' : (otpSent ? 'লগইন করুন 🚀' : 'OTP পাঠান ✉️')}
         </button>
       </form>
 
-      {/* 🔴 ব্যাক টু লগইন বাটন (শুধু রিসেট মোডে দেখাবে) */}
-      {isResetMode && (
-        <button onClick={() => setIsResetMode(false)} className="text-xs font-bold text-slate-400 hover:text-slate-800 underline mt-4 block mx-auto">
-          ← লগইন পেজে ফিরে যান
+      {/* ইমেইল ভুল হলে ব্যাকে যাওয়ার অপশন */}
+      {otpSent && (
+        <button 
+          onClick={() => { setOtpSent(false); setOtp(''); }} 
+          className="text-xs font-bold text-slate-400 hover:text-slate-800 underline mt-4 block mx-auto"
+        >
+          ← অন্য ইমেইল ব্যবহার করুন
         </button>
       )}
     </div>
