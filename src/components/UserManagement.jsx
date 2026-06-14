@@ -34,7 +34,7 @@ const UserManagement = () => {
   };
 
   // 🔴 আপডেট করা সাইন-আপ মেথড
-  const handleCreateUser = async (e) => {
+const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUser.emp_id || !newUser.name || !newUser.email || !newUser.password) {
       return alert("সবগুলো ঘর পূরণ করুন!");
@@ -42,7 +42,20 @@ const UserManagement = () => {
 
     setLoading(true);
     try {
-      // ১. স্পেশাল ক্লায়েন্ট দিয়ে একাউন্ট তৈরি (এতে আপনার এডমিন সেশন ঠিক থাকবে)
+      // ১. 🔴 প্রথমে ডাটাবেজে (users টেবিলে) এন্ট্রি করুন (যাতে ট্রিগার একে চিনতে পারে)
+      const payload = {
+        emp_id: newUser.emp_id.trim().toUpperCase(),
+        name: newUser.name.trim(),
+        email: newUser.email.trim(),
+        password: newUser.password.trim(), 
+        role: newUser.role,
+        is_active: true
+      };
+
+      const { error: dbError } = await supabase.from('users').insert([payload]);
+      if (dbError) throw dbError;
+
+      // ২. 🔴 এরপর স্পেশাল ক্লায়েন্ট দিয়ে Auth একাউন্ট তৈরি করুন
       const { data: authData, error: authError } = await authAdminClient.auth.signUp({
         email: newUser.email.trim(),
         password: newUser.password.trim(),
@@ -55,20 +68,11 @@ const UserManagement = () => {
         }
       });
 
-      if (authError) throw authError;
-
-      // ২. মেইন সুপাবেজ ক্লায়েন্ট দিয়ে ডাটাবেজে এন্ট্রি (যেহেতু আপনি এডমিন, এটি RLS পাস করবে)
-      const payload = {
-        emp_id: newUser.emp_id.trim().toUpperCase(),
-        name: newUser.name.trim(),
-        email: newUser.email.trim(),
-        password: newUser.password.trim(), 
-        role: newUser.role,
-        is_active: true
-      };
-
-      const { error: dbError } = await supabase.from('users').insert([payload]);
-      if (dbError) throw dbError;
+      // যদি Auth এ কোনো সমস্যা হয়, তবে ডাটাবেজ থেকেও ডিলিট করে দিন (Rollback)
+      if (authError) {
+        await supabase.from('users').delete().eq('email', newUser.email.trim());
+        throw authError;
+      }
 
       alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন!`);
       setNewUser({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
