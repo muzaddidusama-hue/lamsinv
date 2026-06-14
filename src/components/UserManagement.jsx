@@ -86,60 +86,43 @@ const UserManagement = () => {
   };
 
   // 🔴 ইউজার ডিলিট মেথড (Auth + Database)
-  const deleteUser = async (userId, userEmail, empName) => {
+const deleteUser = async (userId, userEmail, empName) => {
     if (!window.confirm(`সতর্কতা! আপনি কি নিশ্চিতভাবে ${empName}-এর একাউন্টটি মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`)) return;
 
     setLoading(true);
     try {
-      // ১. Auth সিস্টেম থেকে ইউজার খুঁজে বের করে ডিলিট করা
+      console.log("Checking Service Role Key...");
+      
+      // ১. Auth সিস্টেম থেকে ইউজার লিস্ট আনা (Service Role Key ছাড়া এটি কাজ করবে না)
       const { data: authUsers, error: listErr } = await authAdminClient.auth.admin.listUsers();
-      if (!listErr && authUsers?.users) {
+      
+      // 🔴 যদি Service Role Key লোড না হয় বা ভুল থাকে, এখানেই ধরা পড়বে!
+      if (listErr) {
+        console.error("Auth Admin Error:", listErr);
+        throw new Error("Service Role Key কাজ করছে না! টার্মিনাল বন্ধ করে আবার 'npm run dev' দিন।");
+      }
+
+      // ২. ইমেইল দিয়ে Auth User খুঁজে বের করা এবং ডিলিট করা
+      if (authUsers && authUsers.users) {
         const authUser = authUsers.users.find(u => u.email === userEmail);
+        
         if (authUser) {
           const { error: authDelErr } = await authAdminClient.auth.admin.deleteUser(authUser.id);
-          if (authDelErr) throw authDelErr;
+          if (authDelErr) throw new Error("Auth থেকে মুছতে সমস্যা: " + authDelErr.message);
+          console.log("✅ Auth থেকে সফলভাবে ডিলিট হয়েছে!");
+        } else {
+          console.log("⚠️ Auth সিস্টেমে এই ইমেইলের কাউকে পাওয়া যায়নি, স্কিপ করা হলো।");
         }
       }
 
-      // ২. ডাটাবেজের 'users' টেবিল থেকে ডিলিট করা
+      // ৩. এরপর ডাটাবেজের 'users' টেবিল থেকে ডিলিট করা
       const { error: dbError } = await supabase.from('users').delete().eq('id', userId);
-      if (dbError) throw dbError;
+      if (dbError) throw new Error("Database থেকে মুছতে সমস্যা: " + dbError.message);
       
-      alert("✅ এমপ্লয়ী সফলভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে!");
+      alert("✅ এমপ্লয়ী সফলভাবে ডাটাবেজ এবং Auth উভয় জায়গা থেকে মুছে ফেলা হয়েছে!");
       fetchUsers();
     } catch (err) {
-      alert("ডিলিট করতে সমস্যা হয়েছে: " + err.message);
-    }
-    setLoading(false);
-  };
-
-  const startEdit = (user) => {
-    setEditingUserId(user.id);
-    setEditForm({ name: user.name, email: user.email || '', role: user.role });
-  };
-
-  const handleUpdateUser = async (e) => {
-    e.preventDefault();
-    if (!editForm.name.trim() || !editForm.email.trim()) return alert("নাম এবং ইমেইল অবশ্যই দিতে হবে!");
-
-    setLoading(true);
-    try {
-      const { error } = await supabase
-        .from('users')
-        .update({
-          name: editForm.name.trim(),
-          email: editForm.email.trim(),
-          role: editForm.role
-        })
-        .eq('id', editingUserId);
-
-      if (error) throw error;
-
-      alert("✅ এমপ্লয়ী প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
-      setEditingUserId(null); 
-      fetchUsers();
-    } catch (err) {
-      alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
+      alert("❌ ডিলিট বাতিল হয়েছে: " + err.message);
     }
     setLoading(false);
   };
