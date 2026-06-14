@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient'; // 🔴 এই লাইনটি মিসিং ছিল!
+import { supabase } from './supabaseClient';
 import PublicCatalog from './components/PublicCatalog';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
@@ -7,30 +7,37 @@ import Login from './components/Login';
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  
-  // এমপ্লয়ীর অতিরিক্ত মেটাডাটা ট্র্যাকিং স্টেট
   const [userRole, setUserRole] = useState('Staff');
   const [userName, setUserName] = useState('');
 
-  // 🔄 অটো-লগইন সিঙ্ক: পেজ রিলোড দিলেও যেন লগইন সেশন গায়েব না হয়
+  // 🔴 নতুন: পাসওয়ার্ড রিকভারি স্টেট
+  const [recoveryMode, setRecoveryMode] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
   useEffect(() => {
-    // ১. পেজ লোড হওয়ার সাথে সাথে কারেন্ট সেশন চেক করা
+    // কারেন্ট সেশন চেক
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setIsAdmin(true);
-        setUserRole(session.user.user_metadata.role);
-        setUserName(session.user.user_metadata.name);
+        setUserRole(session.user.user_metadata?.role || 'Staff');
+        setUserName(session.user.user_metadata?.name || 'Admin');
       }
     });
 
-    // ২. লাইভ লগইন/লগআউট স্ট্যাটাস ট্র্যাক করা
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // লাইভ ইভেন্ট ট্র্যাকার
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      
+      // 🔴 পাসওয়ার্ড রিকভারি ইভেন্ট ধরা
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecoveryMode(true);
+      }
+
       if (session) {
         setIsAdmin(true);
-        setUserRole(session.user.user_metadata.role);
-        setUserName(session.user.user_metadata.name);
+        setUserRole(session.user.user_metadata?.role || 'Staff');
+        setUserName(session.user.user_metadata?.name || 'Admin');
       } else {
-        // সেশন না থাকলে (লগআউট করলে) সব রিসেট
         setIsAdmin(false);
         setUserRole('Staff');
         setUserName('');
@@ -40,27 +47,73 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 🔓 নতুন আইডি-পাসওয়ার্ড লগইন সফল হলে এই ফাংশনটি ট্রিগার হবে
   const handleLoginSuccess = (user) => {
     setIsAdmin(true);
     setUserRole(user.role);
     setUserName(user.name);
-    setShowLogin(false); // লগইন পপ-আপ বন্ধ হবে
+    setShowLogin(false);
   };
 
-  // 🔒 লগআউট মেকানিজম (সুপাবেজ সেশন ক্লিয়ার করবে)
   const handleLogout = async () => {
     await supabase.auth.signOut();
     alert("সফলভাবে লগআউট হয়েছে!");
   };
 
+  // 🔴 নতুন পাসওয়ার্ড সেভ করার ফাংশন
+  const handleUpdateRecoveryPassword = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) return alert("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে!");
+
+    setUpdatingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      alert("✅ সফলভাবে নতুন পাসওয়ার্ড সেট করা হয়েছে!");
+      setRecoveryMode(false); // মডাল বন্ধ
+      setNewPassword(''); // ফিল্ড রিসেট
+    } catch (err) {
+      alert("পাসওয়ার্ড আপডেট করতে সমস্যা হয়েছে: " + err.message);
+    }
+    setUpdatingPassword(false);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
+      {/* 🔴 পাসওয়ার্ড রিকভারি মডাল (সবার উপরে দেখাবে) */}
+      {recoveryMode && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95">
+            <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+              🔒
+            </div>
+            <h2 className="text-2xl font-black text-center text-slate-800 mb-2">নতুন পাসওয়ার্ড সেট করুন</h2>
+            <p className="text-xs text-center text-slate-500 mb-6 font-bold">আপনার অ্যাকাউন্টের জন্য একটি নতুন এবং শক্তিশালী পাসওয়ার্ড দিন।</p>
+            
+            <form onSubmit={handleUpdateRecoveryPassword} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">New Password</label>
+                <input 
+                  type="text" 
+                  placeholder="নতুন পাসওয়ার্ড লিখুন (কমপক্ষে ৬ অক্ষর)" 
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all text-slate-800" 
+                  required
+                />
+              </div>
+              <button type="submit" disabled={updatingPassword} className="w-full py-4 bg-slate-900 hover:bg-orange-600 text-white rounded-xl font-black transition-all shadow-lg active:scale-95 uppercase tracking-wider text-sm mt-2">
+                {updatingPassword ? 'আপডেট হচ্ছে...' : 'পাসওয়ার্ড সেভ করুন'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ইউজার লগইন অবস্থায় থাকলে এডমিন প্যানেল দেখাবে */}
       {isAdmin ? (
         <div className="min-h-screen flex flex-col">
-          {/* 🔝 টপ ইউজার স্ট্যাটাস বার */}
           <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center text-xs font-bold shadow-inner">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -70,35 +123,27 @@ function App() {
                 {userRole}
               </span>
             </div>
-            <p className="text-slate-400 font-medium">LAMS Power ERP Panel</p>
+            <p className="text-slate-400 font-medium hidden md:block">LAMS Power ERP Panel</p>
           </div>
 
-          {/* আপনার মূল এডমিন প্যানেল এবং কাস্টম লগআউট অ্যাকশন */}
           <div className="flex-1">
             <AdminPanel onLogout={handleLogout} currentUserRole={userRole} currentUserName={userName} />
           </div>
         </div>
       ) : (
-        // লগইন না থাকলে সাধারণ ক্যাটালগ ভিউ
         <>
           <PublicCatalog onAdminClick={() => setShowLogin(true)} />
           
-          {/* 🎯 স্টাফ এক্সেস বাটনে চাপ দিলে নতুন মডার্ন লগইন উইন্ডোটি ওপেন হবে */}
           {showLogin && (
             <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
               <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-2 animate-in zoom-in-95 duration-300">
-                
-                {/* ক্যানসেল বাটন */}
                 <button 
                   onClick={() => setShowLogin(false)} 
                   className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 font-bold text-sm p-2 z-50"
                 >
                   ✕ বাতিল
                 </button>
-
-                {/* লগইন কম্পোনেন্ট কানেক্টেড */}
                 <Login onLoginSuccess={handleLoginSuccess} />
-                
               </div>
             </div>
           )}
