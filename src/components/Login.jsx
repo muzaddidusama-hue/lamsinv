@@ -6,41 +6,38 @@ const Login = ({ onLoginSuccess }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e) => {
+const handleLogin = async (e) => {
     e.preventDefault();
-    if (!empId.trim() || !password.trim()) return alert("আইডি এবং পাসওয়ার্ড দুটিই দিন!");
+    if (!empId.trim() || !password.trim()) return alert("ইমেইল এবং পাসওয়ার্ড দুটিই দিন!");
 
     setLoading(true);
     try {
-      const { data: user, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('emp_id', empId.trim().toUpperCase())
-        .eq('password', password.trim())
-        .maybeSingle();
+      // 🔴 সুপাবেজের অফিশিয়াল সাইন-ইন মেথড
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: empId.trim(), // empId স্টেটেই আমরা ইমেইল নিচ্ছি
+        password: password.trim(),
+      });
 
       if (error) throw error;
 
-      if (!user) {
-        alert("❌ ভুল ইউজার আইডি অথবা পাসওয়ার্ড!");
-      } else if (!user.is_active) {
-        alert("🔒 আপনার অ্যাকাউন্টটি এডমিন দ্বারা ব্লক করা হয়েছে! সিইও বা এডমিনের সাথে যোগাযোগ করুন।");
-      } else {
-        localStorage.setItem('isLamsAdmin', 'true');
-        localStorage.setItem('user_role', user.role);
-        localStorage.setItem('user_name', user.name);
-        localStorage.setItem('user_emp_id', user.emp_id);
-        
-        alert(`🎉 স্বাগতম, ${user.name}!`);
-        onLoginSuccess(user);
-      }
+      // লগইন সফল হলে ইউজারের মেটাডাটা থেকে রোল ও নাম বের করা
+      const userMeta = data.user.user_metadata;
+      
+      alert(`🎉 স্বাগতম, ${userMeta.name}!`);
+      
+      // App.jsx কে জানিয়ে দেওয়া যে লগইন সফল
+      onLoginSuccess({
+        role: userMeta.role,
+        name: userMeta.name,
+        emp_id: userMeta.emp_id
+      });
+      
     } catch (err) {
       console.error(err);
-      alert("লগইন করতে সমস্যা হয়েছে: " + err.message);
+      alert("❌ লগইন করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
-
   return (
     // 🔴 ফুল-স্ক্রিন এবং ডাবল বক্স বাদ দিয়ে শুধু ফর্মের অংশটুকু রাখা হয়েছে
     <div className="w-full text-center space-y-6 px-4 py-6" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -56,8 +53,8 @@ const Login = ({ onLoginSuccess }) => {
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Employee ID</label>
           <input 
-            type="text" 
-            placeholder="যেমন: ADMIN100 বা EMP101" 
+            type="email" 
+            placeholder="যেমন: example@lams.com" 
             value={empId}
             onChange={e => setEmpId(e.target.value)}
             className="w-full p-4 bg-slate-50 border rounded-xl font-bold uppercase outline-none focus:ring-2 focus:ring-slate-900 transition-all" 

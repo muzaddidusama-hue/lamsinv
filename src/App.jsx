@@ -12,33 +12,37 @@ function App() {
   const [userName, setUserName] = useState('');
 
   // 🔄 অটো-লগইন সিঙ্ক: পেজ রিলোড দিলেও যেন লগইন সেশন গায়েব না হয়
-  useEffect(() => {
-    const savedLogin = localStorage.getItem('isLamsAdmin');
-    const savedRole = localStorage.getItem('user_role');
-    const savedName = localStorage.getItem('user_name');
+useEffect(() => {
+    // ১. পেজ লোড হওয়ার সাথে সাথে কারেন্ট সেশন চেক করা
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setIsAdmin(true);
+        setUserRole(session.user.user_metadata.role);
+        setUserName(session.user.user_metadata.name);
+      }
+    });
 
-    if (savedLogin === 'true' && savedRole) {
-      setIsAdmin(true);
-      setUserRole(savedRole);
-      setUserName(savedName || '');
-    }
+    // ২. লাইভ লগইন/লগআউট স্ট্যাটাস ট্র্যাক করা
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setIsAdmin(true);
+        setUserRole(session.user.user_metadata.role);
+        setUserName(session.user.user_metadata.name);
+      } else {
+        // সেশন না থাকলে (লগআউট করলে) সব রিসেট
+        setIsAdmin(false);
+        setUserRole('Staff');
+        setUserName('');
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  // 🔓 নতুন আইডি-পাসওয়ার্ড লগইন সফল হলে এই ফাংশনটি ট্রিগার হবে
-  const handleLoginSuccess = (user) => {
-    setIsAdmin(true);
-    setUserRole(user.role);
-    setUserName(user.name);
-    setShowLogin(false); // লগইন পপ-আপ বন্ধ হবে
-  };
-
-  // 🔒 লগআউট মেকানিজম (ব্রাউজার মেমোরি ক্লিয়ার করবে)
-  const handleLogout = () => {
-    localStorage.clear();
-    setIsAdmin(false);
-    setUserRole('Staff');
-    setUserName('');
-    alert("সফলভাবে লগআউট হয়েছে!");
+  // 🔒 লগআউট মেকানিজম আপডেট
+  const handleLogout = async () => {
+    await supabase.auth.signOut(); // সুপাবেজ থেকে লগআউট
+    alert("সফলভাবে লগআউট হয়েছে!");
   };
 
   return (

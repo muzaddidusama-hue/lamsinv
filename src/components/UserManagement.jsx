@@ -25,7 +25,7 @@ const UserManagement = () => {
     setNewUser({ ...newUser, [e.target.name]: e.target.value });
   };
 
-  // ১. নতুন এমপ্লয়ী যুক্ত করার ফাংশন
+  // 🔴 ১. নতুন এমপ্লয়ী যুক্ত করার ফাংশন (Supabase Auth + Custom Table Dual Sync)
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUser.emp_id || !newUser.name || !newUser.email || !newUser.password) {
@@ -34,19 +34,35 @@ const UserManagement = () => {
 
     setLoading(true);
     try {
+      // ক) সুপাবেজ অফিশিয়াল Auth-এ নতুন ইউজার অ্যাকাউন্ট তৈরি এবং মেটাডাটা পুশ
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: newUser.email.trim(),
+        password: newUser.password.trim(),
+        options: {
+          data: {
+            name: newUser.name.trim(),
+            role: newUser.role,
+            emp_id: newUser.emp_id.trim().toUpperCase()
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      // খ) আপনার বর্তমান UI লিস্ট ঠিক রাখার জন্য কাস্টম users টেবিলে রেকর্ড ইনসার্ট
       const payload = {
         emp_id: newUser.emp_id.trim().toUpperCase(),
         name: newUser.name.trim(),
         email: newUser.email.trim(),
-        password: newUser.password.trim(),
+        password: newUser.password.trim(), 
         role: newUser.role,
         is_active: true
       };
 
-      const { error } = await supabase.from('users').insert([payload]);
-      if (error) throw error;
+      const { error: dbError } = await supabase.from('users').insert([payload]);
+      if (dbError) throw dbError;
 
-      alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন!`);
+      alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন এবং অ্যাকাউন্ট তৈরি হয়েছে!`);
       setNewUser({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
       fetchUsers();
     } catch (err) {
@@ -79,20 +95,20 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      alert("✅ এমপ্লয়ী প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
-      setEditingUserId(null); // এডিট মোড অফ করা
+      alert("✅ এমপ্লয়ী প্রোফাইল সফলভাবে আপডেট করা হয়েছে!");
+      setEditingUserId(null); 
       fetchUsers();
     } catch (err) {
-      alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
+      alert("আপডেট করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
 
-  // ২. এক্সেস রিমুভ / ব্লক / অ্যাক্টিভেট করার ফাংশন
+  // ২. এক্সেস রিমুভ / блок / অ্যাক্টিভেট করার ফাংশন
   const toggleUserAccess = async (userId, currentStatus, empName) => {
     const msg = currentStatus 
       ? `আপনি কি নিশ্চিতভাবে ${empName}-এর এক্সেস রিমুভ/ব্লক করতে চান?` 
-      : `আপনি কি ${empName}-এর এক্সেস পুনরায় চালু করতে চান?`;
+      : `আপনি কি ${empName}-এর এক্সেস পুনরায় চালু করতে চান?`;
       
     if (!window.confirm(msg)) return;
 
@@ -104,7 +120,7 @@ const UserManagement = () => {
 
       if (error) throw error;
 
-      alert("✅ এক্সেস স্ট্যাটাস সফলভাবে পরিবর্তন হয়েছে!");
+      alert("✅ এক্সেস স্ট্যাটাস সফলভাবে পরিবর্তন হয়েছে!");
       fetchUsers();
     } catch (err) {
       alert("ত্রুটি: " + err.message);
@@ -125,11 +141,11 @@ const UserManagement = () => {
               </h3>
               <form onSubmit={handleUpdateUser} className="space-y-3 text-xs font-bold">
                 <div>
-                  <label className="text-slate-400 block mb-1">এমপ্লয়ীর নাম</label>
+                  <label className="text-slate-400 block mb-1">MK এমপ্লয়ীর নাম</label>
                   <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস (OTP এর জন্য)</label>
+                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস</label>
                   <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
@@ -158,8 +174,8 @@ const UserManagement = () => {
                   <input type="text" name="name" value={newUser.name} onChange={handleInputChange} placeholder="নাম লিখুন" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস (OTP এর জন্য)</label>
-                  <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder="example@gmail.com" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
+                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস (লগইন ইমেইল)</label>
+                  <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder="example@lams.com" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
                   <label className="text-slate-400 block mb-1">লগইন পাসওয়ার্ড</label>
@@ -214,7 +230,6 @@ const UserManagement = () => {
                       </span>
                     </td>
                     <td className="p-3 text-center flex items-center justify-center gap-2 pt-4">
-                      {/* ✏️ এডিট বাটন */}
                       <button 
                         onClick={() => startEdit(user)}
                         className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px] transition-colors"
@@ -229,7 +244,7 @@ const UserManagement = () => {
                           onClick={() => toggleUserAccess(user.id, user.is_active, user.name)}
                           className={`px-3 py-1.5 rounded-lg font-black text-[10px] text-white transition-all min-w-[85px] ${user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                         >
-                          {user.is_active ? '⛔ ব্লক' : '⚡ আনব্লক'}
+                          {user.is_active ? '⛔ক ব্লক' : '⚡ আনব্লক'}
                         </button>
                       )}
                     </td>

@@ -189,16 +189,16 @@ if (finalPhone) {
     setLoading(false);
   };
 
-  const handleQuickBillConfirm = async () => {
+const handleQuickBillConfirm = async () => {
     if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');
     
     setLoading(true);
     try {
       const finalBillNo = isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
 
+      // 🔴 ফিক্সড: item এর বদলে itm হবে এবং বাড়তি ব্র্যাকেট সরানো হয়েছে
       for (let itm of generatedData.items) {
-await supabase.rpc('update_product_stock', { prod_id: item.product_id, qty_change: -item.quantity });
-        }
+        await supabase.rpc('update_product_stock', { prod_id: itm.product_id, qty_change: -itm.quantity });
       }
 
       const { error } = await supabase.from('chalans').update({ 
