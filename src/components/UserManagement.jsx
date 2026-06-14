@@ -1,14 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from '../supabaseClient';
+
+// 🔴 স্পেশাল ক্লায়েন্ট: এটি অ্যাডমিনকে লগআউট না করেই নতুন ইউজার তৈরি করবে
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const authAdminClient = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false, // ব্রাউজারে সেশন সেভ করবে না
+    autoRefreshToken: false,
+  }
+});
 
 const UserManagement = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // নতুন ইউজার তৈরির ফরম স্টেট
   const [newUser, setNewUser] = useState({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
-  
-  // ⚙️ এডিট মোডের জন্য নতুন স্টেটসমূহ
   const [editingUserId, setEditingUserId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', email: '', role: '' });
 
@@ -25,7 +33,7 @@ const UserManagement = () => {
     setNewUser({ ...newUser, [e.target.name]: e.target.value });
   };
 
-  // 🔴 ১. নতুন এমপ্লয়ী যুক্ত করার ফাংশন (Supabase Auth + Custom Table Dual Sync)
+  // 🔴 আপডেট করা সাইন-আপ মেথড
   const handleCreateUser = async (e) => {
     e.preventDefault();
     if (!newUser.emp_id || !newUser.name || !newUser.email || !newUser.password) {
@@ -34,8 +42,8 @@ const UserManagement = () => {
 
     setLoading(true);
     try {
-      // ক) সুপাবেজ অফিশিয়াল Auth-এ নতুন ইউজার অ্যাকাউন্ট তৈরি এবং মেটাডাটা পুশ
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      // ১. স্পেশাল ক্লায়েন্ট দিয়ে একাউন্ট তৈরি (এতে আপনার এডমিন সেশন ঠিক থাকবে)
+      const { data: authData, error: authError } = await authAdminClient.auth.signUp({
         email: newUser.email.trim(),
         password: newUser.password.trim(),
         options: {
@@ -49,7 +57,7 @@ const UserManagement = () => {
 
       if (authError) throw authError;
 
-      // খ) আপনার বর্তমান UI লিস্ট ঠিক রাখার জন্য কাস্টম users টেবিলে রেকর্ড ইনসার্ট
+      // ২. মেইন সুপাবেজ ক্লায়েন্ট দিয়ে ডাটাবেজে এন্ট্রি (যেহেতু আপনি এডমিন, এটি RLS পাস করবে)
       const payload = {
         emp_id: newUser.emp_id.trim().toUpperCase(),
         name: newUser.name.trim(),
@@ -62,22 +70,20 @@ const UserManagement = () => {
       const { error: dbError } = await supabase.from('users').insert([payload]);
       if (dbError) throw dbError;
 
-      alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন এবং অ্যাকাউন্ট তৈরি হয়েছে!`);
+      alert(`🎉 এমপ্লয়ী ${payload.name} সফলভাবে যুক্ত হয়েছেন!`);
       setNewUser({ emp_id: '', name: '', email: '', password: '', role: 'Staff' });
       fetchUsers();
     } catch (err) {
-      alert("ত্রুটি: আইডি অথবা ইমেইলটি ইতিমধ্যে ব্যবহৃত হতে পারে। " + err.message);
+      alert("ত্রুটি হয়েছে: " + err.message);
     }
     setLoading(false);
   };
 
-  // 📝 এডিট মোড চালু করার হ্যান্ডলার
   const startEdit = (user) => {
     setEditingUserId(user.id);
     setEditForm({ name: user.name, email: user.email || '', role: user.role });
   };
 
-  // 💾 এডিট করা ডাটা ফাইনাল সেভ করার ফাংশন
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!editForm.name.trim() || !editForm.email.trim()) return alert("নাম এবং ইমেইল অবশ্যই দিতে হবে!");
@@ -104,7 +110,6 @@ const UserManagement = () => {
     setLoading(false);
   };
 
-  // ২. এক্সেস রিমুভ / блок / অ্যাক্টিভেট করার ফাংশন
   const toggleUserAccess = async (userId, currentStatus, empName) => {
     const msg = currentStatus 
       ? `আপনি কি নিশ্চিতভাবে ${empName}-এর এক্সেস রিমুভ/ব্লক করতে চান?` 
@@ -141,11 +146,11 @@ const UserManagement = () => {
               </h3>
               <form onSubmit={handleUpdateUser} className="space-y-3 text-xs font-bold">
                 <div>
-                  <label className="text-slate-400 block mb-1">MK এমপ্লয়ীর নাম</label>
+                  <label className="text-slate-400 block mb-1">এমপ্লয়ীর নাম</label>
                   <input type="text" value={editForm.name} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস</label>
+                  <label className="text-slate-400 block mb-1">লগইন ইমেইল</label>
                   <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email: e.target.value})} className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
@@ -174,7 +179,7 @@ const UserManagement = () => {
                   <input type="text" name="name" value={newUser.name} onChange={handleInputChange} placeholder="নাম লিখুন" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
-                  <label className="text-slate-400 block mb-1">জিমেইল অ্যাড্রেস (লগইন ইমেইল)</label>
+                  <label className="text-slate-400 block mb-1">লগইন ইমেইল</label>
                   <input type="email" name="email" value={newUser.email} onChange={handleInputChange} placeholder="example@lams.com" className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold" required />
                 </div>
                 <div>
@@ -244,7 +249,7 @@ const UserManagement = () => {
                           onClick={() => toggleUserAccess(user.id, user.is_active, user.name)}
                           className={`px-3 py-1.5 rounded-lg font-black text-[10px] text-white transition-all min-w-[85px] ${user.is_active ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}`}
                         >
-                          {user.is_active ? '⛔ক ব্লক' : '⚡ আনব্লক'}
+                          {user.is_active ? '⛔ ব্লক' : '⚡ আনব্লক'}
                         </button>
                       )}
                     </td>
