@@ -10,17 +10,18 @@ const Login = ({ onLoginSuccess }) => {
   const [otpSent, setOtpSent] = useState(false); 
 
   // ১. OTP পাঠানোর ফাংশন
-  const handleSendOtp = async (e) => {
+const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!email.trim()) return alert("দয়া করে আপনার ইমেইলটি দিন!");
 
     setLoading(true);
     try {
-      // 🔴 সুপাবেজ OTP রিকোয়েস্ট
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          shouldCreateUser: false, // 🔒 সিকিউরিটি: বাইরের কেউ নতুন একাউন্ট খুলতে পারবে না
+          shouldCreateUser: false,
+          // 🔴 এই লাইনটি যোগ করুন: এটি সুপাবেজকে বলবে যেন লিংকের বদলে শুধু কোড পাঠায়
+          emailRedirectTo: undefined, 
         }
       });
 
