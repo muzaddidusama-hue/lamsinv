@@ -278,32 +278,6 @@ const UserManagement = () => {
                         </button>
                       )}
                     </td>
-
-                      <td className="p-3 text-center flex items-center justify-center gap-2 pt-4">
-  <button onClick={() => startEdit(user)} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[10px]">✏️</button>
-  
-  {user.emp_id === 'ADMIN100' ? (
-    <span className="text-[10px] italic text-slate-400">মাস্টার ওনার</span>
-  ) : (
-    <>
-      <button
-        onClick={() => toggleUserAccess(user.id, user.is_active, user.name)}
-        className={`px-3 py-1.5 rounded-lg font-black text-[10px] text-white ${user.is_active ? 'bg-red-600' : 'bg-green-600'}`}
-      >
-        {user.is_active ? '⛔ ব্লক' : '⚡ আনব্লক'}
-      </button>
-      
-      {/* 🔴 নতুন ডিলিট বাটন */}
-      <button 
-        onClick={() => deleteUser(user.id, user.email, user.name)}
-        className="bg-red-100 hover:bg-red-200 text-red-600 font-bold px-2.5 py-1.5 rounded-lg text-[10px]"
-      >
-        🗑️
-      </button>
-    </>
-  )}
-</td>
-
                   </tr>
                 ))}
               </tbody>
