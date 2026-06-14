@@ -20,20 +20,15 @@ const handleSendOtp = async (e) => {
         email: email.trim(),
         options: {
           shouldCreateUser: false,
-          // 🔴 এই লাইনটি যোগ করুন: এটি সুপাবেজকে বলবে যেন লিংকের বদলে শুধু কোড পাঠায়
-          emailRedirectTo: undefined, 
+          // 🔴 এই লাইনটি যোগ করুন: এটি লিংকের পরিবর্তে ওটিপি কোড পাঠানো নিশ্চিত করবে
+          emailRedirectTo: null, 
         }
       });
 
-      if (error) {
-        if (error.message.includes('Signups not allowed')) {
-            throw new Error("এই ইমেইলটি আমাদের সিস্টেমে রেজিস্টার করা নেই। এডমিনের সাথে যোগাযোগ করুন।");
-        }
-        throw error;
-      }
+      if (error) throw error;
 
-      alert("✅ আপনার ইমেইলে সিকিউরিটি কোড (OTP) পাঠানো হয়েছে! ইনবক্স বা স্প্যাম চেক করুন।");
-      setOtpSent(true); // OTP ইনপুট বক্স ওপেন করবে
+      alert("✅ আপনার ইমেইলে সিকিউরিটি কোড (OTP) পাঠানো হয়েছে!");
+      setOtpSent(true);
     } catch (err) {
       alert("ত্রুটি: " + err.message);
     }
