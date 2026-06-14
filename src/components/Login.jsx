@@ -5,12 +5,21 @@ const Login = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  // 🔴 OTP পাঠানো হয়েছে কিনা তা ট্র্যাক করার স্টেট
   const [otpSent, setOtpSent] = useState(false); 
 
-  // ১. OTP পাঠানোর ফাংশন
-const handleSendOtp = async (e) => {
+  // গুগল লগইন ফাংশন
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    if (error) alert("গুগল লগইনে সমস্যা: " + error.message);
+    setLoading(false);
+  };
+
+  // OTP পাঠানো
+  const handleSendOtp = async (e) => {
     e.preventDefault();
     if (!email.trim()) return alert("দয়া করে আপনার ইমেইলটি দিন!");
 
@@ -18,15 +27,9 @@ const handleSendOtp = async (e) => {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: {
-          shouldCreateUser: false,
-          // 🔴 এই লাইনটি যোগ করুন: এটি লিংকের পরিবর্তে ওটিপি কোড পাঠানো নিশ্চিত করবে
-          emailRedirectTo: null, 
-        }
+        options: { shouldCreateUser: false, emailRedirectTo: null }
       });
-
       if (error) throw error;
-
       alert("✅ আপনার ইমেইলে সিকিউরিটি কোড (OTP) পাঠানো হয়েছে!");
       setOtpSent(true);
     } catch (err) {
@@ -35,35 +38,28 @@ const handleSendOtp = async (e) => {
     setLoading(false);
   };
 
-  // ২. OTP ভেরিফাই করে লগইন করার ফাংশন
+  // OTP ভেরিফাই
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
     if (!otp.trim()) return alert("দয়া করে OTP কোডটি দিন!");
 
     setLoading(true);
     try {
-      // 🔴 OTP মিলিয়ে দেখা
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.trim(),
         token: otp.trim(),
         type: 'email'
       });
-
       if (error) throw error;
 
-      // লগইন সফল!
       const userMeta = data.user.user_metadata;
-      alert(`🎉 স্বাগতম, ${userMeta.name || 'Admin'}!`);
-      
       onLoginSuccess({
         role: userMeta.role || 'Admin',
         name: userMeta.name || 'Admin',
         emp_id: userMeta.emp_id || 'ADMIN'
       });
-      
     } catch (err) {
-      console.error(err);
-      alert("❌ কোডটি ভুল অথবা মেয়াদোত্তীর্ণ হয়েছে! আবার চেষ্টা করুন।");
+      alert("❌ কোডটি ভুল অথবা মেয়াদোত্তীর্ণ!");
     }
     setLoading(false);
   };
@@ -74,14 +70,10 @@ const handleSendOtp = async (e) => {
       
       <div>
         <h2 className="text-2xl font-black text-slate-800 uppercase">LAMS Power</h2>
-        <p className="text-xs text-slate-400 mt-1">
-          {otpSent ? 'আপনার ইমেইলে পাঠানো কোডটি লিখুন' : 'লগইন করতে আপনার ইমেইল ঠিকানা দিন'}
-        </p>
+        <p className="text-xs text-slate-400 mt-1">{otpSent ? 'আপনার ইমেইলে পাঠানো কোডটি লিখুন' : 'লগইন করতে আপনার ইমেইল ঠিকানা দিন'}</p>
       </div>
 
       <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4 text-left mt-4">
-        
-        {/* ইমেইল ইনপুট (OTP পাঠানোর আগে দেখাবে, অথবা OTP পাঠানোর পর Readonly হয়ে যাবে) */}
         <div className="space-y-1">
           <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Email Address</label>
           <input 
@@ -89,13 +81,12 @@ const handleSendOtp = async (e) => {
             placeholder="example@lamspower.com" 
             value={email}
             onChange={e => setEmail(e.target.value)}
-            disabled={otpSent} // OTP পাঠানোর পর ইমেইল এডিট করা যাবে না
+            disabled={otpSent}
             className={`w-full p-4 border rounded-xl font-bold outline-none transition-all ${otpSent ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-50 focus:ring-2 focus:ring-slate-900'}`} 
             required
           />
         </div>
         
-        {/* OTP ইনপুট বক্স (শুধুমাত্র OTP পাঠানোর পর দেখাবে) */}
         {otpSent && (
           <div className="space-y-1 animate-in slide-in-from-bottom-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1">Security Code (OTP)</label>
@@ -110,17 +101,32 @@ const handleSendOtp = async (e) => {
           </div>
         )}
 
-        <button type="submit" disabled={loading} className="w-full h-14 mt-2 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95">
+        <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95">
           {loading ? 'প্রসেসিং...' : (otpSent ? 'লগইন করুন 🚀' : 'OTP পাঠান ✉️')}
         </button>
       </form>
 
-      {/* ইমেইল ভুল হলে ব্যাকে যাওয়ার অপশন */}
+      {/* 🔴 গুগল লগইন সেপারেটর */}
+      {!otpSent && (
+        <>
+          <div className="flex items-center gap-4 py-2">
+            <div className="flex-1 h-px bg-slate-200"></div>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">অথবা</span>
+            <div className="flex-1 h-px bg-slate-200"></div>
+          </div>
+          
+          <button 
+            onClick={handleGoogleLogin}
+            className="w-full h-14 border-2 border-slate-200 hover:border-slate-900 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all"
+          >
+            <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+            Continue with Google
+          </button>
+        </>
+      )}
+
       {otpSent && (
-        <button 
-          onClick={() => { setOtpSent(false); setOtp(''); }} 
-          className="text-xs font-bold text-slate-400 hover:text-slate-800 underline mt-4 block mx-auto"
-        >
+        <button onClick={() => { setOtpSent(false); setOtp(''); }} className="text-xs font-bold text-slate-400 hover:text-slate-800 underline mt-4 block mx-auto">
           ← অন্য ইমেইল ব্যবহার করুন
         </button>
       )}
