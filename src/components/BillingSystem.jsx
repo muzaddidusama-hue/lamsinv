@@ -3,6 +3,7 @@ import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
+import { logAction } from '../utils/logger';
 
 const BillingSystem = () => {
   const [house, setHouse] = useState('Head Office'); 
@@ -36,6 +37,25 @@ const BillingSystem = () => {
   const [manualBillNo, setManualBillNo] = useState('');
 
   useEffect(() => { fetchAvailableProducts(); }, [house]);
+
+useEffect(() => {
+const handleGlobalShortcuts = (e) => {
+      // ⌨️ Ctrl + S চাপলে বিল/চালান জেনারেট হবে
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault(); // ব্রাউজারের ডিফল্ট সেভ উইন্ডো বন্ধ করবে
+        if (cart.length > 0) handleGenerateChallan();
+      }
+      
+      // ⌨️ Escape (Esc) চাপলে যেকোনো মডাল/পপ-আপ বন্ধ হবে
+      if (e.key === 'Escape') {
+        setShowSuccessModal(false);
+        setQuickBillMode(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalShortcuts);
+    return () => window.removeEventListener('keydown', handleGlobalShortcuts);
+  }, [cart, isInHouse]); // ডিপেন্ডেন্সিগুলো দিতে হবে
 
   const fetchAvailableProducts = async () => {
     const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0);
@@ -167,6 +187,7 @@ if (finalPhone) {
       }]).select().single();
 
       if (chalanErr) throw chalanErr;
+      await logAction("Challan Created", `Challan No: ${chalanNo} generated for ${finalName}`);
 
       const itemsForPrint = [];
       for (let item of cart) {
@@ -208,6 +229,8 @@ const handleQuickBillConfirm = async () => {
       }).eq('id', generatedData.chalan.id);
       
       if (error) throw error;
+      
+      await logAction("Bill Created", `Bill No: ${finalBillNo} created. Payment: ${paymentMethod}. Total: ${generatedData.chalan.total_amount} Tk`);
       
       alert(`✅ বিল তৈরি হয়েছে! নং: ${finalBillNo}`);
       
