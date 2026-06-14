@@ -12,18 +12,19 @@ const Reports = () => {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   
-  const [allCustomers, setAllCustomers] = useState([]);
+  // কাস্টমার স্টেট (অপ্রয়োজনীয় allCustomers রিমুভ করা হয়েছে)
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerSuggestions, setCustomerSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  // প্রোডাক্ট স্টেট
   const [allProducts, setAllProducts] = useState([]);
   const [rawProducts, setRawProducts] = useState([]); 
   const [productSearch, setProductSearch] = useState('');
   const [productSuggestions, setProductSuggestions] = useState([]);
   const [showProductSuggestions, setShowProductSuggestions] = useState(false);
 
-  // 🔴 আপডেট: সমন্বিত ট্রানজেকশন স্টেট
+  // ট্রানজেকশন ও লেজার স্টেট
   const [allTransactions, setAllTransactions] = useState([]); 
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
@@ -72,11 +73,9 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  // 🔴 আপডেট: সমন্বিত লেজার সামারি
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
-    // 1. ডাটাবেজ থেকে বর্তমান রিয়েল স্টক সেট করা
     rawProducts.forEach(p => {
       const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
       const key = getStandardKey(fullName);
@@ -87,7 +86,6 @@ const Reports = () => {
       summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
     });
 
-    // 2. ট্রানজেকশন হিস্ট্রি থেকে টোটাল ইন ও আউট কাউন্ট করা
     allTransactions.forEach(t => {
       if (!t.product) return;
       const key = getStandardKey(t.product);
@@ -105,7 +103,6 @@ const Reports = () => {
 
   const ledgerSummaryList = getLedgerSummary();
 
-  // 🔴 আপডেট: স্পেসিফিক প্রোডাক্টের ডিটেইলড লেজার
   const getIndividualLedgerHistory = () => {
     if (!ledgerSearch) return [];
     const targetKey = getStandardKey(ledgerSearch);
@@ -126,27 +123,25 @@ const Reports = () => {
     })
     .sort((a, b) => b.amount - a.amount) : [];
 
+  // রিপোর্ট জেনারেট লজিক
   useEffect(() => {
     generateReport();
   }, [startDate, endDate]); 
 
+  // 🔴 পারফরম্যান্স আপডেট: LAZY LOADING
+  // শুধুমাত্র যে ট্যাবে ডেটা দরকার, সেই ট্যাবে গেলেই ডাটাবেজ কল হবে
   useEffect(() => {
-    if (reportType === 'serial_history') fetchInvSerials();
+    if (reportType === 'serial_history' && invSerials.length === 0) {
+      fetchInvSerials();
+    }
+    if ((reportType === 'ledger_report' || reportType === 'product_wise') && rawProducts.length === 0) {
+      fetchAllProducts();
+    }
   }, [reportType]);
 
   const fetchInvSerials = async () => {
     const { data } = await supabase.from('inv_sl').select('*').order('created_at', { ascending: false });
     if (data) setInvSerials(data);
-  };
-
-  useEffect(() => {
-    fetchAllCustomers(); 
-    fetchAllProducts(); 
-  }, []);
-
-  const fetchAllCustomers = async () => {
-    const { data } = await supabase.from('customers').select('id, name, phone').order('name', { ascending: true });
-    if (data) setAllCustomers(data);
   };
 
   const fetchAllProducts = async () => {
@@ -182,12 +177,10 @@ const Reports = () => {
       if (error) throw error;
       processReportData(chalans || []);
 
-      // 🔴 আপডেট: ট্রানজেকশন (In/Out) লজিক ঢেলে সাজানো হয়েছে
       const extractedTrans = [];
       
       if (chalans) {
         chalans.forEach(ch => {
-          // ১. শুধু পেইড বিলগুলো (বিক্রয় / আউট)
           if (ch.status === 'paid' && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
@@ -206,32 +199,29 @@ const Reports = () => {
             });
           }
           
-          // ২. ট্রান্সফার রেকর্ড (এক হাউজ থেকে আরেক হাউজে)
           if (ch.status === 'completed' && ch.is_in_house && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               
-              // সোর্স হাউজ থেকে মাইনাস (Out)
               extractedTrans.push({
                 id: `tr_out_${ch.id}_${item.id}`,
                 date: ch.created_at ? ch.created_at.split('T')[0] : '',
                 timestamp: ch.created_at,
                 product: pName,
                 type: 'out',
-                house: ch.house, // যেখান থেকে যাচ্ছে
+                house: ch.house,
                 quantity: item.quantity,
                 source: `Transfer Out (To ${ch.transfer_to})`,
                 ref: `Chl: #${ch.chalan_no}`
               });
 
-              // ডেস্টিনেশন হাউজে প্লাস (In)
               extractedTrans.push({
                 id: `tr_in_${ch.id}_${item.id}`,
                 date: ch.created_at ? ch.created_at.split('T')[0] : '',
                 timestamp: ch.created_at,
                 product: pName,
                 type: 'in',
-                house: ch.transfer_to, // যেখানে যাচ্ছে
+                house: ch.transfer_to,
                 quantity: item.quantity,
                 source: `Transfer In (From ${ch.house})`,
                 ref: `Chl: #${ch.chalan_no}`
@@ -241,7 +231,6 @@ const Reports = () => {
         });
       }
 
-      // ৩. ম্যানুয়াল এন্ট্রি (লেজার টেবিল থেকে)
       const { data: ledger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -253,12 +242,12 @@ const Reports = () => {
         ledger.forEach(l => {
           extractedTrans.push({
             id: `leg_${l.id}`,
-            dbId: l.id, // ডিলিট করার জন্য ডাটাবেজ আইডি
+            dbId: l.id, 
             date: l.date,
             timestamp: l.in || l.date,
             product: l.product,
             type: l.type || 'in',
-            house: l.house || 'Head Office', // যদি হাউজ না থাকে
+            house: l.house || 'Head Office',
             quantity: parseInt(l.quantity) || 0,
             source: l.source || 'Import / Manual Entry',
             ref: 'Manual Entry'
@@ -344,7 +333,6 @@ const Reports = () => {
   };
 
   const selectCustomer = (cust) => { setCustomerSearch(cust.name); setShowSuggestions(false); };
-  const handleDropdownSelect = (e) => { setCustomerSearch(e.target.value); };
 
   const handleProductSearchAction = (e) => {
     const val = e.target.value;
@@ -517,22 +505,16 @@ const Reports = () => {
             </div>
           )}
 
+          {/* 🔴 পারফরম্যান্স ফিক্স: কাস্টমার পেজ থেকে ড্রপডাউন রিমুভ এবং ফুল উইডথ সার্চ */}
           {reportType === 'customer' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
+              <div className="bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 কাস্টোমার সার্চ (নাম/মোবাইল)</label>
-                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} placeholder="টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
+                  <input type="text" value={customerSearch} onChange={handleCustomerSearch} placeholder="নাম বা মোবাইল নম্বর টাইপ করুন..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showSuggestions && customerSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">{customerSuggestions.map(c => (<div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50/40 cursor-pointer">{c.name} — {c.phone}</div>))}</div>
                   )}
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 কাস্টোমার ড্রপডাউন সিলেকশন</label>
-                  <select value={customerSearch} onChange={handleDropdownSelect} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">লিস্টের সকল কাস্টোমার (All Active)</option>
-                    {allCustomers.map(c => (<option key={c.id} value={c.name}>{c.name} — {c.phone}</option>))}
-                  </select>
                 </div>
               </div>
               <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
@@ -548,6 +530,9 @@ const Reports = () => {
                           <td className="p-4 text-right text-emerald-600 font-black text-sm">{cust.amount} ৳</td>
                         </tr>
                       ))}
+                      {filteredCustomers.length === 0 && (
+                        <tr><td colSpan="3" className="p-8 text-center text-slate-400 italic">এই সময়ের মধ্যে কোনো কাস্টমার রেকর্ড নেই।</td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -555,22 +540,16 @@ const Reports = () => {
             </div>
           )}
 
+          {/* 🔴 পারফরম্যান্স ফিক্স: প্রোডাক্ট পেজ থেকে ড্রপডাউন রিমুভ এবং ফুল উইডথ সার্চ */}
           {reportType === 'product_wise' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
+              <div className="bg-slate-50 p-4 rounded-xl border">
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 প্রোডাক্ট সার্চ (নাম/মডেল)</label>
                   <input type="text" value={productSearch} onChange={handleProductSearchAction} onFocus={() => productSearch && setShowProductSuggestions(true)} onBlur={() => setTimeout(() => setShowProductSuggestions(false), 200)} placeholder="যেমন: Solar Panel..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
                   {showProductSuggestions && productSuggestions.length > 0 && (
                     <div className="absolute left-0 w-full mt-1 bg-white border rounded-xl shadow-xl z-50 overflow-hidden max-h-48 overflow-y-auto text-xs font-bold">{productSuggestions.map((p, i) => (<div key={i} onClick={() => { setProductSearch(p.fullName); setShowProductSuggestions(false); }} className="p-3 border-b hover:bg-orange-50 cursor-pointer">📦 {p.fullName}</div>))}</div>
                   )}
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 প্রোডাক্ট ড্রপডাউন সিলেকশন</label>
-                  <select value={productSearch} onChange={(e) => setProductSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
-                    <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
-                    {allProducts.map((p, i) => (<option key={i} value={p.fullName}>{p.fullName}</option>))}
-                  </select>
                 </div>
               </div>
               {productSearch ? (

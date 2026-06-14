@@ -197,9 +197,7 @@ if (finalPhone) {
       const finalBillNo = isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
 
       for (let itm of generatedData.items) {
-        const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
-        if (p) {
-          await supabase.from('products').update({ stock_quantity: p.stock_quantity - itm.quantity }).eq('id', p.id);
+await supabase.rpc('update_product_stock', { prod_id: item.product_id, qty_change: -item.quantity });
         }
       }
 
@@ -360,7 +358,7 @@ if (finalPhone) {
                         </div>
                       </td>
                       <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
-                      <td className="py-4 text-right"><button onClick={() => {const nc = [...cart]; nc.splice(idx, 1); setCart(nc);}} className="text-red-400 font-bold text-xl">×</button></td>
+                      <td className="py-4 text-right"> className="text-red-400 font-bold te<button onClick={() => setCart(cart.filter((_, i) => i !== idx))}>×</button></td>
                     </tr>
                   ))}
                 </tbody>

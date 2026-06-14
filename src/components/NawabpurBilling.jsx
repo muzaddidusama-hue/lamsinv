@@ -306,7 +306,7 @@ setCart([...cart, {
                         </div>
                       </td>
                       <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
-                      <td className="py-4 text-right"><button onClick={() => {const nc = [...cart]; nc.splice(idx, 1); setCart(nc);}} className="text-red-400 font-bold text-xl">×</button></td>
+                      <td className="py-4 text-right"><button onClick={() => setCart(cart.filter((_, i) => i !== idx))}>×</button></td>
                     </tr>
                   ))}
                 </tbody>

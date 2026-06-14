@@ -30,6 +30,8 @@ const LabelPrint = () => {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
+  const [paperSize, setPaperSize] = useState('A4');
+
   useEffect(() => {
     fetchTemplates();
   }, []);
@@ -165,7 +167,7 @@ const LabelPrint = () => {
           <title>Print Labels</title>
           <style>
             @media print {
-              @page { margin: 0; size: A4 portrait; }
+              @page { margin: 0; size: ${paperSize === 'A4' ? 'A4 portrait' : '100mm 150mm'}; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
               
               .a4-page {
