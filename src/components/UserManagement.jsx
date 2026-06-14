@@ -111,6 +111,28 @@ const UserManagement = () => {
   };
 
   const toggleUserAccess = async (userId, currentStatus, empName) => {
+
+    const deleteUser = async (userId, userEmail, empName) => {
+    if (!window.confirm(`সতর্কতা! আপনি কি নিশ্চিতভাবে ${empName}-এর একাউন্টটি ডাটাবেজ থেকে মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`)) return;
+
+    setLoading(true);
+    try {
+      // ১. ডাটাবেজের 'users' টেবিল থেকে মুছুন
+      const { error: dbError } = await supabase.from('users').delete().eq('id', userId);
+      if (dbError) throw dbError;
+
+      // ২. সুপাবেজ Auth থেকে মুছুন (এডমিন ক্লায়েন্ট ব্যবহার করে)
+      // নোট: ক্লায়েন্ট সাইড থেকে ডিলিট ইউজার করতে হলে সুপাবেজ Edge Functions ব্যবহার করা ভালো। 
+      // আপাতত, আপনি যদি সুপাবেজ ড্যাশবোর্ড থেকে মুছতে না চান, তবে শুধু ডাটাবেজ থেকে মুছুন।
+      
+      alert("✅ এমপ্লয়ী সফলভাবে সিস্টেম থেকে মুছে ফেলা হয়েছে!");
+      fetchUsers();
+    } catch (err) {
+      alert("ডিলিট করতে সমস্যা হয়েছে: " + err.message);
+    }
+    setLoading(false);
+  };
+
     const msg = currentStatus 
       ? `আপনি কি নিশ্চিতভাবে ${empName}-এর এক্সেস রিমুভ/ব্লক করতে চান?` 
       : `আপনি কি ${empName}-এর এক্সেস পুনরায় চালু করতে চান?`;
