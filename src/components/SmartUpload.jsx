@@ -295,9 +295,6 @@ const SmartUpload = () => {
         <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 mb-8 flex flex-col items-center relative">
           
           <div className="w-full text-center border-2 border-dashed border-slate-200 rounded-3xl p-8 mb-6 bg-slate-50 hover:bg-slate-100 transition-colors">
-            <p className="text-slate-500 font-bold mb-4">
-              🖼️ Click to browse, or <span className="text-orange-600 font-black px-2 py-1 bg-orange-100 rounded-lg">Ctrl + V</span> to paste an image here
-            </p>
             <input 
               type="file" 
               accept="image/*" 
