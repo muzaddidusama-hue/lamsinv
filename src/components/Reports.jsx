@@ -29,6 +29,8 @@ const Reports = () => {
   const [ledgerSearch, setLedgerSearch] = useState('');
   const [ledgerSuggestions, setLedgerSuggestions] = useState([]);
   const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
+  // 🔴 নতুন: লেজারের সাব-ট্যাব স্টেট
+  const [ledgerTab, setLedgerTab] = useState('total'); // 'total', 'ho', 'showroom'
 
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
   const [mrps, setMrps] = useState({});
@@ -73,7 +75,7 @@ const Reports = () => {
 
   const productWiseStats = getProductWiseStats();
 
-  // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন
+  // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন (হাউজ স্পেসিফিক আপডেট)
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
@@ -81,7 +83,13 @@ const Reports = () => {
       const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
       const key = getStandardKey(fullName);
       if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: fullName, totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+        summaryMap.set(key, { 
+          product: fullName, 
+          totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
+          hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
+          showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          stocks: { 'Head Office': 0, 'Showroom': 0 } 
+        });
       }
       const houseName = p.house || 'Head Office';
       summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
@@ -91,31 +99,67 @@ const Reports = () => {
       if (!t.product) return;
       const key = getStandardKey(t.product);
       if (!summaryMap.has(key)) {
-        summaryMap.set(key, { product: t.product, totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, stocks: { 'Head Office': 0, 'Showroom': 0 } });
+        summaryMap.set(key, { 
+          product: t.product, 
+          totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
+          hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
+          showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          stocks: { 'Head Office': 0, 'Showroom': 0 } 
+        });
       }
       
-      // পিরিয়ড এবং ফিউচার আলাদা করা হলো
+      const isHo = t.house === 'Head Office';
+      const isShow = t.house === 'Showroom';
+
       if (t.isFuture) {
-        if (t.type === 'in') summaryMap.get(key).futureIn += t.quantity;
-        if (t.type === 'out') summaryMap.get(key).futureOut += t.quantity;
+        if (t.type === 'in') {
+          summaryMap.get(key).futureIn += t.quantity;
+          if (isHo) summaryMap.get(key).hoFutureIn += t.quantity;
+          if (isShow) summaryMap.get(key).showFutureIn += t.quantity;
+        }
+        if (t.type === 'out') {
+          summaryMap.get(key).futureOut += t.quantity;
+          if (isHo) summaryMap.get(key).hoFutureOut += t.quantity;
+          if (isShow) summaryMap.get(key).showFutureOut += t.quantity;
+        }
       } else {
-        if (t.type === 'in') summaryMap.get(key).totalIn += t.quantity;
-        if (t.type === 'out') summaryMap.get(key).totalOut += t.quantity;
+        if (t.type === 'in') {
+          summaryMap.get(key).totalIn += t.quantity;
+          if (isHo) summaryMap.get(key).hoIn += t.quantity;
+          if (isShow) summaryMap.get(key).showIn += t.quantity;
+        }
+        if (t.type === 'out') {
+          summaryMap.get(key).totalOut += t.quantity;
+          if (isHo) summaryMap.get(key).hoOut += t.quantity;
+          if (isShow) summaryMap.get(key).showOut += t.quantity;
+        }
       }
     });
 
     const list = Array.from(summaryMap.values()).map(item => {
+      // Total Stock
       const currentStock = item.stocks['Head Office'] + item.stocks['Showroom'];
-      
-      // 🎯 ব্যাক-ক্যালকুলেশন করে সিলেক্টেড ডেটের ওপেনিং স্টক বের করা
       const openingStock = currentStock - item.totalIn + item.totalOut - item.futureIn + item.futureOut;
       const closingStock = openingStock + item.totalIn - item.totalOut;
 
-      return { ...item, currentStock, openingStock, closingStock };
+      // HO Stock
+      const hoOpening = item.stocks['Head Office'] - item.hoIn + item.hoOut - item.hoFutureIn + item.hoFutureOut;
+      const hoClosing = hoOpening + item.hoIn - item.hoOut;
+
+      // Showroom Stock
+      const showOpening = item.stocks['Showroom'] - item.showIn + item.showOut - item.showFutureIn + item.showFutureOut;
+      const showClosing = showOpening + item.showIn - item.showOut;
+
+      return { 
+        ...item, 
+        currentStock, openingStock, closingStock,
+        hoOpening, hoClosing,
+        showOpening, showClosing
+      };
     });
 
     return list
-      .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.openingStock > 0 || item.closingStock > 0)
+      .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.openingStock > 0 || item.closingStock > 0 || item.hoOpening > 0 || item.showOpening > 0 || item.hoClosing > 0 || item.showClosing > 0)
       .sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }));
   };
 
@@ -127,11 +171,26 @@ const Reports = () => {
     const targetKey = getStandardKey(ledgerSearch);
     
     return allTransactions
-      .filter(t => !t.isFuture && getStandardKey(t.product) === targetKey) // শুধুমাত্র ডেট রেঞ্জের ভেতরের ডেটা
+      .filter(t => !t.isFuture && getStandardKey(t.product) === targetKey) 
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   };
 
   const combinedLedgerHistory = getIndividualLedgerHistory();
+
+  // 🔴 বর্তমান সাব-ট্যাব অনুযায়ী ডাটা ফিল্টার
+  const filteredLedgerHistory = combinedLedgerHistory.filter(t => {
+    if (ledgerTab === 'total') return true;
+    if (ledgerTab === 'ho') return t.house === 'Head Office';
+    if (ledgerTab === 'showroom') return t.house === 'Showroom';
+    return true;
+  });
+
+  const getActiveTabValues = (item) => {
+    if (!item) return { open: 0, inp: 0, out: 0, close: 0 };
+    if (ledgerTab === 'ho') return { open: item.hoOpening, inp: item.hoIn, out: item.hoOut, close: item.hoClosing };
+    if (ledgerTab === 'showroom') return { open: item.showOpening, inp: item.showIn, out: item.showOut, close: item.showClosing };
+    return { open: item.openingStock, inp: item.totalIn, out: item.totalOut, close: item.closingStock };
+  };
 
   const filteredCustomers = reportData ? Object.values(reportData.customerStats)
     .filter(c => {
@@ -180,7 +239,7 @@ const Reports = () => {
       const { data: allChalans, error } = await supabase
         .from('chalans')
         .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`)
-        .gte('created_at', `${startDate}T00:00:00.000Z`); // 🔴 ভবিষ্যৎ ডেটা সহ ফেচ করা হচ্ছে
+        .gte('created_at', `${startDate}T00:00:00.000Z`);
 
       if (error) throw error;
       
@@ -227,7 +286,7 @@ const Reports = () => {
         });
       }
 
-      processReportData(periodChalans); // শুধুমাত্র পিরিয়ড চালান গুলো প্রসেস করা হলো
+      processReportData(periodChalans); 
 
       const { data: allLedger, error: ledgerErr } = await supabase
         .from('ledger')
@@ -412,7 +471,7 @@ const Reports = () => {
             { id: 'serial_history', label: 'ইনভার্টার সিরিয়াল' } 
           ].map(tab => (
             <button 
-              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); setSerialSearch(''); }}
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); setSerialSearch(''); setLedgerTab('total'); }}
               className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-bold text-[11px] transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
             >
               {tab.label}
@@ -586,17 +645,23 @@ const Reports = () => {
                 </div>
               </div>
 
+              {/* 🔴 নতুন যোগ করা ৩টি সাব-ট্যাব */}
+              <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-fit mt-2 mb-4">
+                <button onClick={() => setLedgerTab('total')} className={`flex-1 md:px-6 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all ${ledgerTab === 'total' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>মোট স্টক (Total)</button>
+                <button onClick={() => setLedgerTab('ho')} className={`flex-1 md:px-6 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all ${ledgerTab === 'ho' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>হেড অফিস (HO)</button>
+                <button onClick={() => setLedgerTab('showroom')} className={`flex-1 md:px-6 py-2.5 rounded-lg font-black text-[11px] uppercase tracking-wider transition-all ${ledgerTab === 'showroom' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>শোরুম</button>
+              </div>
+
               {!ledgerSearch ? (
                 <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
                   <div className="bg-slate-900 text-white font-black text-[10px] tracking-wider uppercase p-3.5 flex justify-between">
-                    <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা ({startDate} থেকে {endDate})</span>
+                    <span>স্টক ইন-আউট সার্বিক খতিয়ান তালিকা ({startDate} থেকে {endDate}) • {ledgerTab === 'total' ? 'All' : ledgerTab === 'ho' ? 'Head Office' : 'Showroom'}</span>
                   </div>
                   <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
                     <table className="w-full text-left text-xs border-collapse">
                       <thead className="sticky top-0 z-10 shadow-sm">
                         <tr className="bg-slate-50 border-b font-black text-slate-400 uppercase">
                           <th className="p-4 bg-slate-50">প্রোডাক্ট এর বিবরণ (নাম ও মডেল)</th>
-                          {/* 🔴 নতুন যোগ করা ওপেনিং ও ক্লোজিং কলাম */}
                           <th className="p-4 text-center bg-slate-100 text-slate-600">ওপেনিং স্টক</th>
                           <th className="p-4 text-center w-32 text-emerald-600 bg-emerald-50">মোট ইন (+)</th>
                           <th className="p-4 text-center w-32 text-rose-600 bg-rose-50">মোট আউট (-)</th>
@@ -604,15 +669,18 @@ const Reports = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y font-bold text-slate-700">
-                        {ledgerSummaryList.map((item, i) => (
-                          <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
-                            <td className="p-4 text-slate-900 font-black">📦 {item.product}</td>
-                            <td className="p-4 text-center font-black text-slate-500">{item.openingStock} PCS</td>
-                            <td className="p-4 text-center text-emerald-600">{item.totalIn} PCS</td>
-                            <td className="p-4 text-center text-rose-600">{item.totalOut} PCS</td>
-                            <td className="p-4 text-center font-black text-blue-600">{item.closingStock} PCS</td>
-                          </tr>
-                        ))}
+                        {ledgerSummaryList.map((item, i) => {
+                          const vals = getActiveTabValues(item);
+                          return (
+                            <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
+                              <td className="p-4 text-slate-900 font-black">📦 {item.product}</td>
+                              <td className="p-4 text-center font-black text-slate-500">{vals.open} PCS</td>
+                              <td className="p-4 text-center text-emerald-600">{vals.inp} PCS</td>
+                              <td className="p-4 text-center text-rose-600">{vals.out} PCS</td>
+                              <td className="p-4 text-center font-black text-blue-600">{vals.close} PCS</td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -627,25 +695,31 @@ const Reports = () => {
                     <button onClick={() => setLedgerSearch('')} className="text-xs font-bold text-slate-500 bg-white border border-slate-300 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 active:scale-95 transition-all">← সার্বিক তালিকা</button>
                   </div>
                   
-                  {/* 🔴 ইনডিভিজুয়াল প্রোডক্টের ওপেনিং/ক্লোজিং স্ট্যাটাস কার্ড */}
                   {selectedSummary && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 mb-4">
-                      <div className="bg-slate-100 p-4 rounded-xl text-center border">
-                        <p className="text-[10px] uppercase font-black text-slate-400 mb-1">শুরুর স্টক (Opening)</p>
-                        <p className="text-xl font-black text-slate-800">{selectedSummary.openingStock} PCS</p>
-                      </div>
-                      <div className="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-100">
-                        <p className="text-[10px] uppercase font-black text-emerald-600 mb-1">মোট ইন (+)</p>
-                        <p className="text-xl font-black text-emerald-700">{selectedSummary.totalIn} PCS</p>
-                      </div>
-                      <div className="bg-rose-50 p-4 rounded-xl text-center border border-rose-100">
-                        <p className="text-[10px] uppercase font-black text-rose-600 mb-1">মোট আউট (-)</p>
-                        <p className="text-xl font-black text-rose-700">{selectedSummary.totalOut} PCS</p>
-                      </div>
-                      <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
-                        <p className="text-[10px] uppercase font-black text-blue-600 mb-1">শেষ স্টক (Closing)</p>
-                        <p className="text-xl font-black text-blue-700">{selectedSummary.closingStock} PCS</p>
-                      </div>
+                      {(() => {
+                        const vals = getActiveTabValues(selectedSummary);
+                        return (
+                          <>
+                            <div className="bg-slate-100 p-4 rounded-xl text-center border">
+                              <p className="text-[10px] uppercase font-black text-slate-400 mb-1">শুরুর স্টক (Opening)</p>
+                              <p className="text-xl font-black text-slate-800">{vals.open} PCS</p>
+                            </div>
+                            <div className="bg-emerald-50 p-4 rounded-xl text-center border border-emerald-100">
+                              <p className="text-[10px] uppercase font-black text-emerald-600 mb-1">মোট ইন (+)</p>
+                              <p className="text-xl font-black text-emerald-700">{vals.inp} PCS</p>
+                            </div>
+                            <div className="bg-rose-50 p-4 rounded-xl text-center border border-rose-100">
+                              <p className="text-[10px] uppercase font-black text-rose-600 mb-1">মোট আউট (-)</p>
+                              <p className="text-xl font-black text-rose-700">{vals.out} PCS</p>
+                            </div>
+                            <div className="bg-blue-50 p-4 rounded-xl text-center border border-blue-100">
+                              <p className="text-[10px] uppercase font-black text-blue-600 mb-1">শেষ স্টক (Closing)</p>
+                              <p className="text-xl font-black text-blue-700">{vals.close} PCS</p>
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -662,7 +736,7 @@ const Reports = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y font-bold text-slate-700">
-                        {combinedLedgerHistory.map((l, i) => (
+                        {filteredLedgerHistory.map((l, i) => (
                           <tr key={i} className="hover:bg-slate-50 transition-colors">
                             <td className="p-4 whitespace-nowrap">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td>
                             <td className="p-4 text-center">
@@ -704,7 +778,7 @@ const Reports = () => {
                             </td>
                           </tr>
                         ))}
-                        {combinedLedgerHistory.length === 0 && (<tr><td colSpan="6" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
+                        {filteredLedgerHistory.length === 0 && (<tr><td colSpan="6" className="p-8 text-center text-slate-400 italic">কোনো রেকর্ড পাওয়া যায়নি</td></tr>)}
                       </tbody>
                     </table>
                   </div>
@@ -825,18 +899,21 @@ const Reports = () => {
               <>
                 {(!ledgerSearch) ? (
                   <>
-                    <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Inventory Stock Specification</th><th className="pb-2 text-center">Gross Incoming (+ Input)</th><th className="pb-2 text-center">Gross Outgoing (- Sales)</th></tr></thead>
+                    <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Inventory Stock Specification</th><th className="pb-2 text-center">Opening Stock</th><th className="pb-2 text-center">Gross Incoming (+)</th><th className="pb-2 text-center">Gross Outgoing (-)</th><th className="pb-2 text-center">Closing Stock</th></tr></thead>
                     <tbody className="divide-y divide-slate-200">
-                      {ledgerSummaryList.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">📦 {item.product}</td><td className="py-2 text-center text-green-600 font-bold">{item.totalIn} PCS</td><td className="py-2 text-center text-red-600 font-bold">{item.totalOut} PCS</td></tr>
-                      ))}
+                      {ledgerSummaryList.map((item, idx) => {
+                        const vals = getActiveTabValues(item);
+                        return (
+                          <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">📦 {item.product}</td><td className="py-2 text-center text-slate-500 font-bold">{vals.open} PCS</td><td className="py-2 text-center text-green-600 font-bold">{vals.inp} PCS</td><td className="py-2 text-center text-red-600 font-bold">{vals.out} PCS</td><td className="py-2 text-center text-blue-600 font-bold">{vals.close} PCS</td></tr>
+                        );
+                      })}
                     </tbody>
                   </>
                 ) : (
                   <>
                     <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Transaction Timestamp</th><th className="pb-2 text-center">Movement Type</th><th className="pb-2 text-center">Reference Log Info</th><th className="pb-2 text-right">Volume</th></tr></thead>
                     <tbody className="divide-y divide-slate-200">
-                      {combinedLedgerHistory.map((l, idx) => (
+                      {filteredLedgerHistory.map((l, idx) => (
                         <tr key={idx} className="hover:bg-slate-50"><td className="py-2">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td><td className="py-2 text-center uppercase font-bold">{l.type === 'in' ? 'STOCK IN' : 'SALES OUT'}</td><td className="py-2 text-center text-slate-500">{l.source}</td><td className="py-2 text-right font-bold">{l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS</td></tr>
                       ))}
                     </tbody>
@@ -846,9 +923,9 @@ const Reports = () => {
             )}
             <tfoot>
               <tr className="border-t border-b border-slate-800 font-bold text-slate-900 uppercase bg-slate-100">
-                <td className="py-2 text-right font-bold" colSpan={reportType === 'ledger_report' && ledgerSearch ? 3 : 2}>Grand Valuation Totals:</td>
+                <td className="py-2 text-right font-bold" colSpan={reportType === 'ledger_report' && !ledgerSearch ? 4 : (reportType === 'ledger_report' && ledgerSearch ? 3 : 2)}>Grand Valuation Totals:</td>
                 <td className="py-2 text-right font-bold text-blue-900">
-                  {reportType === 'ledger_report' ? (ledgerSearch ? `${combinedLedgerHistory.reduce((s,c)=>s+c.quantity, 0)} PCS` : `${ledgerSummaryList.reduce((s,c)=>s+c.totalIn, 0)} In / ${ledgerSummaryList.reduce((s,c)=>s+c.totalOut, 0)} Out`) : `${totals.totalActualSold} ৳`}
+                  {reportType === 'ledger_report' ? (ledgerSearch ? `${filteredLedgerHistory.reduce((s,c)=>s+c.quantity, 0)} PCS` : `-`) : `${totals.totalActualSold} ৳`}
                 </td>
               </tr>
             </tfoot>
