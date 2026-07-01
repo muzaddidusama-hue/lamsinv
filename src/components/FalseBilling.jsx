@@ -6,16 +6,19 @@ import { downloadPDF } from '../utils/pdfGenerator';
 
 const FalseBilling = () => {
   const [docType, setDocType] = useState('bill'); 
-  const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [customerSearchText, setCustomerSearchText] = useState('');
-  const [customerSuggestions, setCustomerSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+    const [phone, setPhone] = useState('');
+    const [name, setName] = useState('');
+    const [address, setAddress] = useState('');
+    const [customerSuggestions, setCustomerSuggestions] = useState([]);
+    const [activeSearchField, setActiveSearchField] = useState('');
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [qty, setQty] = useState('');
   const [cart, setCart] = useState([]);
+  const [isManualProduct, setIsManualProduct] = useState(false);
+  const [manualProdName, setManualProdName] = useState('');
+  const [manualProdModel, setManualProdModel] = useState('');
+  const [manualProdPrice, setManualProdPrice] = useState('');
 
   useEffect(() => { fetchProducts(); }, []);
 
@@ -23,27 +26,63 @@ const FalseBilling = () => {
     const { data } = await supabase.from('products').select('*').order('name', { ascending: true });
     if (data) setProducts(data);
   };
-
-  const handleCustomerSearch = async (e) => {
-    const val = e.target.value;
-    setCustomerSearchText(val);
+  const handlePhoneChange = async (val) => {
+    setPhone(val);
     if (val.length >= 2) {
-      const { data } = await supabase.from('customers').select('*').or(`name.ilike.%${val}%,phone.ilike.%${val}%`).limit(10);
+      const { data } = await supabase.from('customers').select('*').ilike('phone', `%${val}%`).limit(10);
       setCustomerSuggestions(data || []);
-      setShowSuggestions(true);
-    } else { setShowSuggestions(false); }
+      setActiveSearchField('phone');
+    } else {
+      setCustomerSuggestions([]);
+      setActiveSearchField('');
+    }
+  };
+
+  const handleNameChange = async (val) => {
+    setName(val);
+    if (val.length >= 2) {
+      const { data } = await supabase.from('customers').select('*').ilike('name', `%${val}%`).limit(10);
+      setCustomerSuggestions(data || []);
+      setActiveSearchField('name');
+    } else {
+      setCustomerSuggestions([]);
+      setActiveSearchField('');
+    }
   };
 
   const selectCustomer = (cust) => {
-    setPhone(cust.phone || ''); setName(cust.name || ''); setAddress(cust.address || '');
-    setCustomerSearchText(''); setShowSuggestions(false);
+    setPhone(cust.phone || ''); 
+    setName(cust.name || ''); 
+    setAddress(cust.address || '');
+    setCustomerSuggestions([]); 
+    setActiveSearchField('');
   };
 
   const addToCart = () => {
-    if (!selectedProduct || !qty || qty <= 0) return alert('প্রোডাক্ট এবং সঠিক পরিমাণ দিন');
-    const product = products.find(p => p.id === parseInt(selectedProduct));
-    setCart([...cart, { category: product.category, name: product.name, model: product.model, unit_price: product.unit_price, qty: parseInt(qty), total: product.unit_price * parseInt(qty) }]);
-    setSelectedProduct(''); setQty('');
+    if (isManualProduct) {
+      if (!manualProdName.trim() || !qty || qty <= 0) {
+        return alert('প্রোডাক্টের নাম এবং সঠিক পরিমাণ দিন!');
+      }
+      const price = parseFloat(manualProdPrice) || 0;
+      setCart([...cart, { 
+        category: 'Manual', 
+        name: manualProdName.trim(), 
+        model: manualProdModel.trim() || 'N/A', 
+        unit_price: price, 
+        qty: parseInt(qty), 
+        total: price * parseInt(qty) 
+      }]);
+      setManualProdName('');
+      setManualProdModel('');
+      setManualProdPrice('');
+      setQty('');
+    } else {
+      if (!selectedProduct || !qty || qty <= 0) return alert('প্রোডাক্ট এবং সঠিক পরিমাণ দিন');
+      const product = products.find(p => p.id === parseInt(selectedProduct));
+      if (!product) return alert('প্রোডাক্ট পাওয়া যায়নি!');
+      setCart([...cart, { category: product.category, name: product.name, model: product.model, unit_price: product.unit_price, qty: parseInt(qty), total: product.unit_price * parseInt(qty) }]);
+      setSelectedProduct(''); setQty('');
+    }
   };
 
   const handlePriceChange = (idx, val) => {
@@ -80,12 +119,120 @@ const FalseBilling = () => {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-4">
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="মোবাইল" 
+                          value={phone} 
+                          onChange={e => handlePhoneChange(e.target.value)} 
+                          onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
+                          className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800" 
+                        />
+                        {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 w-full z-[100] bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                            {customerSuggestions.map(c => (
+                              <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                {c.name} {c.phone ? `- ${c.phone}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="relative">
+                        <input 
+                          type="text" 
+                          placeholder="নাম" 
+                          value={name} 
+                          onChange={e => handleNameChange(e.target.value)} 
+                          onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
+                          className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800" 
+                        />
+                        {activeSearchField === 'name' && customerSuggestions.length > 0 && (
+                          <div className="absolute top-full left-0 w-full z-[100] bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                            {customerSuggestions.map(c => (
+                              <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                {c.name} {c.phone ? `- ${c.phone}` : ''}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <textarea 
+                        placeholder="ঠিকানা" 
+                        value={address} 
+                        onChange={e => setAddress(e.target.value)} 
+                        className="w-full p-3 bg-slate-50 border rounded-xl font-bold h-20 outline-none focus:ring-2 focus:ring-orange-500 text-slate-800" 
+                      />
+                    </div>
           <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-4">
-            <input type="text" value={customerSearchText} onChange={handleCustomerSearch} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="স্মার্ট সার্চ..." className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none" />
-            {showSuggestions && <div className="bg-white border rounded-xl shadow-xl max-h-40 overflow-y-auto">{customerSuggestions.map(c => <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold">{c.name}</div>)}</div>}
-            <input type="text" placeholder="মোবাইল" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" /><input type="text" placeholder="নাম" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" /><textarea placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold h-20" />
+            <div className="flex justify-between items-center border-b pb-2 mb-2">
+              <span className="text-xs font-black text-slate-400 uppercase tracking-widest">প্রোডাক্ট নির্বাচন</span>
+              <button 
+                type="button"
+                onClick={() => setIsManualProduct(!isManualProduct)} 
+                className="text-[10px] font-black text-orange-600 hover:underline uppercase"
+              >
+                {isManualProduct ? '← ডাটাবেজ সিলেক্ট' : '✍️ ম্যানুয়াল ইনপুট'}
+              </button>
+            </div>
+            
+            {isManualProduct ? (
+              <div className="space-y-3">
+                <input 
+                  type="text" 
+                  placeholder="প্রোডাক্টের নাম" 
+                  value={manualProdName} 
+                  onChange={e => setManualProdName(e.target.value)} 
+                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 text-sm" 
+                />
+                <input 
+                  type="text" 
+                  placeholder="মডেল" 
+                  value={manualProdModel} 
+                  onChange={e => setManualProdModel(e.target.value)} 
+                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 text-sm" 
+                />
+                <input 
+                  type="number" 
+                  placeholder="ইউনিট প্রাইস (৳)" 
+                  value={manualProdPrice} 
+                  onChange={e => setManualProdPrice(e.target.value)} 
+                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800 text-sm" 
+                />
+              </div>
+            ) : (
+              <select 
+                value={selectedProduct} 
+                onChange={(e) => setSelectedProduct(e.target.value)} 
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none text-slate-800"
+              >
+                <option value="">প্রোডাক্ট সিলেক্ট করুন...</option>
+                {products.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} - {p.model}</option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex gap-3">
+              <input 
+                type="number" 
+                value={qty} 
+                onChange={(e) => setQty(e.target.value)} 
+                placeholder="Qty" 
+                className="flex-1 p-4 bg-slate-50 border rounded-2xl font-bold text-slate-800" 
+              />
+              <button 
+                type="button"
+                onClick={addToCart} 
+                className="bg-slate-900 hover:bg-orange-600 text-white px-8 rounded-2xl font-black transition-colors"
+              >
+                Add +
+              </button>
+            </div>
           </div>
-          <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-4"><select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none">{products.map(p => (<option key={p.id} value={p.id}>{p.name} - {p.model}</option>))}</select><div className="flex gap-3"><input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="Qty" className="flex-1 p-4 bg-slate-50 border rounded-2xl font-bold" /><button onClick={addToCart} className="bg-slate-900 text-white px-8 rounded-2xl font-black">Add +</button></div></div>
         </div>
         <div className="lg:col-span-8">
           <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm flex flex-col h-full min-h-[500px]">

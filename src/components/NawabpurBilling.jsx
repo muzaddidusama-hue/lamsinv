@@ -5,12 +5,11 @@ import { downloadPDF } from '../utils/pdfGenerator';
 
 const NawabpurBilling = () => {
   const house = 'Showroom';
-  const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [customerSearchText, setCustomerSearchText] = useState('');
-  const [customerSuggestions, setCustomerSuggestions] = useState([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+    const [phone, setPhone] = useState('');
+    const [name, setName] = useState('');
+    const [address, setAddress] = useState('');
+    const [customerSuggestions, setCustomerSuggestions] = useState([]);
+    const [activeSearchField, setActiveSearchField] = useState('');
   
   const [products, setProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -45,20 +44,36 @@ const NawabpurBilling = () => {
       setProducts(sortedData);
     }
   };
-
-  const handleCustomerSearch = async (e) => {
-    const val = e.target.value;
-    setCustomerSearchText(val);
+  const handlePhoneChange = async (val) => {
+    setPhone(val);
     if (val.length >= 2) {
-      const { data } = await supabase.from('customers').select('*').or(`name.ilike.%${val}%,phone.ilike.%${val}%`).limit(10);
+      const { data } = await supabase.from('customers').select('*').ilike('phone', `%${val}%`).limit(10);
       setCustomerSuggestions(data || []);
-      setShowSuggestions(true);
-    } else { setShowSuggestions(false); }
+      setActiveSearchField('phone');
+    } else {
+      setCustomerSuggestions([]);
+      setActiveSearchField('');
+    }
+  };
+
+  const handleNameChange = async (val) => {
+    setName(val);
+    if (val.length >= 2) {
+      const { data } = await supabase.from('customers').select('*').ilike('name', `%${val}%`).limit(10);
+      setCustomerSuggestions(data || []);
+      setActiveSearchField('name');
+    } else {
+      setCustomerSuggestions([]);
+      setActiveSearchField('');
+    }
   };
 
   const selectCustomer = (cust) => {
-    setPhone(cust.phone || ''); setName(cust.name || ''); setAddress(cust.address || '');
-    setCustomerSearchText(''); setShowSuggestions(false);
+    setPhone(cust.phone || ''); 
+    setName(cust.name || ''); 
+    setAddress(cust.address || '');
+    setCustomerSuggestions([]); 
+    setActiveSearchField('');
   };
 
 const addToCart = () => {
@@ -209,21 +224,49 @@ setCart([...cart, {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-             <div className="space-y-4">
-               <div className="relative">
-                 <input type="text" value={customerSearchText} onChange={handleCustomerSearch} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} placeholder="স্মার্ট সার্চ (নাম/মোবাইল)..." className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none" />
-                 {showSuggestions && <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-                    {customerSuggestions.map(c => (
-                      <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold">
-                        {c.name} {c.phone ? `- ${c.phone}` : ''}
-                      </div>
-                    ))}
-                 </div>}
-               </div>
-               <input type="text" placeholder="মোবাইল" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
-               <input type="text" placeholder="নাম" value={name} onChange={e=>setName(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
-               <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold" />
-             </div>
+                           <div className="space-y-4">
+                             <div className="relative">
+                               <input 
+                                 type="text" 
+                                 placeholder="মোবাইল" 
+                                 value={phone} 
+                                 onChange={e => handlePhoneChange(e.target.value)} 
+                                 onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
+                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                               />
+                               {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
+                                 <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                                   {customerSuggestions.map(c => (
+                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                       {c.name} {c.phone ? `- ${c.phone}` : ''}
+                                     </div>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+             
+                             <div className="relative">
+                               <input 
+                                 type="text" 
+                                 placeholder="নাম" 
+                                 value={name} 
+                                 onChange={e => handleNameChange(e.target.value)} 
+                                 onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
+                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                               />
+                               {activeSearchField === 'name' && customerSuggestions.length > 0 && (
+                                 <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                                   {customerSuggestions.map(c => (
+                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                       {c.name} {c.phone ? `- ${c.phone}` : ''}
+                                     </div>
+                                   ))}
+                                 </div>
+                               )}
+                             </div>
+             
+                             <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" />
+                           </div>
           </div>
           
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
