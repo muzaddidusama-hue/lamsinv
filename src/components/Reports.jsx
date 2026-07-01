@@ -163,27 +163,31 @@ const Reports = () => {
       .sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }));
   };
 
-  const ledgerSummaryList = getLedgerSummary();
-  const selectedSummary = ledgerSummaryList.find(s => s.product === ledgerSearch);
+  const ledgerSummaryList = useMemo(() => {
+    return getLedgerSummary();
+  }, [rawProducts, allTransactions]);
 
-  const getIndividualLedgerHistory = () => {
+  const selectedSummary = useMemo(() => {
+    return ledgerSummaryList.find(s => s.product === ledgerSearch);
+  }, [ledgerSummaryList, ledgerSearch]);
+
+  const combinedLedgerHistory = useMemo(() => {
     if (!ledgerSearch) return [];
     const targetKey = getStandardKey(ledgerSearch);
-    
     return allTransactions
       .filter(t => !t.isFuture && getStandardKey(t.product) === targetKey) 
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  };
-
-  const combinedLedgerHistory = getIndividualLedgerHistory();
+  }, [allTransactions, ledgerSearch]);
 
   // 🔴 বর্তমান সাব-ট্যাব অনুযায়ী ডাটা ফিল্টার
-  const filteredLedgerHistory = combinedLedgerHistory.filter(t => {
-    if (ledgerTab === 'total') return true;
-    if (ledgerTab === 'ho') return t.house === 'Head Office';
-    if (ledgerTab === 'showroom') return t.house === 'Showroom';
-    return true;
-  });
+  const filteredLedgerHistory = useMemo(() => {
+    return combinedLedgerHistory.filter(t => {
+      if (ledgerTab === 'total') return true;
+      if (ledgerTab === 'ho') return t.house === 'Head Office';
+      if (ledgerTab === 'showroom') return t.house === 'Showroom';
+      return true;
+    });
+  }, [combinedLedgerHistory, ledgerTab]);
 
   const getActiveTabValues = (item) => {
     if (!item) return { open: 0, inp: 0, out: 0, close: 0 };
@@ -192,14 +196,17 @@ const Reports = () => {
     return { open: item.openingStock, inp: item.totalIn, out: item.totalOut, close: item.closingStock };
   };
 
-  const filteredCustomers = reportData ? Object.values(reportData.customerStats)
-    .filter(c => {
-      const nameStr = c.name ? String(c.name).toLowerCase() : '';
-      const phoneStr = c.phone ? String(c.phone) : '';
-      const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
-      return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
-    })
-    .sort((a, b) => b.amount - a.amount) : [];
+  const filteredCustomers = useMemo(() => {
+    if (!reportData) return [];
+    return Object.values(reportData.customerStats)
+      .filter(c => {
+        const nameStr = c.name ? String(c.name).toLowerCase() : '';
+        const phoneStr = c.phone ? String(c.phone) : '';
+        const searchStr = customerSearch ? customerSearch.toLowerCase() : '';
+        return nameStr.includes(searchStr) || phoneStr.includes(searchStr);
+      })
+      .sort((a, b) => b.amount - a.amount);
+  }, [reportData, customerSearch]);
 
   useEffect(() => {
     generateReport();

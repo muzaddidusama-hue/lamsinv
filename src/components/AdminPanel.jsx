@@ -65,6 +65,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       setOpenSubMenu(openSubMenu === item.id ? '' : item.id);
     } else {
       setView(item.id);
+      setOpenSubMenu(''); // Close any open dropdown menu when selecting a main menu
       setIsMobileMenuOpen(false);
     }
   };
