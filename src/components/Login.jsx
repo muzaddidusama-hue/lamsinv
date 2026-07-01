@@ -27,7 +27,7 @@ const Login = ({ onLoginSuccess }) => {
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        options: { shouldCreateUser: false, emailRedirectTo: null }
+        options: { shouldCreateUser: true }
       });
       if (error) throw error;
       alert("✅ আপনার ইমেইলে সিকিউরিটি কোড (OTP) পাঠানো হয়েছে!");
@@ -56,9 +56,9 @@ const Login = ({ onLoginSuccess }) => {
 
       const userMeta = data.user.user_metadata;
       onLoginSuccess({
-        role: userMeta.role || 'Admin',
-        name: userMeta.name || 'Admin',
-        emp_id: userMeta.emp_id || 'ADMIN'
+        role: userMeta.role || 'Staff',
+        name: userMeta.name || 'Employee',
+        emp_id: userMeta.emp_id || 'STAFF'
       });
     } catch (err) {
       alert("❌ কোডটি ভুল অথবা মেয়াদোত্তীর্ণ!");

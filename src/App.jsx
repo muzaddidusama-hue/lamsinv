@@ -21,7 +21,7 @@ function App() {
       if (session) {
         setIsAdmin(true);
         setUserRole(session.user.user_metadata?.role || 'Staff');
-        setUserName(session.user.user_metadata?.name || 'Admin');
+        setUserName(session.user.user_metadata?.name || 'Employee');
       }
     });
 
@@ -36,7 +36,7 @@ function App() {
       if (session) {
         setIsAdmin(true);
         setUserRole(session.user.user_metadata?.role || 'Staff');
-        setUserName(session.user.user_metadata?.name || 'Admin');
+        setUserName(session.user.user_metadata?.name || 'Employee');
       } else {
         setIsAdmin(false);
         setUserRole('Staff');
@@ -119,7 +119,7 @@ function App() {
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">New Password</label>
                 <input 
-                  type="text" 
+                  type="password" 
                   placeholder="নতুন পাসওয়ার্ড লিখুন (কমপক্ষে ৬ অক্ষর)" 
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
@@ -148,14 +148,8 @@ function App() {
               </span>
             </div>
             
-            {/* 🔴 ডানদিকের কন্ট্রোল প্যানেল (পাসওয়ার্ড পরিবর্তন বাটন সহ) */}
+            {/* 🔴 ডানদিকের কন্ট্রোল প্যানেল */}
             <div className="flex items-center gap-4">
-              <button 
-                onClick={handleSendPasswordReset} 
-                className="bg-slate-800 hover:bg-orange-600 text-slate-300 hover:text-white font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
-              >
-                🔒 পাসওয়ার্ড পরিবর্তন
-              </button>
               <p className="text-slate-400 font-medium hidden md:block">LAMS Power ERP Panel</p>
             </div>
           </div>
