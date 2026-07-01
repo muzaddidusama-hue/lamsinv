@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
+const getTodayString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-\\*\\${month}-\\*\\${day}`.replace(/\\\*\\/g, ''); // safe escaping template syntax
+};
+
+const getTodayFormatted = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const StockManagement = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +30,7 @@ const StockManagement = () => {
   const [newValue, setNewValue] = useState('');
   const [purchaseSource, setPurchaseSource] = useState('Import');
   const [reduceReason, setReduceReason] = useState('');
+  const [manualDate, setManualDate] = useState(getTodayFormatted());
   
   // 🔴 নতুন: মডালের সার্চেবল ড্রপডাউনের স্টেট
   const [modalProductSearchText, setModalProductSearchText] = useState('');
@@ -59,6 +76,10 @@ const StockManagement = () => {
     if (modalType === 'reduce_stock' && !reduceReason.trim()) {
       return alert('দয়া করে স্টক কমানোর কারণ লিখুন!');
     }
+
+    if ((modalType === 'stock' || modalType === 'reduce_stock') && !manualDate) {
+      return alert('দয়া করে তারিখ সিলেক্ট করুন!');
+    }
     
     let updateData = {};
     if (modalType === 'stock') {
@@ -75,14 +96,18 @@ const StockManagement = () => {
       const { error } = await supabase.from('products').update(updateData).eq('id', selectedProduct.id);
       if (error) throw error;
 
+      // তারিখ অনুযায়ী timestamp তৈরি
+      const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
+      const finalTimestamp = `${manualDate}T${currentTime}.000Z`;
+
       if (modalType === 'stock') {
         const { error: ledgerError } = await supabase.from('ledger').insert([
           {
             product: `${selectedProduct.name} - ${selectedProduct.model}`,
             quantity: parseInt(newValue),
-            date: new Date().toISOString().split('T')[0],
+            date: manualDate,
             type: 'in',
-            in: new Date().toISOString(), 
+            in: finalTimestamp, 
             house: selectedProduct.house,
             source: purchaseSource 
           }
@@ -94,9 +119,9 @@ const StockManagement = () => {
           {
             product: `${selectedProduct.name} - ${selectedProduct.model}`,
             quantity: parseInt(newValue),
-            date: new Date().toISOString().split('T')[0],
+            date: manualDate,
             type: 'out',
-            out: new Date().toISOString(), 
+            out: finalTimestamp, 
             house: selectedProduct.house,
             source: reduceReason.trim()
           }
@@ -110,7 +135,7 @@ const StockManagement = () => {
             model: selectedProduct.model,
             amount: newValue.toString(),
             reason: reduceReason.trim(),
-            date: new Date().toISOString().split('T')[0]
+            date: manualDate
           }
         ]);
         if (stockOutError) console.error("Stock Out Sync Error:", stockOutError);
@@ -130,6 +155,7 @@ const StockManagement = () => {
     setNewValue('');
     setModalProductSearchText(''); // রিসেট
     setReduceReason(''); // রিসেট
+    setManualDate(getTodayFormatted()); // রিসেট
   };
 
   const filteredProducts = products.filter(p => 
@@ -310,6 +336,20 @@ const StockManagement = () => {
                     onChange={(e) => setReduceReason(e.target.value)}
                     placeholder="কারণ লিখুন (যেমন: damaged, returned, transfer, checking etc.)..."
                     className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-500 text-slate-800"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* তারিখ ইনপুট (স্টক কমানো বা বাড়ানোর সময় দেখাবে) */}
+              {(modalType === 'stock' || modalType === 'reduce_stock') && (
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">তারিখ (Date)</label>
+                  <input 
+                    type="date" 
+                    value={manualDate}
+                    onChange={(e) => setManualDate(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-500 text-slate-800"
                     required
                   />
                 </div>
