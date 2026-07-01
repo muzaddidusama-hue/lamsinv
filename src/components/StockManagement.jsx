@@ -13,6 +13,7 @@ const StockManagement = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [newValue, setNewValue] = useState('');
   const [purchaseSource, setPurchaseSource] = useState('Import');
+  const [reduceReason, setReduceReason] = useState('');
   
   // 🔴 নতুন: মডালের সার্চেবল ড্রপডাউনের স্টেট
   const [modalProductSearchText, setModalProductSearchText] = useState('');
@@ -55,6 +56,10 @@ const StockManagement = () => {
   const handleDataSave = async () => {
     if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
     
+    if (modalType === 'reduce_stock' && !reduceReason.trim()) {
+      return alert('দয়া করে স্টক কমানোর কারণ লিখুন!');
+    }
+    
     let updateData = {};
     if (modalType === 'stock') {
       updateData = { stock_quantity: selectedProduct.stock_quantity + parseInt(newValue) };
@@ -76,18 +81,46 @@ const StockManagement = () => {
             product: `${selectedProduct.name} - ${selectedProduct.model}`,
             quantity: parseInt(newValue),
             date: new Date().toISOString().split('T')[0],
+            type: 'in',
             in: new Date().toISOString(), 
+            house: selectedProduct.house,
             source: purchaseSource 
           }
         ]);
         if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
+      } else if (modalType === 'reduce_stock') {
+        // ১. লেজার টেবিলে এন্ট্রি (স্টক আউট হিসেবে)
+        const { error: ledgerError } = await supabase.from('ledger').insert([
+          {
+            product: `${selectedProduct.name} - ${selectedProduct.model}`,
+            quantity: parseInt(newValue),
+            date: new Date().toISOString().split('T')[0],
+            type: 'out',
+            out: new Date().toISOString(), 
+            house: selectedProduct.house,
+            source: reduceReason.trim()
+          }
+        ]);
+        if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
+
+        // ২. stock_out টেবিলে এন্ট্রি
+        const { error: stockOutError } = await supabase.from('stock_out').insert([
+          {
+            type: selectedProduct.name,
+            model: selectedProduct.model,
+            amount: newValue.toString(),
+            reason: reduceReason.trim(),
+            date: new Date().toISOString().split('T')[0]
+          }
+        ]);
+        if (stockOutError) console.error("Stock Out Sync Error:", stockOutError);
       }
 
       alert(`✅ ${modalType === 'price' ? 'দাম' : 'স্টক'} সফলভাবে আপডেট হয়েছে!`);
       setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, ...updateData } : p));
       closeModal();
     } catch (error) {
-      alert('আপডেট করতে সমস্যা হয়েছে!');
+      alert('আপডেট করতে সমস্যা হয়েছে: ' + error.message);
     }
   };
 
@@ -96,6 +129,7 @@ const StockManagement = () => {
     setSelectedProduct(null);
     setNewValue('');
     setModalProductSearchText(''); // রিসেট
+    setReduceReason(''); // রিসেট
   };
 
   const filteredProducts = products.filter(p => 
@@ -263,6 +297,21 @@ const StockManagement = () => {
                       <button key={s} onClick={() => setPurchaseSource(s)} className={`p-4 rounded-2xl font-black text-xs md:text-sm border-2 transition-all ${purchaseSource === s ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-slate-100 text-slate-400'}`}>{s}</button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* কারণ শুধু স্টক কমানোর সময় দেখাবে */}
+              {modalType === 'reduce_stock' && (
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">স্টক কমানোর কারণ (Reason)</label>
+                  <input 
+                    type="text" 
+                    value={reduceReason}
+                    onChange={(e) => setReduceReason(e.target.value)}
+                    placeholder="কারণ লিখুন (যেমন: damaged, returned, transfer, checking etc.)..."
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-500 text-slate-800"
+                    required
+                  />
                 </div>
               )}
 
