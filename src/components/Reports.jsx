@@ -46,13 +46,12 @@ const Reports = () => {
 
   const totals = useMemo(() => {
     let q = 0, m = 0, s = 0;
-    if (reportData && reportData.productStats) {
-      Object.values(reportData.productStats).forEach(stat => {
-        const pKey = `${stat.name}_${stat.house}`;
-        const currentMrp = parseFloat(mrps[pKey]) || 0;
-        q += stat.qty;
-        m += (currentMrp * stat.qty);
-        s += stat.total;
+    if (reportData && reportData.combinedProductStats) {
+      Object.values(reportData.combinedProductStats).forEach(prod => {
+        const currentMrp = parseFloat(mrps[prod.name]) || 0;
+        q += prod.qty;
+        m += (currentMrp * prod.qty);
+        s += prod.total;
       });
     }
     return { totalQty: q, totalMinAllowed: m, totalActualSold: s, totalSurplus: s - m };
@@ -545,22 +544,20 @@ const Reports = () => {
             <div className="overflow-x-auto border rounded-xl">
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
-                  <tr className="bg-slate-50 uppercase font-black text-slate-500 border-b"><th className="p-4">Product Description</th><th className="p-4 text-center">House</th><th className="p-4 text-center">Qty Sold</th><th className="p-4 text-center w-32">MRP (Unit)</th><th className="p-4 text-right">Min Value</th><th className="p-4 text-right">Actual Sold</th><th className="p-4 text-right">Surplus</th></tr>
+                  <tr className="bg-slate-50 uppercase font-black text-slate-500 border-b"><th className="p-4">Product Description</th><th className="p-4 text-center">Qty Sold</th><th className="p-4 text-center w-32">MRP (Unit)</th><th className="p-4 text-right">Min Value</th><th className="p-4 text-right">Actual Sold</th><th className="p-4 text-right">Surplus</th></tr>
                 </thead>
                 <tbody className="divide-y">
-                  {Object.values(reportData.productStats).map((stat, idx) => {
-                    const pKey = `${stat.name}_${stat.house}`;
-                    const currentMrp = parseFloat(mrps[pKey]) || 0;
-                    const minVal = currentMrp * stat.qty;
-                    const surplus = stat.total - minVal;
+                  {Object.values(reportData.combinedProductStats).map((prod, idx) => {
+                    const currentMrp = parseFloat(mrps[prod.name]) || 0;
+                    const minVal = currentMrp * prod.qty;
+                    const surplus = prod.total - minVal;
                     return (
                       <tr key={idx} className="hover:bg-slate-50/50">
-                        <td className="p-4 font-bold text-slate-800">{stat.name}</td>
-                        <td className="p-4 text-center"><span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 uppercase">{stat.house}</span></td>
-                        <td className="p-4 text-center font-black text-blue-600">{stat.qty} pcs</td>
-                        <td className="p-4 text-center"><input type="number" value={mrps[pKey] || ''} onChange={(e) => setMrps({ ...mrps, [pKey]: e.target.value })} className="w-20 p-1 bg-slate-50 border text-center font-bold text-xs rounded" placeholder="0" /></td>
+                        <td className="p-4 font-bold text-slate-800">{prod.name}</td>
+                        <td className="p-4 text-center font-black text-blue-600">{prod.qty} pcs</td>
+                        <td className="p-4 text-center"><input type="number" value={mrps[prod.name] || ''} onChange={(e) => setMrps({ ...mrps, [prod.name]: e.target.value })} className="w-20 p-1 bg-slate-50 border text-center font-bold text-xs rounded" placeholder="0" /></td>
                         <td className="p-4 text-right font-semibold text-slate-500">{currentMrp > 0 ? `${minVal} ৳` : '—'}</td>
-                        <td className="p-4 text-right font-black text-slate-900">{stat.total} ৳</td>
+                        <td className="p-4 text-right font-black text-slate-900">{prod.total} ৳</td>
                         <td className="p-4 text-right font-black">{currentMrp > 0 ? <span className={surplus >= 0 ? 'text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded' : 'text-rose-600 bg-rose-50 px-2 py-0.5 rounded'}>{surplus >= 0 ? `+${surplus}` : surplus} ৳</span> : <span className="text-slate-400 italic">Set MRP</span>}</td>
                       </tr>
                     );
@@ -874,9 +871,7 @@ const Reports = () => {
               <>
                 <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2 w-2/5">Product Description Specification</th><th className="pb-2 text-center">Volume</th><th className="pb-2 text-right">Actual Sold</th></tr></thead>
                 <tbody className="divide-y divide-slate-200">
-                  {reportType === 'product' ? Object.values(reportData?.productStats || {}).map((stat, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">{stat.name} ({stat.house})</td><td className="py-2 text-center font-bold">{stat.qty} pcs</td><td className="py-2 text-right font-bold">{stat.total} ৳</td></tr>
-                  )) : Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
+                  {Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
                     <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">{prod.name}</td><td className="py-2 text-center font-bold">{prod.qty} pcs</td><td className="py-2 text-right font-bold">{prod.total} ৳</td></tr>
                   ))}
                 </tbody>

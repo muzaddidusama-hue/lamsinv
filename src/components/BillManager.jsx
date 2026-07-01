@@ -22,34 +22,50 @@ const BillManager = () => {
   const [savingEdit, setSavingEdit] = useState(false);
 
   useEffect(() => { 
-    fetchAllRecords(); 
-  }, [selectedMonth]); 
+    // Fetch automatically if search is empty or when month changes
+    if (!searchQuery.trim()) {
+      fetchAllRecords();
+    }
+  }, [selectedMonth, searchQuery]); 
 
-  // মাস অনুযায়ী সব ডাটা ফেচ করার লজিক
+  // মাস বা সার্চ অনুযায়ী সব ডাটা ফেচ করার লজিক
   const fetchAllRecords = async () => {
     setLoading(true);
     try {
-      const [year, month] = selectedMonth.split('-');
-      const firstDay = new Date(year, month - 1, 1).toISOString();
-      const lastDay = new Date(year, month, 0, 23, 59, 59).toISOString();
-
-      const { data, error } = await supabase
+      let queryBuilder = supabase
         .from('chalans')
         .select(`
           *,
           customers(name, phone, address),
           chalan_items(quantity, products(name, model))
-        `)
-        .gte('created_at', firstDay)
-        .lte('created_at', lastDay)
-        .order('created_at', { ascending: false });
+        `);
 
+      if (searchQuery.trim()) {
+        // সার্চ কোয়েরি থাকলে সম্পূর্ণ ডাটাবেজ থেকে সার্চ করার জন্য মাস ফিল্টার বাদ দিয়ে লাস্ট ১০০০ রেকর্ড নিয়ে আসবো
+        queryBuilder = queryBuilder.order('created_at', { ascending: false }).limit(1000);
+      } else {
+        // সার্চ না থাকলে সিলেক্টেড মাসের রেকর্ড দেখাবো
+        const [year, month] = selectedMonth.split('-');
+        const firstDay = new Date(year, month - 1, 1).toISOString();
+        const lastDay = new Date(year, month, 0, 23, 59, 59).toISOString();
+        queryBuilder = queryBuilder
+          .gte('created_at', firstDay)
+          .lte('created_at', lastDay)
+          .order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await queryBuilder;
       if (error) throw error;
       setRecords(data || []);
     } catch (error) {
       console.error('Error fetching records:', error);
     }
     setLoading(false);
+  };
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    fetchAllRecords();
   };
 
   // কাস্টমার ডাটা বের করার হেল্পার
@@ -171,7 +187,7 @@ const BillManager = () => {
             onChange={(e) => setSelectedMonth(e.target.value)} 
             className="h-12 px-4 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl font-black outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
           />
-          <form onSubmit={(e) => e.preventDefault()} className="flex gap-2 w-full md:w-auto">
+          <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:w-auto">
             <input 
               type="text" 
               value={searchQuery} 
