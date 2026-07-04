@@ -1,6 +1,4 @@
 export const printChallan = (chalan, customer, items) => {
-  const printWindow = window.open('', '_blank');
-  
   const totalQty = items.reduce((acc, item) => acc + (item.quantity || item.qty), 0);
   const date = new Date(chalan.created_at || Date.now()).toLocaleDateString('en-GB');
 
@@ -28,14 +26,14 @@ export const printChallan = (chalan, customer, items) => {
             background-size: 100% 100%;
             background-repeat: no-repeat;
             margin: 0 auto;
-            padding: 285px 60px 90px 60px; /* ১৫-২০ আইটেমের জন্য নিচ থেকে একটু জায়গা বাড়ানো হয়েছে */
+            padding: 285px 60px 90px 60px;
             box-sizing: border-box;
           }
 
           .info-section {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 20px; /* গ্যাপ কমানো হয়েছে */
+            margin-bottom: 20px;
             font-size: 13px;
             line-height: 1.5;
           }
@@ -54,16 +52,16 @@ export const printChallan = (chalan, customer, items) => {
           th {
             background-color: #f2f2f2 !important;
             border: 1.5px solid #000;
-            padding: 8px 6px; /* প্যাডিং কমানো হয়েছে */
-            font-size: 11px; /* ফন্ট ছোট করা হয়েছে */
+            padding: 8px 6px;
+            font-size: 11px;
             text-transform: uppercase;
             font-weight: 900;
           }
           td {
             border-left: 1.5px solid #000;
             border-right: 1.5px solid #000;
-            padding: 6px 8px; /* ১৫-২০ আইটেম ধরানোর জন্য স্পেস কমানো হয়েছে */
-            font-size: 12px; /* ফন্ট সাইজ ছোট করা হয়েছে */
+            padding: 6px 8px;
+            font-size: 12px;
             font-weight: 700;
             color: #000;
             vertical-align: middle;
@@ -116,11 +114,12 @@ export const printChallan = (chalan, customer, items) => {
               </thead>
               <tbody>
                 ${items.map((item, index) => {
-                  // প্রোডাক্টের নাম তৈরি: Category + Model + Brand 
-                  const category = item.products?.category || item.category || '';
+                  const cat = item.products?.category || item.category || '';
+                  const cleanCat = cat.toLowerCase() === 'manual' ? '' : cat;
                   const model = item.products?.model || item.model || '';
+                  const cleanModel = model.toUpperCase() === 'N/A' ? '' : model;
                   const brand = item.products?.name || item.name || '';
-                  const finalDescription = `${category} ${model} ${brand}`.trim();
+                  const finalDescription = `${cleanCat} ${cleanModel} ${brand}`.replace(/\s+/g, ' ').trim();
 
                   return `
                   <tr class="row-item">
@@ -150,19 +149,31 @@ export const printChallan = (chalan, customer, items) => {
           </div>
 
         </div>
-        
-        <script>
-          window.onload = () => {
-            setTimeout(() => {
-              window.print();
-              window.close();
-            }, 500);
-          };
-        </script>
       </body>
     </html>
   `;
 
-  printWindow.document.write(html);
-  printWindow.document.close();
+  // Create a hidden iframe for printing
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  }, 500);
 };

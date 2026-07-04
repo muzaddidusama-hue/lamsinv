@@ -16,7 +16,6 @@ const numberToWords = (amount) => {
 };
 
 export const printBill = (chalan, customer, items) => {
-  const printWindow = window.open('', '_blank');
   const date = new Date(chalan.created_at || Date.now()).toLocaleDateString('en-GB');
   const amountInWords = numberToWords(chalan.total_amount);
 
@@ -80,7 +79,12 @@ export const printBill = (chalan, customer, items) => {
               </thead>
               <tbody style="position: relative; z-index: 10;">
                 ${items.map((item, index) => {
-                  const desc = `${item.products?.category || item.category || ''} ${item.products?.model || item.model || ''} ${item.products?.name || item.name || ''}`.trim();
+                  const cat = item.products?.category || item.category || '';
+                  const cleanCat = cat.toLowerCase() === 'manual' ? '' : cat;
+                  const model = item.products?.model || item.model || '';
+                  const cleanModel = model.toUpperCase() === 'N/A' ? '' : model;
+                  const name = item.products?.name || item.name || '';
+                  const desc = `${cleanCat} ${cleanModel} ${name}`.replace(/\s+/g, ' ').trim();
                   return `<tr class="row-item"><td class="col-sl">${index + 1}</td><td class="col-desc">${desc}</td><td class="col-qty">${item.quantity || item.qty}</td><td class="col-price">${item.unit_price}</td><td class="col-total">${item.total_price}</td></tr>`
                 }).join('')}
                 
@@ -92,10 +96,31 @@ export const printBill = (chalan, customer, items) => {
             <div class="words-section"><b>Taka In Words:</b> ${amountInWords}</div>
           </div>
         </div>
-        <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); };</script>
       </body>
     </html>
   `;
-  printWindow.document.write(html);
-  printWindow.document.close();
+
+  // Create a hidden iframe for printing
+  const iframe = document.createElement('iframe');
+  iframe.style.position = 'fixed';
+  iframe.style.right = '0';
+  iframe.style.bottom = '0';
+  iframe.style.width = '0';
+  iframe.style.height = '0';
+  iframe.style.border = '0';
+  iframe.style.zIndex = '-9999';
+  document.body.appendChild(iframe);
+
+  const doc = iframe.contentWindow.document;
+  doc.open();
+  doc.write(html);
+  doc.close();
+
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  }, 500);
 };

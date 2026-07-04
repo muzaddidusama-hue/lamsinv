@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
@@ -33,6 +33,13 @@ const BillingSystem = () => {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [isManualBill, setIsManualBill] = useState(false);
   const [manualBillNo, setManualBillNo] = useState('');
+  const searchTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => { fetchAvailableProducts(); }, [house]);
 
@@ -70,24 +77,30 @@ const handleGlobalShortcuts = (e) => {
       setProducts(sortedData);
     }
   };
-  const handlePhoneChange = async (val) => {
+  const handlePhoneChange = (val) => {
     setPhone(val);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (val.length >= 2) {
-      const { data } = await supabase.from('customers').select('*').ilike('phone', `%${val}%`).limit(10);
-      setCustomerSuggestions(data || []);
-      setActiveSearchField('phone');
+      searchTimeoutRef.current = setTimeout(async () => {
+        const { data } = await supabase.from('customers').select('*').ilike('phone', `%${val}%`).limit(10);
+        setCustomerSuggestions(data || []);
+        setActiveSearchField('phone');
+      }, 300);
     } else {
       setCustomerSuggestions([]);
       setActiveSearchField('');
     }
   };
 
-  const handleNameChange = async (val) => {
+  const handleNameChange = (val) => {
     setName(val);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (val.length >= 2) {
-      const { data } = await supabase.from('customers').select('*').ilike('name', `%${val}%`).limit(10);
-      setCustomerSuggestions(data || []);
-      setActiveSearchField('name');
+      searchTimeoutRef.current = setTimeout(async () => {
+        const { data } = await supabase.from('customers').select('*').ilike('name', `%${val}%`).limit(10);
+        setCustomerSuggestions(data || []);
+        setActiveSearchField('name');
+      }, 300);
     } else {
       setCustomerSuggestions([]);
       setActiveSearchField('');
@@ -423,7 +436,9 @@ const handleQuickBillConfirm = async () => {
                         </div>
                       </td>
                       <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
-                      <td className="py-4 text-right"> className="text-red-400 font-bold te<button onClick={() => setCart(cart.filter((_, i) => i !== idx))}>×</button></td>
+                      <td className="py-4 text-right">
+                        <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-bold text-xl">×</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
