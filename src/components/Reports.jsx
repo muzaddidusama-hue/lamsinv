@@ -35,9 +35,9 @@ const Reports = () => {
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
   const [mrps, setMrps] = useState({});
   const [pdfLoading, setPdfLoading] = useState(false);
-
-  const [invSerials, setInvSerials] = useState([]);
-  const [serialSearch, setSerialSearch] = useState('');
+const [invSerials, setInvSerials] = useState([]);
+   const [serialSearch, setSerialSearch] = useState('');
+   const [loadingSerials, setLoadingSerials] = useState(false);
 
   const getStandardKey = (name) => {
     if (!name) return 'unknown';
@@ -210,17 +210,46 @@ const Reports = () => {
   useEffect(() => {
     generateReport();
   }, [startDate, endDate]); 
-
-  // LAZY LOADING
+// LAZY LOADING
+   useEffect(() => {
+     if ((reportType === 'ledger_report' || reportType === 'product_wise') && rawProducts.length === 0) fetchAllProducts();
+   }, [reportType]);
+  // REALTIME SERIAL SEARCH WITH DEBOUNCE
   useEffect(() => {
-    if (reportType === 'serial_history' && invSerials.length === 0) fetchInvSerials();
-    if ((reportType === 'ledger_report' || reportType === 'product_wise') && rawProducts.length === 0) fetchAllProducts();
-  }, [reportType]);
+    if (reportType !== 'serial_history') return;
 
-  const fetchInvSerials = async () => {
-    const { data } = await supabase.from('inv_sl').select('*').order('created_at', { ascending: false });
-    if (data) setInvSerials(data);
-  };
+    const query = serialSearch.trim();
+    if (query.length < 2) {
+      setInvSerials([]);
+      return;
+    }
+
+    const delayDebounce = setTimeout(async () => {
+      setLoadingSerials(true);
+      try {
+        const { data, error } = await supabase
+          .from('inv_sl')
+          .select('*')
+          .ilike('sl_no', `%${query}%`)
+          .order('created_at', { ascending: false })
+          .limit(100);
+        if (!error && data) {
+          setInvSerials(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+      setLoadingSerials(false);
+    }, 300);
+
+    return () => clearTimeout(delayDebounce);
+  }, [serialSearch, reportType]);
+
+   const fetchInvSerials = async () => {
+     // Fallback / legacy helper if needed elsewhere
+     const { data } = await supabase.from('inv_sl').select('*').order('created_at', { ascending: false }).limit(1);
+     if (data) setInvSerials(data);
+   };
 
   const fetchAllProducts = async () => {
     const { data } = await supabase.from('products').select('id, name, model, category, house, stock_quantity').order('name', { ascending: true });
@@ -821,13 +850,21 @@ const Reports = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y font-bold text-slate-700">
-                      {invSerials
-                        .filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase()))
-                        .map((s, i) => {
+                      {serialSearch.trim().length < 2 ? (
+                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 italic">সিরিয়াল খুঁজতে কমপক্ষে ২ টি অক্ষর টাইপ করুন...</td></tr>
+                      ) : loadingSerials ? (
+                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 italic">খোঁজা হচ্ছে...</td></tr>
+                      ) : invSerials.length === 0 ? (
+                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 italic">কোনো সিরিয়াল পাওয়া যায়নি</td></tr>
+                      ) : (
+                        invSerials.map((s, i) => {
                           const { count, lastDate } = getServiceDetails(s);
                           return (
                             <tr key={i} className="hover:bg-slate-50 transition-colors">
-                              <td className="p-4">{s.model_name || s.inv_type}</td>
+                              <td className="p-4">
+                                {s.inv_model || 'N/A'} 
+                                <span className="text-[10px] text-slate-400 ml-1.5 uppercase font-black">({s.inv_type || 'Hybrid'})</span>
+                              </td>
                               <td className="p-4 font-mono text-blue-600">{s.sl_no}</td>
                               <td className="p-4">{s.customer_name || 'N/A'}</td>
                               <td className="p-4 truncate max-w-[150px]" title={s.address}>{s.address || 'ঠিকানা নেই'}</td>
@@ -840,9 +877,7 @@ const Reports = () => {
                               <td className="p-4 text-center text-slate-500">{lastDate}</td>
                             </tr>
                           );
-                      })}
-                      {invSerials.filter(s => s.sl_no && s.sl_no.toLowerCase().includes(serialSearch.toLowerCase())).length === 0 && (
-                        <tr><td colSpan="7" className="p-8 text-center text-slate-400 italic">কোনো সিরিয়াল পাওয়া যায়নি</td></tr>
+                        })
                       )}
                     </tbody>
                   </table>
