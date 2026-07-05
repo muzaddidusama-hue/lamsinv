@@ -33,9 +33,9 @@ export const downloadPDF = async (chalan, customer, items, type = 'Bill') => {
   exportContainer.style.height = '1122px'; // A4 Height in px
   exportContainer.style.position = 'absolute';
   exportContainer.style.top = '0';
-  exportContainer.style.left = '0';
+  exportContainer.style.left = '-9999px';
   exportContainer.style.zIndex = '-9999';
-  exportContainer.style.opacity = '0';
+  exportContainer.style.opacity = '1';
   exportContainer.style.pointerEvents = 'none';
   exportContainer.style.boxSizing = 'border-box';
   

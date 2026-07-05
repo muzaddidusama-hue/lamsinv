@@ -157,6 +157,22 @@
         box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08) !important;
       }
 
+      /* Force native calendar picker icon to be fully visible, dark, and clickable */
+      input[type="date"]::-webkit-calendar-picker-indicator,
+      input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+        opacity: 1 !important;
+        display: block !important;
+        cursor: pointer !important;
+        filter: invert(40%) sepia(80%) saturate(600%) hue-rotate(5deg) !important; /* LAMS Amber/Orange tint */
+        width: 18px !important;
+        height: 18px !important;
+        transition: transform 0.2s ease !important;
+      }
+      input[type="date"]::-webkit-calendar-picker-indicator:hover,
+      input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover {
+        transform: scale(1.15);
+      }
+
       /* SweetAlert পপ-আপের ভেতরে Hind Siliguri ফন্ট নিশ্চিত করার জন্য */
       .swal2-popup, .swal2-title, .swal2-content, .swal2-html-container, .swal2-confirm {
         font-family: 'Hind Siliguri', sans-serif !important;

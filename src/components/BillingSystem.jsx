@@ -4,14 +4,84 @@ import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 import { logAction } from '../utils/logger';
+// Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
+const CustomDatePicker = ({ value, onChange }) => {
+  const hiddenInputRef = React.useRef(null);
 
-const BillingSystem = () => {
-  const [house, setHouse] = useState('Head Office'); 
+  const formatDisplayDate = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
+  const getISODateValue = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  };
+
+  const handleIconClick = () => {
+    if (hiddenInputRef.current) {
+      try {
+        hiddenInputRef.current.showPicker();
+      } catch (err) {
+        hiddenInputRef.current.click();
+      }
+    }
+  };
+
+  const handleDateChange = (e) => {
+    const selectedVal = e.target.value;
+    if (!selectedVal) return;
+    const now = new Date();
+    const [year, month, day] = selectedVal.split('-');
+    const newDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+    onChange(newDate.toISOString());
+  };
+
+  return (
+    <div className="relative flex items-center w-full">
+      <input 
+        type="date" 
+        ref={hiddenInputRef}
+        value={getISODateValue(value)}
+        onChange={handleDateChange}
+        className="absolute w-0 h-0 opacity-0 pointer-events-none"
+      />
+      <input 
+        type="text" 
+        readOnly
+        value={formatDisplayDate(value)}
+        onClick={handleIconClick}
+        placeholder="DD/MM/YY"
+        className="w-full pr-12 cursor-pointer font-bold text-slate-800"
+      />
+      <button 
+        type="button"
+        onClick={handleIconClick}
+        className="absolute right-3 text-slate-900 hover:text-orange-600 transition-colors p-1"
+        title="ক্যালেন্ডার খুলুন"
+      >
+        <svg className="w-5 h-5 text-slate-950 stroke-current" fill="none" viewBox="0 0 24 24" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
+   const BillingSystem = () => {
+     const [house, setHouse] = useState('Head Office');
   const [isInHouse, setIsInHouse] = useState(false); 
   const [transferTo, setTransferTo] = useState('Showroom');
   const [isManualChalan, setIsManualChalan] = useState(false);
   const [manualChalanNo, setManualChalanNo] = useState('');
-  const [manualDate, setManualDate] = useState(''); 
+  const [manualDate, setManualDate] = useState(new Date().toISOString());
   const [phone, setPhone] = useState('');
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -255,7 +325,7 @@ const addToCart = () => {
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo(''); setManualDate('');
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo(''); setManualDate(new Date().toISOString());
       // বিল ডিটেইলস রিসেট
          setPaymentMethod('Bank'); setIsManualBill(true); setManualBillNo('');
       
@@ -313,13 +383,8 @@ const handleQuickBillConfirm = async () => {
            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="w-full sm:w-64">
-               <input 
-                 type="datetime-local" 
-                 value={manualDate} 
-                 onChange={(e) => setManualDate(e.target.value)} 
-                 className="w-full text-slate-800 font-bold text-xs" 
-               />
+          <div className="w-full sm:w-48">
+               <CustomDatePicker value={manualDate} onChange={setManualDate} />
             </div>
           <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
             {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}

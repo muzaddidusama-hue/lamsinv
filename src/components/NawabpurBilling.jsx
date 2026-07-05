@@ -2,9 +2,79 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
+// Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
+const CustomDatePicker = ({ value, onChange }) => {
+  const hiddenInputRef = React.useRef(null);
 
-const NawabpurBilling = () => {
-  const house = 'Showroom';
+  const formatDisplayDate = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = String(d.getFullYear()).slice(-2);
+    return `${day}/${month}/${year}`;
+  };
+
+  const getISODateValue = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().split('T')[0];
+  };
+
+  const handleIconClick = () => {
+    if (hiddenInputRef.current) {
+      try {
+        hiddenInputRef.current.showPicker();
+      } catch (err) {
+        hiddenInputRef.current.click();
+      }
+    }
+  };
+
+  const handleDateChange = (e) => {
+    const selectedVal = e.target.value;
+    if (!selectedVal) return;
+    const now = new Date();
+    const [year, month, day] = selectedVal.split('-');
+    const newDate = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
+    onChange(newDate.toISOString());
+  };
+
+  return (
+    <div className="relative flex items-center w-full">
+      <input 
+        type="date" 
+        ref={hiddenInputRef}
+        value={getISODateValue(value)}
+        onChange={handleDateChange}
+        className="absolute w-0 h-0 opacity-0 pointer-events-none"
+      />
+      <input 
+        type="text" 
+        readOnly
+        value={formatDisplayDate(value)}
+        onClick={handleIconClick}
+        placeholder="DD/MM/YY"
+        className="w-full pr-12 cursor-pointer font-bold text-slate-800"
+      />
+      <button 
+        type="button"
+        onClick={handleIconClick}
+        className="absolute right-3 text-slate-900 hover:text-orange-600 transition-colors p-1"
+        title="ক্যালেন্ডার খুলুন"
+      >
+        <svg className="w-5 h-5 text-slate-950 stroke-current" fill="none" viewBox="0 0 24 24" strokeWidth="2.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
+   const NawabpurBilling = () => {
+     const house = 'Showroom';
     const [phone, setPhone] = useState('');
     const [name, setName] = useState('');
     const [address, setAddress] = useState('');
@@ -25,7 +95,7 @@ const NawabpurBilling = () => {
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [isManualBill, setIsManualBill] = useState(false);
   const [manualBillNo, setManualBillNo] = useState('');
-  const [manualDate, setManualDate] = useState(''); 
+  const [manualDate, setManualDate] = useState(new Date().toISOString());
   const searchTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -209,8 +279,7 @@ setCart([...cart, {
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash'); setManualDate('');
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash'); setManualDate(new Date().toISOString());
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
     
@@ -228,13 +297,8 @@ setCart([...cart, {
            <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
            <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
         </div>
-        <div className="w-full md:w-64">
-              <input 
-                type="datetime-local" 
-                value={manualDate} 
-                onChange={(e) => setManualDate(e.target.value)} 
-                className="w-full text-slate-800 font-bold text-xs" 
-              />
+        <div className="w-full md:w-48">
+              <CustomDatePicker value={manualDate} onChange={setManualDate} />
            </div>
       </div>
 
