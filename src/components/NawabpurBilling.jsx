@@ -228,10 +228,14 @@ setCart([...cart, {
            <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
            <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
         </div>
-        <div className="bg-blue-700/50 p-3 rounded-xl border border-blue-500 w-full md:w-auto">
-           <label className="text-[10px] font-bold text-blue-200 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
-           <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-white font-bold outline-none w-full" />
-        </div>
+        <div className="w-full md:w-64">
+              <input 
+                type="datetime-local" 
+                value={manualDate} 
+                onChange={(e) => setManualDate(e.target.value)} 
+                className="w-full text-slate-800 font-bold text-xs" 
+              />
+           </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

@@ -240,23 +240,6 @@ const Dashboard = ({ setView }) => {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6 mt-8 pt-8 border-t border-slate-200">
-        <button 
-          onClick={() => setView && setView('billing')} 
-          className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white p-6 rounded-[2rem] font-black text-xl md:text-2xl shadow-xl shadow-orange-500/30 transition-all active:scale-95 flex items-center justify-center gap-4"
-        >
-          <span className="text-4xl">🏢</span> 
-          হেড অফিস <span className="text-sm bg-white/20 px-3 py-1 rounded-full ml-2">বিল ও চালান</span>
-        </button>
-
-        <button 
-          onClick={() => setView && setView('nawabpur_billing')} 
-          className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-6 rounded-[2rem] font-black text-xl md:text-2xl shadow-xl shadow-blue-600/30 transition-all active:scale-95 flex items-center justify-center gap-4"
-        >
-          <span className="text-4xl">🏪</span> 
-          নওয়াবপুর <span className="text-sm bg-white/20 px-3 py-1 rounded-full ml-2">ডিরেক্ট বিল</span>
-        </button>
-      </div>
 
       {selectedItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4">

@@ -30,8 +30,8 @@ const BillingSystem = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generatedData, setGeneratedData] = useState(null);
   const [quickBillMode, setQuickBillMode] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState('');
-    const [isManualBill, setIsManualBill] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Bank');
+     const [isManualBill, setIsManualBill] = useState(true);
     const [manualBillNo, setManualBillNo] = useState('');
     const [billGenerated, setBillGenerated] = useState(false);
   const searchTimeoutRef = useRef(null);
@@ -256,9 +256,8 @@ const addToCart = () => {
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
       setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo(''); setManualDate('');
-      
       // বিল ডিটেইলস রিসেট
-      setPaymentMethod(''); setIsManualBill(false); setManualBillNo('');
+         setPaymentMethod('Bank'); setIsManualBill(true); setManualBillNo('');
       
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
@@ -314,10 +313,14 @@ const handleQuickBillConfirm = async () => {
            <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 w-full sm:w-auto">
-             <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Custom Date (ঐচ্ছিক)</label>
-             <input type="datetime-local" value={manualDate} onChange={(e) => setManualDate(e.target.value)} className="bg-transparent text-slate-800 font-bold outline-none text-sm w-full" />
-          </div>
+          <div className="w-full sm:w-64">
+               <input 
+                 type="datetime-local" 
+                 value={manualDate} 
+                 onChange={(e) => setManualDate(e.target.value)} 
+                 className="w-full text-slate-800 font-bold text-xs" 
+               />
+            </div>
           <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
             {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}
           </button>
