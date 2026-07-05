@@ -135,19 +135,42 @@ const Dashboard = ({ setView }) => {
 
   if (loading) return <div className="flex justify-center items-center h-screen text-slate-400 font-black animate-pulse uppercase tracking-widest text-xs">Loading LAMS System...</div>;
 
+  const cardIcons = [
+    // Clock Icon (Pending)
+    <svg key="pending" className="w-6 h-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>,
+    // Box Icon (Today's Chalans)
+    <svg key="chalans" className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>,
+    // Receipt Icon (Today's Sales)
+    <svg key="sales" className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>,
+    // Warning Icon (Low Stock Alert)
+    <svg key="warning" className="w-6 h-6 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+  ];
+
   return (
     <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 font-['Inter'] pb-20">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         {[
-          { label: 'Pending Action', val: holdChalans.length, color: 'bg-orange-500', icon: '⏳' },
-          { label: "Today's Chalans", val: todayChalans.length, color: 'bg-blue-600', icon: '📦' },
-          { label: "Today's Sales", val: todayBills.length, color: 'bg-green-600', icon: '🧾' },
-          { label: 'Low Stock Alert', val: lowStockProducts.length, color: 'bg-red-500', icon: '⚠️' }
+          { label: 'Pending Action', val: holdChalans.length, bg: 'bg-orange-50/80 border-orange-100/50', icon: cardIcons[0] },
+          { label: "Today's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: cardIcons[1] },
+          { label: "Today's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: cardIcons[2] },
+          { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-red-50/80 border-red-100/50', icon: cardIcons[3] }
         ].map((s, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between overflow-hidden relative group">
-            <div className="absolute -right-2 -bottom-2 text-6xl opacity-5">{s.icon}</div>
-            <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p><h3 className="text-3xl font-black text-slate-800 mt-1">{s.val}</h3></div>
-            <div className={`w-3 h-3 rounded-full ${s.color}`}></div>
+          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover-scale flex items-center justify-between relative overflow-hidden group">
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
+              <h3 className="text-3xl font-black text-slate-800 mt-1.5">{s.val}</h3>
+            </div>
+            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${s.bg}`}>
+              {s.icon}
+            </div>
           </div>
         ))}
       </div>
@@ -157,7 +180,7 @@ const Dashboard = ({ setView }) => {
           <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Pending Action</h2>
           <div className="space-y-3">
             {holdChalans.map(c => (
-              <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover:border-orange-400 hover:shadow-xl transition-all cursor-pointer group">
+              <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover-scale hover:shadow-lg transition-all cursor-pointer group">
                 <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${checkIsTransfer(c.is_in_house) ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
                 <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
                 <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
@@ -172,7 +195,7 @@ const Dashboard = ({ setView }) => {
             <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Chalans</h2>
             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
                {todayChalans.map(tc => (
-                 <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-blue-50 cursor-pointer transition-all">
+                 <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 hover-scale hover:bg-blue-50/30 cursor-pointer transition-all">
                     <div className="flex justify-between items-start">
                       <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
                       <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>

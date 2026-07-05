@@ -151,8 +151,8 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                 onClick={() => handleMenuClick(item)} 
                 className={`w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center justify-between group ${
                   (!item.isDropdown && view === item.id) || (item.isDropdown && openSubMenu === item.id)
-                    ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' 
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                    ? 'bg-slate-800/60 text-orange-400 border-l-4 border-orange-500 pl-3 shadow-sm shadow-orange-500/5' 
+                    : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200 border-l-4 border-transparent pl-3'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -160,20 +160,23 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                   <span>{item.label}</span>
                 </div>
                 {item.isDropdown && (
-                  <span className={`text-xs transition-transform duration-300 ${openSubMenu === item.id ? 'rotate-180' : ''}`}>▼</span>
+                  <span className={`text-[10px] transition-transform duration-300 ${openSubMenu === item.id ? 'rotate-180 text-orange-400' : 'text-slate-500'}`}>▼</span>
                 )}
               </button>
 
               {item.isDropdown && openSubMenu === item.id && (
-                <div className="ml-10 mt-2 flex flex-col gap-1 border-l-2 border-slate-800 pl-3 animate-in slide-in-from-top-2 duration-200">
+                <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-slate-800/60 pl-4 animate-in slide-in-from-top-2 duration-300">
                   {item.subItems.map((subItem) => (
                     <button
                       key={subItem.id}
                       onClick={() => handleSubMenuClick(subItem.id)}
-                      className={`text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                        view === subItem.id ? 'bg-slate-800 text-white' : 'text-slate-500 hover:text-white hover:bg-slate-800/50'
+                      className={`text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 group/sub ${
+                        view === subItem.id 
+                          ? 'text-orange-400 bg-orange-500/5' 
+                          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/35'
                       }`}
                     >
+                      <span className={`w-1.5 h-1.5 rounded-full transition-all ${view === subItem.id ? 'bg-orange-400 scale-125' : 'bg-slate-700 group-hover/sub:bg-slate-500'}`}></span>
                       {subItem.label}
                     </button>
                   ))}
@@ -212,7 +215,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         </div>
 
         {/* কন্টেন্ট লোড এরিয়া */}
-        <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1">
+        <div key={view} className="p-4 md:p-8 pb-28 md:pb-8 flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
           {view === 'dashboard' && <Dashboard setView={setView} />}
           {view === 'nawabpur_billing' && <NawabpurBilling />}
           {view === 'smart_scan' && <SmartUpload />} 
