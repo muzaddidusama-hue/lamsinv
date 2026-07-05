@@ -1,5 +1,62 @@
 import React, { useState } from 'react';
 
+// Modern Minimal SVG Icons for Sidebar
+const DashboardIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+  </svg>
+);
+
+const ScanIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const ProductIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+  </svg>
+);
+
+const BillingIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+const ServiceIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+  </svg>
+);
+
+const ReportIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+  </svg>
+);
+
+const CustomIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+  </svg>
+);
+
+const UsersIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+  </svg>
+);
+
+const LogoutIcon = () => (
+  <svg className="w-5 h-5 text-red-400 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+  </svg>
+);
+
 // আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট
 import Dashboard from './Dashboard';
 import BillingSystem from './BillingSystem';
@@ -24,11 +81,11 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
 
   // রোল অনুযায়ী মেনু ফিল্টারিং
   const menuItems = [
-    { id: 'dashboard', icon: '📊', label: 'ড্যাশবোর্ড (Dashboard)' },
-    { id: 'smart_scan', icon: '📸', label: 'স্মার্ট স্ক্যানার (AI)' },
+    { id: 'dashboard', icon: <DashboardIcon />, label: 'ড্যাশবোর্ড (Dashboard)' },
+    { id: 'smart_scan', icon: <ScanIcon />, label: 'স্মার্ট স্ক্যানার (AI)' },
     {
       id: 'product_section', 
-      icon: '📦', 
+      icon: <ProductIcon />, 
       label: 'প্রোডাক্ট',
       isDropdown: true,
       subItems: [
@@ -39,7 +96,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     },
     {
       id: 'bill_section', 
-      icon: '🧾', 
+      icon: <BillingIcon />, 
       label: 'বিল সেকশন',
       isDropdown: true,
       subItems: [
@@ -51,12 +108,12 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         { id: 'return_manager', icon: '↩️', label: 'প্রোডাক্ট রিটার্ন (Return)' },
       ]
     },
-    { id: 'service_manager', icon: '🛠️', label: 'ইনভার্টার সার্ভিস (Service)' }, 
-    { id: 'reports', icon: '📋', label: 'রিপোর্ট (Reports)' },
+    { id: 'service_manager', icon: <ServiceIcon />, label: 'ইনভার্টার সার্ভিস (Service)' }, 
+    { id: 'reports', icon: <ReportIcon />, label: 'রিপোর্ট (Reports)' },
     
     ...((currentUserRole === 'Admin' || currentUserRole === 'CEO') ? [
-      { id: 'frontend_custom', icon: '⚙️', label: 'পাবলিক পেজ এডিট' },
-      { id: 'user_management', icon: '👥', label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
+      { id: 'frontend_custom', icon: <CustomIcon />, label: 'পাবলিক পেজ এডিট' },
+      { id: 'user_management', icon: <UsersIcon />, label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
     ] : [])
   ];
 
@@ -92,7 +149,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
             <div key={item.id}>
               <button 
                 onClick={() => handleMenuClick(item)} 
-                className={`w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center justify-between ${
+                className={`w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center justify-between group ${
                   (!item.isDropdown && view === item.id) || (item.isDropdown && openSubMenu === item.id)
                     ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' 
                     : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
@@ -127,9 +184,9 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           
           <button 
             onClick={onLogout} 
-            className="w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center gap-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 mt-8"
+            className="w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center gap-3 text-red-400 hover:bg-red-500/10 hover:text-red-300 mt-8 group"
           >
-            <span className="text-xl">🚪</span>
+            <LogoutIcon />
             <span>লগআউট</span>
           </button>
         </div>
