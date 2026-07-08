@@ -2,9 +2,8 @@ name: Supabase Database Backup
 
 on:
   schedule:
-    # প্রতিদিন বাংলাদেশ সময় সকাল ৬টায় (UTC 00:00) ব্যাকআপ নেবে
     - cron: '0 0 * * *'
-  workflow_dispatch: # ড্যাশবোর্ড থেকে ম্যানুয়ালি রান করার জন্য বাটন
+  workflow_dispatch:
 
 jobs:
   backup:
@@ -16,23 +15,18 @@ jobs:
 
       - name: Set up PostgreSQL client
         run: |
-          # Extract the PostgreSQL version from the connection string
-          PGVERSION=$(echo "${{ secrets.SUPABASE_DB_URL }}" | grep -oP '(?<=postgres://)[^:]+' || echo "17")
-          
           # Add PostgreSQL repository
           sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
           sudo apt-get update
           
-          # Install the matching PostgreSQL client version
-          sudo apt-get install -y postgresql-client-common
-          sudo apt-get install -y postgresql-client-${PGVERSION}
+          # Install PostgreSQL 17 client (matches your Supabase server version 17.6)
+          sudo apt-get install -y postgresql-client-17
 
       - name: Generate Backup File
         run: |
           DATE=$(date +'%Y-%m-%d_%H-%M-%S')
           BACKUP_NAME="lams_power_backup_$DATE.sql"
-          # সুপাবেজ থেকে ডাটা ডাম্প করা হচ্ছে
           pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $BACKUP_NAME
           echo "BACKUP_FILE=$BACKUP_NAME" >> $GITHUB_ENV
 
@@ -41,4 +35,4 @@ jobs:
         with:
           name: database-backup-${{ env.BACKUP_FILE }}
           path: ${{ env.BACKUP_FILE }}
-          retention-days: 30 # ব্যাকআপ ফাইলগুলো ৩০ দিন পর্যন্ত গিটহাবে সেভ থাকবে
+          retention-days: 30
