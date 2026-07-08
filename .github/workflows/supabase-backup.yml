@@ -35,4 +35,4 @@ jobs:
         with:
           name: database-backup-${{ env.BACKUP_FILE }}
           path: ${{ env.BACKUP_FILE }}
-          retention-days: 30
+          retention-days: 30 # ব্যাকআপ ফাইলগুলো ৩০ দিন পর্যন্ত গিটহাবে সেভ থাকবে
