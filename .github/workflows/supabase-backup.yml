@@ -22,12 +22,15 @@ jobs:
           
           # Install PostgreSQL 17 client (matches your Supabase server version 17.6)
           sudo apt-get install -y postgresql-client-17
+          
+          # Force PostgreSQL 17 client binaries to take precedence
+          echo "/usr/lib/postgresql/17/bin" >> $GITHUB_PATH
 
       - name: Generate Backup File
         run: |
           DATE=$(date +'%Y-%m-%d_%H-%M-%S')
           BACKUP_NAME="lams_power_backup_$DATE.sql"
-          pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $BACKUP_NAME
+          /usr/lib/postgresql/17/bin/pg_dump "${{ secrets.SUPABASE_DB_URL }}" > $BACKUP_NAME
           echo "BACKUP_FILE=$BACKUP_NAME" >> $GITHUB_ENV
 
       - name: Upload Backup as Artifact
