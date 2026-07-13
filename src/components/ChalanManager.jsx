@@ -53,7 +53,7 @@ const ChalanManager = () => {
   const getCustomerData = (record) => {
     if (!record) return { name: 'Walk-in', phone: '', address: '' };
     return {
-      name: record.customer_name || record.customers?.name || (record.is_in_house ? 'Transfer' : 'Walk-in'),
+      name: record.customer_name || record.customers?.name || ((record.is_in_house === true || String(record.is_in_house) === 'true') ? 'Transfer' : 'Walk-in'),
       phone: record.phone || record.customers?.phone || '',
       address: record.address || record.customers?.address || ''
     };

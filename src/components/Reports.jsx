@@ -267,9 +267,12 @@ const [invSerials, setInvSerials] = useState([]);
       setAllProducts(uniqueProds);
     }
   };
+const checkIsTransfer = (val) => {
+     return val === true || String(val).toLowerCase() === 'true';
+   };
 
-  const generateReport = async () => {
-    setLoading(true);
+   const generateReport = async () => {
+     setLoading(true);
     try {
       const { data: allChalans, error } = await supabase
         .from('chalans')
@@ -287,7 +290,7 @@ const [invSerials, setInvSerials] = useState([]);
           const isFuture = new Date(ch.created_at).getTime() > endDateTime;
 
           if (!isFuture) periodChalans.push(ch);
-          if (!ch.is_in_house && ch.chalan_items) {
+          if (!checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
@@ -320,8 +323,7 @@ const [invSerials, setInvSerials] = useState([]);
               }
             });
           }
-          
-          if (ch.is_in_house && ch.chalan_items) {
+          if (checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               extractedTrans.push({
