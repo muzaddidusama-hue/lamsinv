@@ -287,29 +287,43 @@ const [invSerials, setInvSerials] = useState([]);
           const isFuture = new Date(ch.created_at).getTime() > endDateTime;
 
           if (!isFuture) periodChalans.push(ch);
-
-          if (ch.status === 'paid' && ch.chalan_items) {
+          if (!ch.is_in_house && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+              const pName = `${item.products?.name || ''} - 	ext{item.products?.model || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
-              extractedTrans.push({
-                id: `sale_${ch.id}_${item.id}`,
-                date: ch.created_at ? ch.created_at.split('T')[0] : '',
-                timestamp: ch.created_at,
-                product: pName,
-                type: 'out',
-                house: ch.house || 'Head Office',
-                quantity: item.quantity,
-                source: `Sold to: ${cName}`,
-                ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
-                isFuture
-              });
+              if (ch.status === 'paid') {
+                extractedTrans.push({
+                  id: `sale_${ch.id}_${item.id}`,
+                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                  timestamp: ch.created_at,
+                  product: pName,
+                  type: 'out',
+                  house: ch.house || 'Head Office',
+                  quantity: item.quantity,
+                  source: `Sold to: ${cName}`,
+                  ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
+                  isFuture
+                });
+              } else if (ch.status === 'hold') {
+                extractedTrans.push({
+                  id: `sale_hold_${ch.id}_${item.id}`,
+                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                  timestamp: ch.created_at,
+                  product: pName,
+                  type: 'out',
+                  house: ch.house || 'Head Office',
+                  quantity: item.quantity,
+                  source: `Challan Out: ${cName}`,
+                  ref: `Chl: #${ch.chalan_no}`,
+                  isFuture
+                });
+              }
             });
           }
           
-          if (ch.status === 'completed' && ch.is_in_house && ch.chalan_items) {
+          if (ch.is_in_house && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+              const pName = `${item.products?.name || ''} - 	ext{item.products?.model || ''}`.trim();
               extractedTrans.push({
                 id: `tr_out_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'out', house: ch.house, quantity: item.quantity, source: `Transfer Out (To ${ch.transfer_to})`, ref: `Chl: #${ch.chalan_no}`, isFuture
               });
@@ -323,6 +337,7 @@ const [invSerials, setInvSerials] = useState([]);
 
       processReportData(periodChalans); 
 
+      // Fetch manual additions from ledger (filter to 'in' type entries only)
       const { data: allLedger, error: ledgerErr } = await supabase
         .from('ledger')
         .select('*')
@@ -331,10 +346,12 @@ const [invSerials, setInvSerials] = useState([]);
 
       if (!ledgerErr && allLedger) {
         allLedger.forEach(l => {
+          if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
           const isFuture = l.date > endDate;
           extractedTrans.push({
             id: `leg_${l.id}`,
             dbId: l.id, 
+            dbTable: 'ledger',
             date: l.date,
             timestamp: l.in || l.date,
             product: l.product,
@@ -343,6 +360,32 @@ const [invSerials, setInvSerials] = useState([]);
             quantity: parseInt(l.quantity) || 0,
             source: l.source || 'Import / Manual Entry',
             ref: 'Manual Entry',
+            isFuture
+          });
+        });
+      }
+
+      // Fetch manual removals from stock_out
+      const { data: allStockOut, error: stockOutErr } = await supabase
+        .from('stock_out')
+        .select('*')
+        .gte('date', startDate);
+
+      if (!stockOutErr && allStockOut) {
+        allStockOut.forEach(s => {
+          const isFuture = s.date > endDate;
+          extractedTrans.push({
+            id: `stout_${s.id}`,
+            dbId: s.id,
+            dbTable: 'stock_out',
+            date: s.date,
+            timestamp: s.date,
+            product: `${s.type} - ${s.model}`,
+            type: 'out',
+            house: 'Head Office',
+            quantity: parseInt(s.amount) || 0,
+            source: s.reason || 'Manual Removal',
+            ref: 'Manual Removal',
             isFuture
           });
         });
@@ -797,7 +840,9 @@ const [invSerials, setInvSerials] = useState([]);
                                   if (!l.dbId) return alert("চালান বা বিল থেকে আসা এন্ট্রিগুলো এখান থেকে ডিলিট করা যাবে না। 'পেমেন্ট ও চালান' সেকশন থেকে ডিলিট বা রিটার্ন করুন।");
                                   if (window.confirm("এই ম্যানুয়াল এন্ট্রিটি মুছে ফেললে ডাটাবেজ থেকে চিরতরে চলে যাবে। নিশ্চিত?")) {
                                     try {
-                                      await supabase.from('ledger').delete().eq('id', l.dbId);
+                                      const tableName = l.dbTable || 'ledger';
+                                      const { error } = await supabase.from(tableName).delete().eq('id', l.dbId);
+                                      if (error) throw error;
                                       alert("রেকর্ড মুছে ফেলা হয়েছে!");
                                       generateReport();
                                     } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }

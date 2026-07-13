@@ -22,13 +22,14 @@ const Dashboard = ({ setView }) => {
 
   const fetchDashboardData = async () => {
     setLoading(true);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayISO = today.toISOString();
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    const startOfMonthISO = startOfMonth.toISOString();
     try {
       const { data: hold } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'hold').order('created_at', { ascending: false });
-      const { data: tChalans } = await supabase.from('chalans').select('*, customers(*)').gte('created_at', todayISO).order('created_at', { ascending: false });
-      const { data: tBills } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', todayISO).order('created_at', { ascending: false });
+      const { data: tChalans } = await supabase.from('chalans').select('*, customers(*)').gte('created_at', startOfMonthISO).order('created_at', { ascending: false });
+      const { data: tBills } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', startOfMonthISO).order('created_at', { ascending: false });
       const { data: stock } = await supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true });
       
       setHoldChalans(hold || []);
@@ -159,8 +160,8 @@ const Dashboard = ({ setView }) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         {[
           { label: 'Pending Action', val: holdChalans.length, bg: 'bg-orange-50/80 border-orange-100/50', icon: cardIcons[0] },
-          { label: "Today's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: cardIcons[1] },
-          { label: "Today's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: cardIcons[2] },
+          { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: cardIcons[1] },
+          { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: cardIcons[2] },
           { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-red-50/80 border-red-100/50', icon: cardIcons[3] }
         ].map((s, i) => (
           <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover-scale flex items-center justify-between relative overflow-hidden group">
@@ -192,7 +193,7 @@ const Dashboard = ({ setView }) => {
 
         <div className="xl:col-span-9 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Chalans</h2>
+            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">This Month's Chalans</h2>
             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
                {todayChalans.map(tc => (
                  <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 hover-scale hover:bg-blue-50/30 cursor-pointer transition-all">
@@ -205,7 +206,7 @@ const Dashboard = ({ setView }) => {
             </div>
           </div>
           <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">Today's Bills</h2>
+            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">This Month's Bills</h2>
             <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
                {todayBills.map(tb => (
                  <div key={tb.id} onClick={() => handleViewDetails(tb, 'bill')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-green-50 cursor-pointer transition-all">
