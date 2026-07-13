@@ -289,7 +289,7 @@ const [invSerials, setInvSerials] = useState([]);
           if (!isFuture) periodChalans.push(ch);
           if (!ch.is_in_house && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - 	ext{item.products?.model || ''}`.trim();
+              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
               if (ch.status === 'paid') {
                 extractedTrans.push({
@@ -323,7 +323,7 @@ const [invSerials, setInvSerials] = useState([]);
           
           if (ch.is_in_house && ch.chalan_items) {
             ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - 	ext{item.products?.model || ''}`.trim();
+              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               extractedTrans.push({
                 id: `tr_out_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'out', house: ch.house, quantity: item.quantity, source: `Transfer Out (To ${ch.transfer_to})`, ref: `Chl: #${ch.chalan_no}`, isFuture
               });
