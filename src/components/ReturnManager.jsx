@@ -115,16 +115,13 @@ const ReturnManager = () => {
           if (prodData) {
             await supabase.from('products').update({ stock_quantity: prodData.stock_quantity + rq }).eq('id', item.product_id);
           }
-
           // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
           await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
-            type: 'in',
             source: `Return from Inv: #${invoiceRef}`,
             date: new Date().toISOString().split('T')[0],
-            in: new Date().toISOString(),
-            house: selectedInvoice.house
+            in: new Date().toISOString()
           }]);
 
           // Chalan Items আপডেট বা ডিলিট
