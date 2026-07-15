@@ -99,30 +99,38 @@ const StockManagement = () => {
       // তারিখ অনুযায়ী timestamp তৈরি
       const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
       const finalTimestamp = `${manualDate}T${currentTime}.000Z`;
-      if (modalType === 'stock') {
-        const { error: ledgerError } = await supabase.from('ledger').insert([
-          {
-            product: `${selectedProduct.name} - ${selectedProduct.model}`,
-            quantity: parseInt(newValue),
-            date: manualDate,
-            in: finalTimestamp, 
-            source: purchaseSource 
-          }
-        ]);
-        if (ledgerError) console.error("Ledger Sync Error:", ledgerError);
-      } else if (modalType === 'reduce_stock') {
-        // stock_out টেবিলে এন্ট্রি (ম্যানুয়াল রিমুভাল সরাসরি stock_out থেকে ট্র্যাক হয়)
-        const { error: stockOutError } = await supabase.from('stock_out').insert([
-          {
-            type: selectedProduct.name,
-            model: selectedProduct.model,
-            amount: newValue.toString(),
-            reason: reduceReason.trim(),
-            date: manualDate
-          }
-        ]);
-        if (stockOutError) console.error("Stock Out Sync Error:", stockOutError);
-      }
+            if (modalType === 'stock') {
+              const { error: ledgerError } = await supabase.from('ledger').insert([
+                {
+                  product: `${selectedProduct.name} - ${selectedProduct.model}`,
+                  quantity: parseInt(newValue),
+                  date: manualDate,
+                  in: finalTimestamp, 
+                  source: purchaseSource 
+                }
+              ]);
+              if (ledgerError) {
+                console.error("Ledger Sync Error:", ledgerError);
+                alert("❌ লেজার এন্ট্রি তৈরি করতে ব্যর্থ হয়েছে: " + ledgerError.message);
+                throw ledgerError;
+              }
+            } else if (modalType === 'reduce_stock') {
+              // stock_out টেবিলে এন্ট্রি (ম্যানুয়াল রিমুভাল সরাসরি stock_out থেকে ট্র্যাক হয়)
+              const { error: stockOutError } = await supabase.from('stock_out').insert([
+                {
+                  type: selectedProduct.name,
+                  model: selectedProduct.model,
+                  amount: newValue.toString(),
+                  reason: reduceReason.trim(),
+                  date: manualDate
+                }
+              ]);
+              if (stockOutError) {
+                console.error("Stock Out Sync Error:", stockOutError);
+                alert("❌ স্টক আউট এন্ট্রি তৈরি করতে ব্যর্থ হয়েছে: " + stockOutError.message);
+                throw stockOutError;
+              }
+            }
 
       alert(`✅ ${modalType === 'price' ? 'দাম' : 'স্টক'} সফলভাবে আপডেট হয়েছে!`);
       setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, ...updateData } : p));
