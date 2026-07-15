@@ -99,19 +99,18 @@ const ProductEntry = () => {
 
     setLoading(true);
     const finalPrice = parseFloat(unitPrice);
-
-    const { error } = await supabase.from('products').insert([
-      {
-        name: name,
-        category: category,
-        model: model,
-        unit_price: finalPrice,
-        stock_quantity: 0, 
-        availability: availability,
-        image_url: imageUrl,
-        house: house 
-      }
-    ]);
+const { error } = await supabase.from('products').insert([
+       {
+         name: name,
+         category: category,
+         model: model,
+         unit_price: finalPrice,
+         stock_quantity: 0, 
+         availability: availability,
+         image_url: imageUrl || null,
+         house: house 
+       }
+     ]);
 
     if (!error) {
       alert('✅ প্রোডাক্ট সফলভাবে যুক্ত হয়েছে!');
@@ -253,8 +252,7 @@ const ProductEntry = () => {
             </div>
 
             <input type="text" value={imageUrl} readOnly placeholder="লিংক এখানে অটোমেটিক আসবে" className="w-full p-3 bg-orange-50 border border-orange-100 rounded-2xl outline-none text-[10px] font-medium text-slate-500" />
-
-            <button type="submit" disabled={loading || uploading || !imageUrl} className="w-full mt-2 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-xl active:scale-95 disabled:bg-slate-300">
+<button type="submit" disabled={loading || uploading} className="w-full mt-2 bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-600 transition-all shadow-xl active:scale-95 disabled:bg-slate-300">
               {loading ? 'পাবলিশ হচ্ছে...' : 'পাবলিশ করুন'}
             </button>
           </div>
