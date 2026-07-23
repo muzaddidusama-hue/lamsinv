@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const FrontEndCustom = () => {
-  const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products
+  const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products, product_details
   const [loading, setLoading] = useState(false);
 
   // সাইট সেটিংস কাঁচা ডাটা
@@ -23,14 +23,18 @@ const FrontEndCustom = () => {
   );
 
   const [categoryImages, setCategoryImages] = useState({
-    "Hybrid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-    "On Grid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-    "Solar Panel 12V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-    "Solar Panel 24V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png"
+    "Hybrid Inverter": "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
+    "On Grid Inverter": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png",
+    "Solar Panel 12V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png",
+    "Solar Panel 24V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png"
   });
 
   const [actualFooterImage, setActualFooterImage] = useState('https://i.postimg.cc/bvTWjG7T/Propducts-Image.png');
+  
+  // নিউ অ্যারাইভাল ট্যাব স্টেটস
   const [featuredKeys, setFeaturedKeys] = useState([]); // "category|name|model" ফরম্যাটে
+  const [featuredText, setFeaturedText] = useState('Currently SolarOn 3600VA and 6200VA are our new arrival products');
+  const [featuredCustomImages, setFeaturedCustomImages] = useState({}); // uniqueKey -> customImageUrl
 
   // প্রোডাক্ট এডিটর স্টেটস (Tab 4: প্রোডাক্ট বিবরণী এডিটর)
   const [uniqueProducts, setUniqueProducts] = useState([]);
@@ -62,10 +66,11 @@ const FrontEndCustom = () => {
             if (parsed.about_quality_text) setAboutQualityText(parsed.about_quality_text);
             if (parsed.category_images) setCategoryImages({ ...categoryImages, ...parsed.category_images });
             if (parsed.featured_keys) setFeaturedKeys(parsed.featured_keys);
+            if (parsed.featured_text) setFeaturedText(parsed.featured_text);
+            if (parsed.featured_custom_images) setFeaturedCustomImages(parsed.featured_custom_images);
             if (parsed.actual_footer_image) setActualFooterImage(parsed.actual_footer_image);
           } catch (jsonErr) {
             console.error("JSON Parsing Error:", jsonErr);
-            // ফলব্যাক হিসেবে কাঁচা স্ট্রিংটিকে ফুটার ইমেজ হিসেবে ব্যবহার করা হবে
             setActualFooterImage(settings.footer_image_url);
           }
         } else if (settings.footer_image_url) {
@@ -130,7 +135,6 @@ const FrontEndCustom = () => {
   const saveAllSettings = async (updatedSettingsObject) => {
     setLoading(true);
     try {
-      // সমস্ত কাস্টম ফিল্ড এবং টগল কনফিগারেশন JSON অবজেক্টে কনভার্ট করা হবে
       const customPayload = {
         about_profile_title: aboutProfileTitle,
         about_profile_text: aboutProfileText,
@@ -138,6 +142,8 @@ const FrontEndCustom = () => {
         about_quality_text: aboutQualityText,
         category_images: categoryImages,
         featured_keys: featuredKeys,
+        featured_text: featuredText,
+        featured_custom_images: featuredCustomImages,
         actual_footer_image: actualFooterImage
       };
 
@@ -154,7 +160,7 @@ const FrontEndCustom = () => {
       alert("✅ সাইটের ডিজাইন এবং কাস্টম তথ্য সফলভাবে আপডেট হয়েছে!");
     } catch (err) {
       console.error(err);
-      alert("সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message);
+      alert("সংرক্ষণ করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
@@ -358,10 +364,24 @@ const FrontEndCustom = () => {
       {/* ---------------- ট্যাব ৩: নতুন আগমন টগল (New Arrivals) ---------------- */}
       {activeTab === 'featured_products' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
-          <h2 className="text-xl font-black text-slate-800 mb-2">হোমপেজের নতুন আগমন (New Arrivals / Featured) প্রোডাক্টস</h2>
-          <p className="text-xs text-slate-400 mb-6">যেসব প্রোডাক্টকে হোমপেজের নতুন আগমন সেকশনে হাইলাইট করতে চান, সেগুলো টগল (অন) করে দিন।</p>
+          <h2 className="text-xl font-black text-slate-800 mb-2">হোমপেজের নতুন আগমন (New Arrivals / Featured) প্রোডাক্টস ও সেকশন বিবরণ</h2>
+          <p className="text-xs text-slate-400 mb-6">হোমপেজের নিউ অ্যারাইভাল সেকশনের টাইটেল/সাবটাইটেল এডিট করুন এবং প্রোডাক্ট কার্ড টগল করে কাস্টম ইমেজ সেট করুন।</p>
           
-          <div className="space-y-4">
+          <div className="space-y-6">
+            
+            {/* নতুন আগমন সাবটাইটেল/টেক্সট ইনপুট */}
+            <div className="space-y-1 border-b pb-6 border-slate-100">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">নিউ অ্যারাইভাল সেকশন পরিচিতি টেক্সট (Featured Text/Subtitle)</label>
+              <textarea 
+                value={featuredText} 
+                onChange={e => setFeaturedText(e.target.value)} 
+                rows="2" 
+                placeholder="নিউ অ্যারাইভাল সেকশনের নিচে দেখানোর জন্য সংক্ষিপ্ত পরিচিতি বা অফার..."
+                className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed" 
+              />
+            </div>
+
+            <h3 className="text-sm font-black text-orange-500 uppercase tracking-wider">প্রোডাক্ট টগল এবং কাস্টম ইমেজ এডিট</h3>
             <input 
               type="text" 
               placeholder="🔍 প্রোডাক্ট সার্চ করুন..."
@@ -370,26 +390,46 @@ const FrontEndCustom = () => {
               className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900"
             />
 
-            <div className="border rounded-2xl max-h-[400px] overflow-y-auto custom-scrollbar divide-y bg-slate-50/50">
+            <div className="border rounded-2xl max-h-[450px] overflow-y-auto custom-scrollbar divide-y bg-slate-50/50">
               {filteredUniqueProducts.length > 0 ? filteredUniqueProducts.map(p => {
                 const isFeatured = featuredKeys.includes(p.uniqueKey);
                 return (
-                  <div key={p.uniqueKey} className="p-4 flex items-center justify-between hover:bg-white transition-colors">
-                    <div>
-                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 uppercase tracking-wider">{p.category}</span>
-                      <h4 className="font-bold text-slate-800 text-sm mt-1">{p.name} — {p.model}</h4>
+                  <div key={p.uniqueKey} className="p-4 flex flex-col gap-3 hover:bg-white transition-colors">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 uppercase tracking-wider">{p.category}</span>
+                        <h4 className="font-bold text-slate-800 text-sm mt-1">{p.name} — {p.model}</h4>
+                      </div>
+                      
+                      <button 
+                        type="button"
+                        onClick={() => handleToggleFeatured(p.uniqueKey)}
+                        className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${
+                          isFeatured 
+                            ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25 active:scale-95' 
+                            : 'bg-white border text-slate-500 hover:text-slate-700 active:scale-95'
+                        }`}
+                      >
+                        {isFeatured ? '★ Featured ON' : '☆ Featured OFF'}
+                      </button>
                     </div>
-                    
-                    <button 
-                      onClick={() => handleToggleFeatured(p.uniqueKey)}
-                      className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${
-                        isFeatured 
-                          ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25 active:scale-95' 
-                          : 'bg-white border text-slate-500 hover:text-slate-700 active:scale-95'
-                      }`}
-                    >
-                      {isFeatured ? '★ Featured ON' : '☆ Featured OFF'}
-                    </button>
+
+                    {/* কাস্টম ইমেজ এডিটর (শুধু টগল অন থাকলে দেখাবে) */}
+                    {isFeatured && (
+                      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 animate-in slide-in-from-top-2 duration-200">
+                        <label className="text-[9px] font-bold text-slate-500 block mb-1">কাস্টম ব্যানার ইমেজ URL (ঐচ্ছিক - ডিফল্ট প্রোডাক্ট ইমেজের পরিবর্তে ক্যাটালগ কার্ডে এটি দেখাবে)</label>
+                        <input 
+                          type="text" 
+                          placeholder="https://images.unsplash.com/..." 
+                          value={featuredCustomImages[p.uniqueKey] || ''}
+                          onChange={e => setFeaturedCustomImages({
+                            ...featuredCustomImages,
+                            [p.uniqueKey]: e.target.value
+                          })}
+                          className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold outline-none focus:border-orange-500 text-slate-800"
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               }) : (
@@ -402,7 +442,7 @@ const FrontEndCustom = () => {
               disabled={loading} 
               className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg active:scale-95"
             >
-              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন (নতুন আগমন আপডেট)'}
+              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন (নতুন আগমন ও কাস্টম ইমেজ আপডেট)'}
             </button>
           </div>
         </div>

@@ -27,12 +27,14 @@ const PublicCatalog = ({ onAdminClick }) => {
     about_quality_title: 'Operations & Quality Assurance',
     about_quality_text: "At Lams Power, quality is at the core of our operations. We maintain a comprehensive and carefully curated catalog of advanced solar technology, specializing in high-efficiency solar panels and cutting-edge inverters from globally recognized brands. We are committed to delivering superior-quality equipment to our consumers by maintaining a dedicated green warehouse, ensuring that our supply chain and storage facilities meet strict environmental and safety compliance standards.",
     category_images: {
-      "Hybrid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-      "On Grid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-      "Solar Panel 12V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
-      "Solar Panel 24V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png"
+      "Hybrid Inverter": "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
+      "On Grid Inverter": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png",
+      "Solar Panel 12V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png",
+      "Solar Panel 24V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png"
     },
     featured_keys: [],
+    featured_text: 'Currently SolarOn 3600VA and 6200VA are our new arrival products',
+    featured_custom_images: {},
     actual_footer_image: 'https://i.postimg.cc/bvTWjG7T/Propducts-Image.png'
   });
   const [loading, setLoading] = useState(true);
@@ -282,31 +284,42 @@ const PublicCatalog = ({ onAdminClick }) => {
               <div className="text-center mb-10">
                 <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Fresh Stock Highlight</span>
                 <h3 className="text-3xl font-black text-slate-900 mt-1">New Arrivals</h3>
+                {landingConfig.featured_text && (
+                  <p className="text-slate-500 font-semibold text-xs md:text-sm mt-2 max-w-xl mx-auto leading-relaxed">
+                    {landingConfig.featured_text}
+                  </p>
+                )}
                 <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-3"></div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
-                {featuredProducts.map((p, i) => (
-                  <div 
-                    key={i} 
-                    onClick={() => handleModelClick(p.name, p.model)}
-                    className="bg-white rounded-3xl border border-slate-100 p-5 hover:shadow-xl hover:shadow-slate-100 hover:border-slate-200 transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
-                  >
-                    <div className="w-full bg-slate-50 rounded-2xl aspect-[4/3] mb-4 flex items-center justify-center p-4 overflow-hidden relative">
-                      <span className="absolute top-3 left-3 text-[8px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
-                        New
-                      </span>
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                      ) : (
-                        <div className="text-3xl">📦</div>
-                      )}
+                {featuredProducts.map((p, i) => {
+                  const key = `${p.category ? p.category.trim() : ''}|${p.name ? p.name.trim() : ''}|${p.model ? p.model.trim() : ''}`;
+                  const customImg = landingConfig.featured_custom_images?.[key];
+                  const displayImg = (customImg && customImg.trim() !== '') ? customImg : p.image_url;
+
+                  return (
+                    <div 
+                      key={i} 
+                      onClick={() => handleModelClick(p.name, p.model)}
+                      className="bg-white rounded-3xl border border-slate-100 p-5 hover:shadow-xl hover:shadow-slate-100 hover:border-slate-200 transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
+                    >
+                      <div className="w-full bg-slate-50 rounded-2xl aspect-[4/3] mb-4 flex items-center justify-center p-4 overflow-hidden relative">
+                        <span className="absolute top-3 left-3 text-[8px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
+                          New
+                        </span>
+                        {displayImg ? (
+                          <img src={displayImg} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                        ) : (
+                          <div className="text-3xl">📦</div>
+                        )}
+                      </div>
+                      <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
+                      <h4 className="font-black text-slate-900 text-xl mt-1.5">{p.name} — {p.model}</h4>
+                      <p className="text-orange-500 font-black text-xs mt-1">বিস্তারিত বিবরণ দেখুন →</p>
                     </div>
-                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
-                    <h4 className="font-black text-slate-900 text-xl mt-1.5">{p.name} — {p.model}</h4>
-                    <p className="text-orange-500 font-black text-xs mt-1">বিস্তারিত বিবরণ দেখুন →</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           )}
@@ -324,7 +337,15 @@ const PublicCatalog = ({ onAdminClick }) => {
                 {categories.map((c) => {
                   const displayCat = getDisplayCategoryName(c);
                   const is12V = displayCat === 'Solar Panel 12V';
-                  const catImage = landingConfig.category_images?.[displayCat] || "https://i.postimg.cc/2S35fVxS/Lams-Logo.png";
+                  
+                  // ডিফল্ট অথেন্টিক ইমেজ সেট করা হলো
+                  let defaultImg = "https://i.postimg.cc/2S35fVxS/Lams-Logo.png";
+                  if (displayCat === 'Hybrid Inverter') defaultImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
+                  else if (displayCat === 'On Grid Inverter') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
+                  else if (displayCat === 'Solar Panel 12V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
+                  else if (displayCat === 'Solar Panel 24V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
+
+                  const catImage = landingConfig.category_images?.[displayCat] || defaultImg;
                   
                   return (
                     <div 
