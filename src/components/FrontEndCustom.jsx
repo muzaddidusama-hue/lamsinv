@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const FrontEndCustom = () => {
-  const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products, product_details
+  const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products, featured_banner, product_details
   const [loading, setLoading] = useState(false);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // সাইট সেটিংস কাঁচা ডাটা
   const [siteSettings, setSiteSettings] = useState({
@@ -36,7 +37,12 @@ const FrontEndCustom = () => {
   const [featuredText, setFeaturedText] = useState('Currently SolarOn 3600VA and 6200VA are our new arrival products');
   const [featuredCustomImages, setFeaturedCustomImages] = useState({}); // uniqueKey -> customImageUrl
 
-  // প্রোডাক্ট এডিটর স্টেটস (Tab 4: প্রোডাক্ট বিবরণী এডিটর)
+  // ফিচারড প্রোডাক্ট ব্যানার স্টেটস
+  const [featuredBannerTitle, setFeaturedBannerTitle] = useState('Premium Solar Solutions');
+  const [featuredBannerDesc, setFeaturedBannerDesc] = useState('Experience top-tier quality solar equipment manufactured under strict environmental and safety compliance standards.');
+  const [featuredBannerImageUrl, setFeaturedBannerImageUrl] = useState('');
+
+  // প্রোডাক্ট এডিটর স্টেটস (Tab 5: প্রোডাক্ট বিবরণী এডিটর)
   const [uniqueProducts, setUniqueProducts] = useState([]);
   const [selectedProductKey, setSelectedProductKey] = useState(''); 
   const [productForm, setProductForm] = useState({ volt: '', watt: '', description: '' });
@@ -68,6 +74,9 @@ const FrontEndCustom = () => {
             if (parsed.featured_keys) setFeaturedKeys(parsed.featured_keys);
             if (parsed.featured_text) setFeaturedText(parsed.featured_text);
             if (parsed.featured_custom_images) setFeaturedCustomImages(parsed.featured_custom_images);
+            if (parsed.featured_banner_title) setFeaturedBannerTitle(parsed.featured_banner_title);
+            if (parsed.featured_banner_desc) setFeaturedBannerDesc(parsed.featured_banner_desc);
+            if (parsed.featured_banner_image_url) setFeaturedBannerImageUrl(parsed.featured_banner_image_url);
             if (parsed.actual_footer_image) setActualFooterImage(parsed.actual_footer_image);
           } catch (jsonErr) {
             console.error("JSON Parsing Error:", jsonErr);
@@ -131,6 +140,36 @@ const FrontEndCustom = () => {
     }
   };
 
+  // ব্যানার ইমেজ আপলোড হ্যান্ডলার (Supabase-এ সরাসরি ফাইল আপলোড করবে)
+  const handleBannerUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingBanner(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `featured_banner_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product image')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product image')
+        .getPublicUrl(filePath);
+
+      setFeaturedBannerImageUrl(publicUrl);
+    } catch (error) {
+      console.error(error);
+      alert('ব্যানার ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+    } finally {
+      setUploadingBanner(false);
+    }
+  };
+
   // সম্পূরক কাস্টম ডাটা ও সেটিংস একসাথে ডাটাবেজে সেভ করার মেথড
   const saveAllSettings = async (updatedSettingsObject) => {
     setLoading(true);
@@ -144,6 +183,9 @@ const FrontEndCustom = () => {
         featured_keys: featuredKeys,
         featured_text: featuredText,
         featured_custom_images: featuredCustomImages,
+        featured_banner_title: featuredBannerTitle,
+        featured_banner_desc: featuredBannerDesc,
+        featured_banner_image_url: featuredBannerImageUrl,
         actual_footer_image: actualFooterImage
       };
 
@@ -160,7 +202,7 @@ const FrontEndCustom = () => {
       alert("✅ সাইটের ডিজাইন এবং কাস্টম তথ্য সফলভাবে আপডেট হয়েছে!");
     } catch (err) {
       console.error(err);
-      alert("সংرক্ষণ করতে সমস্যা হয়েছে: " + err.message);
+      alert("সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
@@ -240,7 +282,13 @@ const FrontEndCustom = () => {
           onClick={() => setActiveTab('featured_products')}
           className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'featured_products' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
-          ⭐ ফিচারড ও নতুন আগমন (Featured & New Arrivals)
+          ⭐ নতুন আগমন টগল (New Arrivals)
+        </button>
+        <button 
+          onClick={() => setActiveTab('featured_banner')}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'featured_banner' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+        >
+          ⭐ ফিচারড প্রোডাক্ট ব্যানার (Featured Product)
         </button>
         <button 
           onClick={() => setActiveTab('product_details')}
@@ -364,12 +412,11 @@ const FrontEndCustom = () => {
       {/* ---------------- ট্যাব ৩: নতুন আগমন টগল (New Arrivals) ---------------- */}
       {activeTab === 'featured_products' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
-          <h2 className="text-xl font-black text-slate-800 mb-2">হোমপেজের নতুন আগমন (New Arrivals / Featured) প্রোডাক্টস ও সেকশন বিবরণ</h2>
+          <h2 className="text-xl font-black text-slate-800 mb-2">হোমপেজের নতুন আগমন (New Arrivals) প্রোডাক্টস ও সেকশন বিবরণ</h2>
           <p className="text-xs text-slate-400 mb-6">হোমপেজের নিউ অ্যারাইভাল সেকশনের টাইটেল/সাবটাইটেল এডিট করুন এবং প্রোডাক্ট কার্ড টগল করে কাস্টম ইমেজ সেট করুন।</p>
           
           <div className="space-y-6">
             
-            {/* নতুন আগমন সাবটাইটেল/টেক্সট ইনপুট */}
             <div className="space-y-1 border-b pb-6 border-slate-100">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">নিউ অ্যারাইভাল সেকশন পরিচিতি টেক্সট (Featured Text/Subtitle)</label>
               <textarea 
@@ -414,7 +461,6 @@ const FrontEndCustom = () => {
                       </button>
                     </div>
 
-                    {/* কাস্টম ইমেজ এডিটর (শুধু টগল অন থাকলে দেখাবে) */}
                     {isFeatured && (
                       <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 animate-in slide-in-from-top-2 duration-200">
                         <label className="text-[9px] font-bold text-slate-500 block mb-1">কাস্টম ব্যানার ইমেজ URL (ঐচ্ছিক - ডিফল্ট প্রোডাক্ট ইমেজের পরিবর্তে ক্যাটালগ কার্ডে এটি দেখাবে)</label>
@@ -448,7 +494,85 @@ const FrontEndCustom = () => {
         </div>
       )}
 
-      {/* ---------------- ট্যাব ৪: প্রোডাক্ট বিবরণী এডিটর ---------------- */}
+      {/* ---------------- ট্যাব ৪: ফিচারড প্রোডাক্ট ব্যানার (Featured Product Banner) ---------------- */}
+      {activeTab === 'featured_banner' && (
+        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
+          <h2 className="text-xl font-black text-slate-800 mb-2">ফিচারড প্রোডাক্ট ব্যানার (Featured Product)</h2>
+          <p className="text-xs text-slate-400 mb-6">হোমপেজে দেখানোর জন্য একটি বিশেষ ফিচারড প্রোডাক্টের টাইটেল, বিবরণ এবং ব্যানার ইমেজ আপলোড করুন।</p>
+
+          <form onSubmit={handleSaveSiteInfo} className="space-y-5">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ফিচারড টাইটেল (Featured Title)</label>
+              <input 
+                type="text" 
+                value={featuredBannerTitle} 
+                onChange={e => setFeaturedBannerTitle(e.target.value)} 
+                placeholder="যেমন: Experience the Power of LAMS" 
+                className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" 
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ফিচারড বিবরণ (Description Text Box)</label>
+              <textarea 
+                value={featuredBannerDesc} 
+                onChange={e => setFeaturedBannerDesc(e.target.value)} 
+                rows="4" 
+                placeholder="ফিচারড প্রোডাক্ট বা সেকশনের বিস্তারিত টেক্সট এখানে লিখুন..."
+                className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed" 
+              />
+            </div>
+
+            {/* ইমেজ আপলোডার (স্টোরেজে ফাইল আপলোড হবে) */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">ফিচারড ব্যানার ইমেজ (Supabase-এ আপলোড হবে)</label>
+              
+              <div className="border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50 flex flex-col items-center justify-center p-6 min-h-[220px] relative overflow-hidden group">
+                {featuredBannerImageUrl ? (
+                  <>
+                    <img src={featuredBannerImageUrl} alt="Banner Preview" className="h-40 w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
+                    <button 
+                      type="button" 
+                      onClick={() => setFeaturedBannerImageUrl('')} 
+                      className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-red-600"
+                    >
+                      ✕
+                    </button>
+                  </>
+                ) : (
+                  <label className="cursor-pointer text-center w-full h-full flex flex-col items-center justify-center hover:bg-slate-100 transition-colors rounded-[2rem] py-6">
+                    <div className="text-4xl mb-2 opacity-25">{uploadingBanner ? '⏳' : '📤'}</div>
+                    <span className="text-slate-500 font-black text-xs uppercase tracking-widest">
+                      {uploadingBanner ? 'আপলোড হচ্ছে...' : 'ক্লিক করে ব্যানার আপলোড দিন'}
+                    </span>
+                    <input type="file" accept="image/*" onChange={handleBannerUpload} className="hidden" disabled={uploadingBanner} />
+                  </label>
+                )}
+
+                {uploadingBanner && (
+                  <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+                  </div>
+                )}
+              </div>
+
+              <input 
+                type="text" 
+                value={featuredBannerImageUrl} 
+                readOnly 
+                placeholder="আপলোড করা ইমেজের লিঙ্ক এখানে অটোমেটিক আসবে" 
+                className="w-full p-3 bg-orange-50 border border-orange-100 rounded-2xl outline-none text-[10px] font-medium text-slate-500" 
+              />
+            </div>
+
+            <button type="submit" disabled={loading || uploadingBanner} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg active:scale-95">
+              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'ফিচারড ব্যানার ও টেক্সট পাবলিশ করুন'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ---------------- ট্যাব ৫: প্রোডাক্ট বিবরণী এডিটর ---------------- */}
       {activeTab === 'product_details' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
           <h2 className="text-xl font-black text-slate-800 mb-2">প্রোডাক্ট ডেসক্রিপশন ও ক্যাপাসিটি প্যারামিটার এন্ট্রি</h2>

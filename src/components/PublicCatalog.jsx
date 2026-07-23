@@ -35,6 +35,9 @@ const PublicCatalog = ({ onAdminClick }) => {
     featured_keys: [],
     featured_text: 'Currently SolarOn 3600VA and 6200VA are our new arrival products',
     featured_custom_images: {},
+    featured_banner_title: 'Premium Solar Solutions',
+    featured_banner_desc: 'Experience top-tier quality solar equipment manufactured under strict environmental and safety compliance standards.',
+    featured_banner_image_url: '',
     actual_footer_image: 'https://i.postimg.cc/bvTWjG7T/Propducts-Image.png'
   });
   const [loading, setLoading] = useState(true);
@@ -278,7 +281,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             </div>
           </section>
 
-          {/* নিউ অ্যারাইভাল (New Arrival / Featured) সেকশন */}
+          {/* নিউ অ্যারাইভাল (New Arrival) সেকশন */}
           {featuredProducts.length > 0 && (
             <section className="py-16 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
               <div className="text-center mb-10">
@@ -324,13 +327,57 @@ const PublicCatalog = ({ onAdminClick }) => {
             </section>
           )}
 
+          {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
+          {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
+            <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
+              <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                
+                {/* টেক্সট পার্ট (বাম পাশ) */}
+                <div className="lg:col-span-6 space-y-6">
+                  {landingConfig.featured_banner_title && (
+                    <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                      {landingConfig.featured_banner_title}
+                    </h3>
+                  )}
+                  {landingConfig.featured_banner_desc && (
+                    <p className="text-slate-600 font-semibold text-sm md:text-base leading-relaxed whitespace-pre-line">
+                      {landingConfig.featured_banner_desc}
+                    </p>
+                  )}
+                  <div className="pt-2">
+                    <button 
+                      onClick={() => setActiveTab('products')} 
+                      className="bg-slate-900 hover:bg-orange-500 text-white px-8 py-3.5 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-300 shadow-md"
+                    >
+                      View Catalog
+                    </button>
+                  </div>
+                </div>
+
+                {/* ব্যানার ইমেজ পার্ট (ডান পাশ) */}
+                {landingConfig.featured_banner_image_url && (
+                  <div className="lg:col-span-6">
+                    <div className="bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-300">
+                      <img 
+                        src={landingConfig.featured_banner_image_url} 
+                        alt="Featured Product Banner" 
+                        className="max-h-[350px] w-full object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
+                      />
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            </section>
+          )}
+
           {/* ৪টি ক্যাটাগরি সেকশন (Solar Panel 12V হাইলাইট সহ) */}
           <section className="bg-slate-50 py-16 px-6 md:px-12 w-full">
             <div className="max-w-[1400px] mx-auto">
               <div className="text-center mb-12">
                 <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Core Portfolio</span>
                 <h3 className="text-3xl font-black text-slate-900 mt-1">Our Specialties</h3>
-                <div className="h-1 w-12 bg-slate-900 mx-auto mt-3"></div>
+                <div className="h-1 w-12 bg-orange-500 mx-auto mt-3"></div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
