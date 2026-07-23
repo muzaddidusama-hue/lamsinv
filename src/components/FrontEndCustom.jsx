@@ -240,7 +240,7 @@ const FrontEndCustom = () => {
           onClick={() => setActiveTab('featured_products')}
           className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'featured_products' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
-          ⭐ নতুন আগমন টগল (New Arrivals)
+          ⭐ ফিচারড ও নতুন আগমন (Featured & New Arrivals)
         </button>
         <button 
           onClick={() => setActiveTab('product_details')}
