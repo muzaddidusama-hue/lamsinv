@@ -362,15 +362,14 @@ const PublicCatalog = ({ onAdminClick }) => {
                     </button>
                   </div>
                 </div>
-
-                {/* ব্যানার ইমেজ পার্ট (ডান পাশ) */}
+                {/* ব্যানার ইমেজ পার্ট (ডান পাশ - চিত্রটির আকারের সাথে সামঞ্জস্যপূর্ণ) */}
                 {landingConfig.featured_banner_image_url && (
-                  <div className="lg:col-span-6">
-                    <div className="bg-slate-50/50 rounded-[2.5rem] p-6 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-shadow duration-300">
+                  <div className="lg:col-span-6 flex justify-center">
+                    <div className="bg-slate-50/50 rounded-[2.5rem] p-4 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 w-fit h-fit max-w-full">
                       <img 
                         src={landingConfig.featured_banner_image_url} 
                         alt="Featured Product Banner" 
-                        className="max-h-[350px] w-full object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
+                        className="max-h-[350px] w-auto h-auto object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
                       />
                     </div>
                   </div>
@@ -393,15 +392,18 @@ const PublicCatalog = ({ onAdminClick }) => {
                 {categories.map((c) => {
                   const displayCat = getDisplayCategoryName(c);
                   const is12V = displayCat === 'Solar Panel 12V';
+                                    // ডিফল্ট অথেন্টিক ইমেজ সেট করা হলো
+                                    let defaultImg = "https://i.postimg.cc/2S35fVxS/Lams-Logo.png";
+                                    if (displayCat === 'Hybrid Inverter') defaultImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
+                                    else if (displayCat === 'On Grid Inverter') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
+                                    else if (displayCat === 'Solar Panel 12V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
+                                    else if (displayCat === 'Solar Panel 24V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
                   
-                  // ডিফল্ট অথেন্টিক ইমেজ সেট করা হলো
-                  let defaultImg = "https://i.postimg.cc/2S35fVxS/Lams-Logo.png";
-                  if (displayCat === 'Hybrid Inverter') defaultImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
-                  else if (displayCat === 'On Grid Inverter') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
-                  else if (displayCat === 'Solar Panel 12V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
-                  else if (displayCat === 'Solar Panel 24V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
-
-                  const catImage = landingConfig.category_images?.[displayCat] || defaultImg;
+                                    // কাস্টমাইজড বা সেভ করা ইমেজ যদি ডিফল্ট লোগো হয় বা ফাকা থাকে, তবে অথেন্টিক প্রোডাক্ট ইমেজটি দেখাবে
+                                    const configuredImg = landingConfig.category_images?.[displayCat];
+                                    const catImage = (!configuredImg || configuredImg === "https://i.postimg.cc/2S35fVxS/Lams-Logo.png" || configuredImg.trim() === '')
+                                      ? defaultImg
+                                      : configuredImg;
                   
                   return (
                     <div 
