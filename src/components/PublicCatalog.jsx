@@ -338,19 +338,16 @@ const PublicCatalog = ({ onAdminClick }) => {
           {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
             <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
               <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                
-                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে পুরো টেক্সট বক্সের উচ্চতায় ফিট হবে) */}
-                {landingConfig.featured_banner_image_url && (
-                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-stretch">
-                    <div className="bg-slate-50/50 rounded-[2.5rem] p-4 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 w-full h-full min-h-[320px] lg:min-h-[450px]">
-                      <img 
-                        src={landingConfig.featured_banner_image_url} 
-                        alt="Featured Product Banner" 
-                        className="w-full h-full max-h-[500px] object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
-                      />
-                    </div>
-                  </div>
-                )}
+                                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে, ব্যাকগ্রাউন্ড বক্স ছাড়া সরাসরি ইমেজ দেখাবে যার নিজস্ব শ্যাডো থাকবে) */}
+                                {landingConfig.featured_banner_image_url && (
+                                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-center w-full">
+                                    <img 
+                                      src={landingConfig.featured_banner_image_url} 
+                                      alt="Featured Product Banner" 
+                                      className="max-h-[500px] w-auto h-auto object-contain rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,0,0,0.15)] hover:shadow-[0_20px_40px_-5px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-500" 
+                                    />
+                                  </div>
+                                )}
 
                 {/* টেক্সট পার্ট (মোবাইলে নিচে থাকবে, ডেক্সটপে বাম পাশে) */}
                 <div className="lg:col-span-6 space-y-6 order-2 lg:order-1">
