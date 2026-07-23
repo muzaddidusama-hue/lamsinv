@@ -2,24 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
 const FrontEndCustom = () => {
-  const [activeTab, setActiveTab] = useState('site_info'); // site_info অথবা product_details
+  const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products
   const [loading, setLoading] = useState(false);
 
-  // সাব-সেকশন ১: সাইট সেটিংস স্টেট
+  // সাইট সেটিংস কাঁচা ডাটা
   const [siteSettings, setSiteSettings] = useState({
     header_name: '', footer_image_url: '', contact_address: '',
     contact_showroom: '', contact_numbers: '', contact_hotline: '', contact_email: ''
   });
 
-  // সাব-সেকশন ২: ইউনিক প্রোডাক্ট লিস্ট স্টেট
-  const [uniqueProducts, setUniqueProducts] = useState([]);
-  const [selectedProductKey, setSelectedProductKey] = useState(''); // "category|name|model" ফরম্যাটে থাকবে
-  const [productForm, setProductForm] = useState({
-    volt: '', watt: '', description: ''
+  // ল্যান্ডিং পেজ কাস্টমাইজেশন কন্টেন্ট স্টেটস (footer_image_url কলামে JSON হিসেবে সেভ হবে)
+  const [aboutProfileTitle, setAboutProfileTitle] = useState('Brief Company Profile');
+  const [aboutProfileText, setAboutProfileText] = useState(
+    "Founded in 2010, Lams Power has established itself as a trusted leader and pioneer in Bangladesh's renewable energy sector. We specialize in the import, marketing, and distribution of top-tier solar equipment, driven by a steadfast commitment to promoting sustainable and green energy solutions nationwide. Over the past decade, we have dedicated ourselves to accelerating the transition to clean energy by ensuring that consumers have access to the most reliable and efficient solar technologies available."
+  );
+  
+  const [aboutQualityTitle, setAboutQualityTitle] = useState('Operations & Quality Assurance');
+  const [aboutQualityText, setAboutQualityText] = useState(
+    "At Lams Power, quality is at the core of our operations. We maintain a comprehensive and carefully curated catalog of advanced solar technology, specializing in high-efficiency solar panels and cutting-edge inverters from globally recognized brands. We are committed to delivering superior-quality equipment to our consumers by maintaining a dedicated green warehouse, ensuring that our supply chain and storage facilities meet strict environmental and safety compliance standards."
+  );
+
+  const [categoryImages, setCategoryImages] = useState({
+    "Hybrid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
+    "On Grid Inverter": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
+    "Solar Panel 12V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png",
+    "Solar Panel 24V": "https://i.postimg.cc/2S35fVxS/Lams-Logo.png"
   });
 
-  // ডাটাবেজের সম্পূর্ণ রিলিজিয়াস ব্যাকআপ প্রোডাক্টস (আপডেটের সময় রেফারেন্সের জন্য)
-  const [rawProducts, setRawProducts] = useState([]);
+  const [actualFooterImage, setActualFooterImage] = useState('https://i.postimg.cc/bvTWjG7T/Propducts-Image.png');
+  const [featuredKeys, setFeaturedKeys] = useState([]); // "category|name|model" ফরম্যাটে
+
+  // প্রোডাক্ট এডিটর স্টেটস (Tab 4: প্রোডাক্ট বিবরণী এডিটর)
+  const [uniqueProducts, setUniqueProducts] = useState([]);
+  const [selectedProductKey, setSelectedProductKey] = useState(''); 
+  const [productForm, setProductForm] = useState({ volt: '', watt: '', description: '' });
+
+  // প্রোডাক্ট সার্চ ফিল্টার (নতুন আগমন টগল করার সুবিধার জন্য)
+  const [featuredSearchTerm, setFeaturedSearchTerm] = useState('');
 
   useEffect(() => {
     fetchInitialData();
@@ -27,48 +46,67 @@ const FrontEndCustom = () => {
 
   const fetchInitialData = async () => {
     setLoading(true);
-    
-    // সাইট সেটিংস লোড
-    const { data: settings } = await supabase.from('site_settings').select('*').single();
-    if (settings) setSiteSettings(settings);
+    try {
+      // ১. সাইট সেটিংস লোড
+      const { data: settings } = await supabase.from('site_settings').select('*').single();
+      if (settings) {
+        setSiteSettings(settings);
 
-    // প্রোডাক্টস লোড
-    const { data: prods } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (prods) {
-      setRawProducts(prods);
-
-      // 🧠 স্মার্ট ফিল্টারিং: ক্যাটাগরি, ব্র্যান্ডের নাম এবং মডেল কম্বাইন করে ইউনিক লিস্ট তৈরি
-      const seen = new Set();
-      const uniqueList = [];
-
-      prods.forEach(p => {
-        // ফাঁকা বা নাল হ্যান্ডলিং
-        const cat = p.category ? p.category.trim() : '';
-        const name = p.name ? p.name.trim() : '';
-        const model = p.model ? p.model.trim() : '';
-        
-        const uniqueKey = `${cat}|${name}|${model}`;
-
-        if (!seen.has(uniqueKey) && uniqueKey !== '||') {
-          seen.add(uniqueKey);
-          uniqueList.push({
-            uniqueKey,
-            category: p.category,
-            name: p.name,
-            model: p.model,
-            volt: p.volt || '',
-            watt: p.watt || '',
-            description: p.description || ''
-          });
+        // footer_image_url যদি JSON ফরম্যাটে স্টোর করা থাকে, তবে পার্স করে কাস্টম ফিল্ডে সেট করা হবে
+        if (settings.footer_image_url && settings.footer_image_url.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(settings.footer_image_url);
+            if (parsed.about_profile_title) setAboutProfileTitle(parsed.about_profile_title);
+            if (parsed.about_profile_text) setAboutProfileText(parsed.about_profile_text);
+            if (parsed.about_quality_title) setAboutQualityTitle(parsed.about_quality_title);
+            if (parsed.about_quality_text) setAboutQualityText(parsed.about_quality_text);
+            if (parsed.category_images) setCategoryImages({ ...categoryImages, ...parsed.category_images });
+            if (parsed.featured_keys) setFeaturedKeys(parsed.featured_keys);
+            if (parsed.actual_footer_image) setActualFooterImage(parsed.actual_footer_image);
+          } catch (jsonErr) {
+            console.error("JSON Parsing Error:", jsonErr);
+            // ফলব্যাক হিসেবে কাঁচা স্ট্রিংটিকে ফুটার ইমেজ হিসেবে ব্যবহার করা হবে
+            setActualFooterImage(settings.footer_image_url);
+          }
+        } else if (settings.footer_image_url) {
+          setActualFooterImage(settings.footer_image_url);
         }
-      });
+      }
 
-      setUniqueProducts(uniqueList);
+      // ২. প্রোডাক্টস লোড করে ইউনিক প্রোডাক্টস বের করা
+      const { data: prods } = await supabase.from('products').select('*').order('name', { ascending: true });
+      if (prods) {
+        const seen = new Set();
+        const uniqueList = [];
+
+        prods.forEach(p => {
+          const cat = p.category ? p.category.trim() : '';
+          const name = p.name ? p.name.trim() : '';
+          const model = p.model ? p.model.trim() : '';
+          const uniqueKey = `${cat}|${name}|${model}`;
+
+          if (!seen.has(uniqueKey) && uniqueKey !== '||' && cat !== 'Lithium Battery') {
+            seen.add(uniqueKey);
+            uniqueList.push({
+              uniqueKey,
+              category: p.category,
+              name: p.name,
+              model: p.model,
+              volt: p.volt || '',
+              watt: p.watt || '',
+              description: p.description || ''
+            });
+          }
+        });
+
+        setUniqueProducts(uniqueList);
+      }
+    } catch (err) {
+      console.error(err);
     }
     setLoading(false);
   };
 
-  // ড্রপডাউন থেকে প্রোডাক্ট সিলেক্ট করলে এক্সিস্টিং ডাটা লোড
   const handleProductSelectChange = (e) => {
     const key = e.target.value;
     setSelectedProductKey(key);
@@ -78,7 +116,6 @@ const FrontEndCustom = () => {
       return;
     }
 
-    // ইউনিক লিস্ট থেকে ডাটা খুঁজে ফর্মে বসানো
     const targetProd = uniqueProducts.find(p => p.uniqueKey === key);
     if (targetProd) {
       setProductForm({
@@ -89,31 +126,63 @@ const FrontEndCustom = () => {
     }
   };
 
-  // সাইট ইনফো সেভ লজিক
-  const handleSaveSiteSettings = async (e) => {
-    e.preventDefault();
+  // সম্পূরক কাস্টম ডাটা ও সেটিংস একসাথে ডাটাবেজে সেভ করার মেথড
+  const saveAllSettings = async (updatedSettingsObject) => {
     setLoading(true);
     try {
-      const { error } = await supabase.from('site_settings').upsert([siteSettings]);
+      // সমস্ত কাস্টম ফিল্ড এবং টগল কনফিগারেশন JSON অবজেক্টে কনভার্ট করা হবে
+      const customPayload = {
+        about_profile_title: aboutProfileTitle,
+        about_profile_text: aboutProfileText,
+        about_quality_title: aboutQualityTitle,
+        about_quality_text: aboutQualityText,
+        category_images: categoryImages,
+        featured_keys: featuredKeys,
+        actual_footer_image: actualFooterImage
+      };
+
+      const finalSettings = {
+        ...siteSettings,
+        ...updatedSettingsObject,
+        footer_image_url: JSON.stringify(customPayload)
+      };
+
+      const { error } = await supabase.from('site_settings').upsert([finalSettings]);
       if (error) throw error;
-      alert("✅ সাইটের সাধারণ তথ্য সফলভাবে আপডেট হয়েছে!");
+      
+      setSiteSettings(finalSettings);
+      alert("✅ সাইটের ডিজাইন এবং কাস্টম তথ্য সফলভাবে আপডেট হয়েছে!");
     } catch (err) {
-      alert("ত্রুটি হয়েছে: " + err.message);
+      console.error(err);
+      alert("সংরক্ষণ করতে সমস্যা হয়েছে: " + err.message);
     }
     setLoading(false);
   };
 
-  // 💾 প্রোডাক্ট বিবরণী সেভ লজিক (একসাথে সব হাউজের রো আপডেট করার ফিক্সড মেথড)
+  // সাইট ইনফো ট্যাব সাবমিট
+  const handleSaveSiteInfo = (e) => {
+    e.preventDefault();
+    saveAllSettings({});
+  };
+
+  // নতুন আগমন প্রোডাক্ট টগল
+  const handleToggleFeatured = (key) => {
+    if (featuredKeys.includes(key)) {
+      setFeaturedKeys(featuredKeys.filter(k => k !== key));
+    } else {
+      setFeaturedKeys([...featuredKeys, key]);
+    }
+  };
+
+  // প্রোডাক্ট বিবরণী সেভ লজিক
   const handleSaveProductSpecs = async (e) => {
     e.preventDefault();
     if (!selectedProductKey) return alert("দয়া করে একটি প্রোডাক্ট সিলেক্ট করুন!");
     
     setLoading(true);
-    // কি ভেঙে ক্যাটাগরি, নাম এবং মডেল আলাদা করা হচ্ছে
     const [category, name, model] = selectedProductKey.split('|');
 
     try {
-      // 🔄 .eq() চেইনিং এর মাধ্যমে একই ব্র্যান্ড ও মডেলের যতগুলো রো আছে, সব একবারে আপডেট হবে
       const { error } = await supabase
         .from('products')
         .update({
@@ -129,11 +198,9 @@ const FrontEndCustom = () => {
       
       alert(`🎉 ${name} [${model}] এর বিবরণ সকল হাউজ বা লোকেশনে একসাথে আপডেট হয়েছে!`);
       
-      // লোকাল স্টেট রি-সিঙ্ক করে নেওয়া যেন রিলোড ছাড়া টেবিলে চেঞ্জ দেখা যায়
       setUniqueProducts(prev => prev.map(p => 
         p.uniqueKey === selectedProductKey ? { ...p, ...productForm } : p
       ));
-
     } catch (err) {
       console.error(err);
       alert("ত্রুটি হয়েছে: " + err.message);
@@ -141,74 +208,207 @@ const FrontEndCustom = () => {
     setLoading(false);
   };
 
+  // নতুন আগমন সার্চ ফিল্টারিং
+  const filteredUniqueProducts = uniqueProducts.filter(p => 
+    `${p.name} ${p.model} ${p.category}`.toLowerCase().includes(featuredSearchTerm.toLowerCase())
+  );
+
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* সাব-সেকশন নেভিগেশন ট্যাব */}
-      <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
+      {/* নেভিগেশন ট্যাব মেনু */}
+      <div className="flex flex-wrap gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
         <button 
           onClick={() => setActiveTab('site_info')}
-          className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${activeTab === 'site_info' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'site_info' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
-          ⚙️ ফ্রন্ট এন্ড কাস্টম (Site Info)
+          ⚙️ সাইট সাধারণ তথ্য (Site Info)
+        </button>
+        <button 
+          onClick={() => setActiveTab('about_categories')}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'about_categories' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+        >
+          📝 আমাদের পরিচিতি ও ক্যাটাগরি ছবি
+        </button>
+        <button 
+          onClick={() => setActiveTab('featured_products')}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'featured_products' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+        >
+          ⭐ নতুন আগমন টগল (New Arrivals)
         </button>
         <button 
           onClick={() => setActiveTab('product_details')}
-          className={`px-6 py-3 rounded-xl font-black text-sm transition-all ${activeTab === 'product_details' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'product_details' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
           📦 প্রোডাক্ট বিবরণী এডিটর
         </button>
       </div>
 
-      {/* ---------------- সাব-সেকশন ১: সাইট ইনফো কাস্টমাইজেশন ---------------- */}
+      {/* ---------------- ট্যাব ১: সাইটের সাধারণ তথ্য ---------------- */}
       {activeTab === 'site_info' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
-          <h2 className="text-xl font-black text-slate-800 mb-6">পাবলিক পেজের কন্টেন্ট ম্যানেজমেন্ট</h2>
-          <form onSubmit={handleSaveSiteSettings} className="space-y-4">
+          <h2 className="text-xl font-black text-slate-800 mb-6">পাবলিক কন্টেন্ট এবং যোগাযোগ সেটিংস</h2>
+          <form onSubmit={handleSaveSiteInfo} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Header Name</label>
-                <input type="text" value={siteSettings.header_name || ''} onChange={e => setSiteSettings({...siteSettings, header_name: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Header Title (সাইটের নাম)</label>
+                <input type="text" value={siteSettings.header_name || ''} onChange={e => setSiteSettings({...siteSettings, header_name: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Footer Image URL</label>
-                <input type="text" value={siteSettings.footer_image_url || ''} onChange={e => setSiteSettings({...siteSettings, footer_image_url: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Footer Image URL (ফুটার ইমেজ)</label>
+                <input type="text" value={actualFooterImage || ''} onChange={e => setActualFooterImage(e.target.value)} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Office Address</label>
-              <textarea value={siteSettings.contact_address || ''} onChange={e => setSiteSettings({...siteSettings, contact_address: e.target.value})} rows="2" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Corporate Office Address (কর্পোরেট অফিস)</label>
+              <textarea value={siteSettings.contact_address || ''} onChange={e => setSiteSettings({...siteSettings, contact_address: e.target.value})} rows="2" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Showroom Address</label>
-              <textarea value={siteSettings.contact_showroom || ''} onChange={e => setSiteSettings({...siteSettings, contact_showroom: e.target.value})} rows="2" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Showroom Address (শোরুম)</label>
+              <textarea value={siteSettings.contact_showroom || ''} onChange={e => setSiteSettings({...siteSettings, contact_showroom: e.target.value})} rows="2" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Contact Numbers</label>
-                <input type="text" value={siteSettings.contact_numbers || ''} onChange={e => setSiteSettings({...siteSettings, contact_numbers: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Contact Numbers (কমা দিয়ে লিখুন)</label>
+                <input type="text" value={siteSettings.contact_numbers || ''} onChange={e => setSiteSettings({...siteSettings, contact_numbers: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Hotline</label>
-                <input type="text" value={siteSettings.contact_hotline || ''} onChange={e => setSiteSettings({...siteSettings, contact_hotline: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Hotline (হটলাইন)</label>
+                <input type="text" value={siteSettings.contact_hotline || ''} onChange={e => setSiteSettings({...siteSettings, contact_hotline: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">E-mail</label>
-                <input type="email" value={siteSettings.contact_email || ''} onChange={e => setSiteSettings({...siteSettings, contact_email: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none" />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">E-mail (ইমেইল)</label>
+                <input type="email" value={siteSettings.contact_email || ''} onChange={e => setSiteSettings({...siteSettings, contact_email: e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
               </div>
             </div>
 
-            <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg">
-              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন'}
+            <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg active:scale-95">
+              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন (Publish Info)'}
             </button>
           </form>
         </div>
       )}
 
-      {/* ---------------- সাব-সেকশন ২: প্রোডাক্ট বিবরণী এডিটর (ইউনিক ফিল্টারড) ---------------- */}
+      {/* ---------------- ট্যাব ২: আমাদের পরিচিতি ও ক্যাটাগরি ছবি ---------------- */}
+      {activeTab === 'about_categories' && (
+        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
+          <h2 className="text-xl font-black text-slate-800 mb-6">আমাদের পরিচিতি (About Us) ও ক্যাটাগরি ব্যানার ইমেজেস</h2>
+          <form onSubmit={handleSaveSiteInfo} className="space-y-6">
+            
+            {/* পরিচিতি সেকশন */}
+            <div className="space-y-4 border-b pb-6 border-slate-100">
+              <h3 className="text-sm font-black text-orange-500 uppercase tracking-wider">১. হোমপেজ পরিচিতি টেক্সট (About Us)</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Company Profile Section Title</label>
+                  <input type="text" value={aboutProfileTitle} onChange={e => setAboutProfileTitle(e.target.value)} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operations & Quality Section Title</label>
+                  <input type="text" value={aboutQualityTitle} onChange={e => setAboutQualityTitle(e.target.value)} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+              </div>
+              
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Company Profile Content (পরিচিতি বিবরণ)</label>
+                <textarea value={aboutProfileText} onChange={e => setAboutProfileText(e.target.value)} rows="4" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed" />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operations & Quality Content (অপারেশন ও কোয়ালিটি বিবরণ)</label>
+                <textarea value={aboutQualityText} onChange={e => setAboutQualityText(e.target.value)} rows="4" className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900 leading-relaxed" />
+              </div>
+            </div>
+
+            {/* ৪টি ক্যাটাগরির ইমেজ URL */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-black text-orange-500 uppercase tracking-wider">২. চারটি ক্যাটাগরি কার্ডের ইমেজ URL</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Hybrid Inverter Image URL</label>
+                  <input type="text" value={categoryImages["Hybrid Inverter"] || ''} onChange={e => setCategoryImages({...categoryImages, "Hybrid Inverter": e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">On Grid Inverter Image URL</label>
+                  <input type="text" value={categoryImages["On Grid Inverter"] || ''} onChange={e => setCategoryImages({...categoryImages, "On Grid Inverter": e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Solar Panel 12V Image URL</label>
+                  <input type="text" value={categoryImages["Solar Panel 12V"] || ''} onChange={e => setCategoryImages({...categoryImages, "Solar Panel 12V": e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Solar Panel 24V Image URL</label>
+                  <input type="text" value={categoryImages["Solar Panel 24V"] || ''} onChange={e => setCategoryImages({...categoryImages, "Solar Panel 24V": e.target.value})} className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900" />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg active:scale-95">
+              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পরিচিতি ও ক্যাটাগরি ছবি পাবলিশ করুন'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ---------------- ট্যাব ৩: নতুন আগমন টগল (New Arrivals) ---------------- */}
+      {activeTab === 'featured_products' && (
+        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
+          <h2 className="text-xl font-black text-slate-800 mb-2">হোমপেজের নতুন আগমন (New Arrivals / Featured) প্রোডাক্টস</h2>
+          <p className="text-xs text-slate-400 mb-6">যেসব প্রোডাক্টকে হোমপেজের নতুন আগমন সেকশনে হাইলাইট করতে চান, সেগুলো টগল (অন) করে দিন।</p>
+          
+          <div className="space-y-4">
+            <input 
+              type="text" 
+              placeholder="🔍 প্রোডাক্ট সার্চ করুন..."
+              value={featuredSearchTerm}
+              onChange={e => setFeaturedSearchTerm(e.target.value)}
+              className="w-full p-4 bg-slate-50 border rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-900"
+            />
+
+            <div className="border rounded-2xl max-h-[400px] overflow-y-auto custom-scrollbar divide-y bg-slate-50/50">
+              {filteredUniqueProducts.length > 0 ? filteredUniqueProducts.map(p => {
+                const isFeatured = featuredKeys.includes(p.uniqueKey);
+                return (
+                  <div key={p.uniqueKey} className="p-4 flex items-center justify-between hover:bg-white transition-colors">
+                    <div>
+                      <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 uppercase tracking-wider">{p.category}</span>
+                      <h4 className="font-bold text-slate-800 text-sm mt-1">{p.name} — {p.model}</h4>
+                    </div>
+                    
+                    <button 
+                      onClick={() => handleToggleFeatured(p.uniqueKey)}
+                      className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${
+                        isFeatured 
+                          ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/25 active:scale-95' 
+                          : 'bg-white border text-slate-500 hover:text-slate-700 active:scale-95'
+                      }`}
+                    >
+                      {isFeatured ? '★ Featured ON' : '☆ Featured OFF'}
+                    </button>
+                  </div>
+                );
+              }) : (
+                <div className="p-8 text-center text-slate-400 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
+              )}
+            </div>
+
+            <button 
+              onClick={() => saveAllSettings({})}
+              disabled={loading} 
+              className="w-full h-14 bg-slate-900 text-white rounded-2xl font-black text-md hover:bg-orange-600 transition-colors shadow-lg active:scale-95"
+            >
+              {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন (নতুন আগমন আপডেট)'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------- ট্যাব ৪: প্রোডাক্ট বিবরণী এডিটর ---------------- */}
       {activeTab === 'product_details' && (
         <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200">
           <h2 className="text-xl font-black text-slate-800 mb-2">প্রোডাক্ট ডেসক্রিপশন ও ক্যাপাসিটি প্যারামিটার এন্ট্রি</h2>
