@@ -140,11 +140,11 @@ const PublicCatalog = ({ onAdminClick }) => {
       setSelectedModalProduct(matchProduct);
     }
   };
-
   // হোমপেজে ড্রাইভ করার জন্য ক্যাটাগরি ম্যাপিং
   const getDisplayCategoryName = (c) => {
     if (c === 'Solar Panel - 12 Volt') return 'Solar Panel 12V';
     if (c === 'Solar Panel - 24 Volt') return 'Solar Panel 24V';
+    if (c === 'On-grid Inverter') return 'On Grid Inverter';
     return c;
   };
 
@@ -303,8 +303,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                 )}
                 <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-3"></div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8">
+              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {featuredProducts.map((p, i) => {
                   const key = `${p.category ? p.category.trim() : ''}|${p.name ? p.name.trim() : ''}|${p.model ? p.model.trim() : ''}`;
                   const customImg = landingConfig.featured_custom_images?.[key];
@@ -314,35 +313,47 @@ const PublicCatalog = ({ onAdminClick }) => {
                     <div 
                       key={i} 
                       onClick={() => handleModelClick(p.name, p.model)}
-                      className="bg-white rounded-3xl border border-slate-100 p-5 hover:shadow-xl hover:shadow-slate-100 hover:border-slate-200 transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
+                      className="bg-white rounded-2xl border border-slate-100 p-3 hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
                     >
-                      <div className="w-full bg-slate-50 rounded-2xl aspect-[4/3] mb-4 flex items-center justify-center p-4 overflow-hidden relative">
-                        <span className="absolute top-3 left-3 text-[8px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
+                      <div className="w-full bg-slate-50 rounded-xl aspect-[4/3] mb-2 flex items-center justify-center p-2 overflow-hidden relative">
+                        <span className="absolute top-2 left-2 text-[7px] font-black px-1.5 py-0.5 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
                           New
                         </span>
                         {displayImg ? (
                           <img src={displayImg} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
                         ) : (
-                          <div className="text-3xl">📦</div>
+                          <div className="text-2xl">📦</div>
                         )}
                       </div>
-                      <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
-                      <h4 className="font-black text-slate-900 text-xl mt-1.5">{p.name} — {p.model}</h4>
-                      <p className="text-orange-500 font-black text-xs mt-1">বিস্তারিত বিবরণ দেখুন →</p>
+                      <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
+                      <h4 className="font-bold text-slate-900 text-xs mt-1 truncate w-full">{p.name} — {p.model}</h4>
+                      <p className="text-orange-500 font-bold text-[9px] mt-0.5">বিস্তারিত বিবরণ দেখুন →</p>
                     </div>
                   );
                 })}
               </div>
             </section>
           )}
-
           {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
           {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
             <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
               <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
                 
-                {/* টেক্সট পার্ট (বাম পাশ) */}
-                <div className="lg:col-span-6 space-y-6">
+                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে পুরো টেক্সট বক্সের উচ্চতায় ফিট হবে) */}
+                {landingConfig.featured_banner_image_url && (
+                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-stretch">
+                    <div className="bg-slate-50/50 rounded-[2.5rem] p-4 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 w-full h-full min-h-[320px] lg:min-h-[450px]">
+                      <img 
+                        src={landingConfig.featured_banner_image_url} 
+                        alt="Featured Product Banner" 
+                        className="w-full h-full max-h-[500px] object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* টেক্সট পার্ট (মোবাইলে নিচে থাকবে, ডেক্সটপে বাম পাশে) */}
+                <div className="lg:col-span-6 space-y-6 order-2 lg:order-1">
                   {landingConfig.featured_banner_title && (
                     <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
                       {landingConfig.featured_banner_title}
@@ -362,18 +373,6 @@ const PublicCatalog = ({ onAdminClick }) => {
                     </button>
                   </div>
                 </div>
-                {/* ব্যানার ইমেজ পার্ট (ডান পাশ - চিত্রটির আকারের সাথে সামঞ্জস্যপূর্ণ) */}
-                {landingConfig.featured_banner_image_url && (
-                  <div className="lg:col-span-6 flex justify-center">
-                    <div className="bg-slate-50/50 rounded-[2.5rem] p-4 border border-slate-100 flex items-center justify-center overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 w-fit h-fit max-w-full">
-                      <img 
-                        src={landingConfig.featured_banner_image_url} 
-                        alt="Featured Product Banner" 
-                        className="max-h-[350px] w-auto h-auto object-contain rounded-2xl hover:scale-102 transition-transform duration-500" 
-                      />
-                    </div>
-                  </div>
-                )}
 
               </div>
             </section>
