@@ -256,10 +256,14 @@ const PublicCatalog = ({ onAdminClick }) => {
       {/* ---------------- ভিউ ১: হোমপেজ ---------------- */}
       {activeTab === 'home' && (
         <div className="animate-in fade-in duration-300 flex-1 flex flex-col">
-          
-          {/* স্লিক হিরো ব্যানার */}
-          <section className="bg-gradient-to-br from-slate-900 via-slate-850 to-slate-950 text-white py-20 px-6 md:px-12 text-center relative overflow-hidden flex flex-col items-center justify-center">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#f97316_1px,transparent_1px)] [background-size:24px_24px]"></div>
+                    {/* স্লিক হিরো ব্যানার */}
+                    <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white py-24 px-6 md:px-12 text-center relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
+                      {/* ব্যাকগ্রাউন্ড সোলার প্যানেল ইমেজ (অল্প দৃশ্যমান) */}
+                      <div 
+                        className="absolute inset-0 bg-cover bg-center opacity-[0.16] mix-blend-overlay"
+                        style={{ backgroundImage: `url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&auto=format&fit=crop&q=80')` }}
+                      ></div>
+                      <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#f97316_1px,transparent_1px)] [background-size:24px_24px]"></div>
             <div className="max-w-4xl mx-auto space-y-6 relative z-10">
               <span className="text-[10px] font-black tracking-widest uppercase bg-orange-500/20 text-orange-400 px-4 py-1.5 rounded-full border border-orange-500/35">
                 Pioneers of Green Technology
@@ -790,12 +794,11 @@ const PublicCatalog = ({ onAdminClick }) => {
               Portal Login
             </button>
           </div>
-          
-          {landingConfig.actual_footer_image && (
-            <div className="max-w-[200px] opacity-75 hover:opacity-100 transition-opacity">
-              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-12 object-contain" />
-            </div>
-          )}
+                    {landingConfig.actual_footer_image && (
+                      <div className="max-w-[600px] w-full opacity-80 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
+                        <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain" />
+                      </div>
+                    )}
         </div>
       </footer>
 
