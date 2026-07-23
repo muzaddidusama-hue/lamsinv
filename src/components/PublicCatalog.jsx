@@ -219,48 +219,39 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   return (
     <div className="min-h-screen bg-white relative flex flex-col" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+            {/* 🏛️ প্রিমিয়াম স্লিক নেভিগেশন বার */}
+            <header className="bg-white/85 backdrop-blur-md py-4 px-6 md:px-12 shadow-sm sticky top-0 z-50 border-b border-slate-100/60">
+              <div className="max-w-[1500px] mx-auto flex items-center justify-between">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
+                  <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-10 md:h-12 object-contain" />
+                  <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter uppercase">
+                    LAMS <span className="text-orange-500">POWER</span>
+                  </h1>
+                </div>
       
-      {/* 🏛️ প্রিমিয়াম স্লিক নেভিগেশন বার */}
-      <header className="bg-white/85 backdrop-blur-md py-4 px-6 md:px-12 shadow-sm sticky top-0 z-50 border-b border-slate-100/60">
-        <div className="max-w-[1500px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
-            <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-10 md:h-12 object-contain" />
-            <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter uppercase">
-              LAMS <span className="text-orange-500">POWER</span>
-            </h1>
-          </div>
-
-          {/* মেনু লিঙ্ক */}
-          <nav className="flex items-center gap-6 md:gap-10 font-bold text-xs uppercase tracking-widest text-slate-500">
-            <button 
-              onClick={() => setActiveTab('home')} 
-              className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'home' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
-            >
-              Home
-            </button>
-            <button 
-              onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
-              className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'products' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
-            >
-              Products
-            </button>
-            <button 
-              onClick={() => setActiveTab('contact')} 
-              className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'contact' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
-            >
-              Contact Us
-            </button>
-          </nav>
-
-          {/* এডমিন লগইন বাটন */}
-          <button 
-            onClick={onAdminClick}
-            className="border-2 border-slate-900 text-slate-900 hover:bg-slate-900 hover:text-white px-5 py-2 rounded-full font-black text-xs uppercase tracking-wider transition-all duration-300 shadow-sm active:scale-95"
-          >
-            Portal Login
-          </button>
-        </div>
-      </header>
+                {/* মেনু লিঙ্ক (ডান পাশে অবস্থান করবে) */}
+                <nav className="flex items-center gap-6 md:gap-10 font-bold text-xs uppercase tracking-widest text-slate-500">
+                  <button 
+                    onClick={() => setActiveTab('home')} 
+                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'home' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
+                  >
+                    Home
+                  </button>
+                  <button 
+                    onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
+                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'products' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
+                  >
+                    Products
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('contact')} 
+                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'contact' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
+                  >
+                    Contact Us
+                  </button>
+                </nav>
+              </div>
+            </header>
 
       {/* ---------------- ভিউ ১: হোমপেজ ---------------- */}
       {activeTab === 'home' && (
@@ -782,13 +773,22 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
         </div>
       )}
-
       {/* 🏛️ স্লিক মিনিমাল ফুটার */}
       <footer className="bg-slate-900 text-white py-12 px-6 border-t border-slate-800 mt-auto">
-        <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="text-center md:text-left">
             <h5 className="text-lg font-black text-orange-500 tracking-tighter uppercase">LAMS POWER</h5>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
+          </div>
+
+          {/* এডমিন পোর্টাল লগইন বাটন - ফুটারে স্থানান্তরিত */}
+          <div className="flex justify-center">
+            <button 
+              onClick={onAdminClick}
+              className="border border-slate-700 text-slate-400 hover:border-orange-500 hover:text-orange-500 px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm active:scale-95 bg-transparent"
+            >
+              Portal Login
+            </button>
           </div>
           
           {landingConfig.actual_footer_image && (
