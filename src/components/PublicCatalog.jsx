@@ -303,35 +303,35 @@ const PublicCatalog = ({ onAdminClick }) => {
                 )}
                 <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-3"></div>
               </div>
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {featuredProducts.map((p, i) => {
-                  const key = `${p.category ? p.category.trim() : ''}|${p.name ? p.name.trim() : ''}|${p.model ? p.model.trim() : ''}`;
-                  const customImg = landingConfig.featured_custom_images?.[key];
-                  const displayImg = (customImg && customImg.trim() !== '') ? customImg : p.image_url;
-
-                  return (
-                    <div 
-                      key={i} 
-                      onClick={() => handleModelClick(p.name, p.model)}
-                      className="bg-white rounded-2xl border border-slate-100 p-3 hover:shadow-lg transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
-                    >
-                      <div className="w-full bg-slate-50 rounded-xl aspect-[4/3] mb-2 flex items-center justify-center p-2 overflow-hidden relative">
-                        <span className="absolute top-2 left-2 text-[7px] font-black px-1.5 py-0.5 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
-                          New
-                        </span>
-                        {displayImg ? (
-                          <img src={displayImg} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                        ) : (
-                          <div className="text-2xl">📦</div>
-                        )}
-                      </div>
-                      <span className="text-[7px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
-                      <h4 className="font-bold text-slate-900 text-xs mt-1 truncate w-full">{p.name} — {p.model}</h4>
-                      <p className="text-orange-500 font-bold text-[9px] mt-0.5">বিস্তারিত বিবরণ দেখুন →</p>
-                    </div>
-                  );
-                })}
-              </div>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                              {featuredProducts.map((p, i) => {
+                                const key = `${p.category ? p.category.trim() : ''}|${p.name ? p.name.trim() : ''}|${p.model ? p.model.trim() : ''}`;
+                                const customImg = landingConfig.featured_custom_images?.[key];
+                                const displayImg = (customImg && customImg.trim() !== '') ? customImg : p.image_url;
+              
+                                return (
+                                  <div 
+                                    key={i} 
+                                    onClick={() => handleModelClick(p.name, p.model)}
+                                    className="bg-white rounded-3xl border border-slate-100 p-5 hover:shadow-xl hover:shadow-slate-100 hover:border-slate-200 transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
+                                  >
+                                    <div className="w-full bg-slate-50 rounded-2xl aspect-[4/3] mb-4 flex items-center justify-center p-4 overflow-hidden relative">
+                                      <span className="absolute top-3 left-3 text-[8px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
+                                        New
+                                      </span>
+                                      {displayImg ? (
+                                        <img src={displayImg} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                                      ) : (
+                                        <div className="text-3xl">📦</div>
+                                      )}
+                                    </div>
+                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
+                                    <h4 className="font-black text-slate-900 text-sm mt-1.5 truncate w-full">{p.name} — {p.model}</h4>
+                                    <p className="text-orange-500 font-black text-xs mt-1">বিস্তারিত বিবরণ দেখুন →</p>
+                                  </div>
+                                );
+                              })}
+                            </div>
             </section>
           )}
           {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
