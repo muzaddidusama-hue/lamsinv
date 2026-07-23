@@ -172,8 +172,7 @@ const PublicCatalog = ({ onAdminClick }) => {
       return p.category === cat;
     });
   };
-
-  // নিউ অ্যারাইভাল প্রোডাক্টস লোড
+  // নিউ অ্যারাইভাল প্রোডাক্টস লোড (ইনভার্টারগুলো একসাথে প্রথমে গ্রুপ করা থাকবে)
   const getFeaturedProductsList = () => {
     const uniqueKeys = new Set(landingConfig.featured_keys || []);
     const list = [];
@@ -191,7 +190,17 @@ const PublicCatalog = ({ onAdminClick }) => {
       }
     });
 
-    return list;
+    // সর্টিং লজিক: ইনভার্টার ক্যাটাগরিগুলো (Hybrid Inverter, On-grid Inverter) সবার প্রথমে থাকবে
+    return list.sort((a, b) => {
+      const isAInverter = (a.category || '').toLowerCase().includes('inverter');
+      const isBInverter = (b.category || '').toLowerCase().includes('inverter');
+      if (isAInverter && !isBInverter) return -1;
+      if (!isAInverter && isBInverter) return 1;
+      // একই ক্যাটাগরি হলে নাম ও মডেল অনুযায়ী স্বাভাবিক সর্ট হবে
+      if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '');
+      if (a.name !== b.name) return (a.name || '').localeCompare(b.name || '');
+      return (a.model || '').localeCompare(b.model || '');
+    });
   };
 
   const featuredProducts = getFeaturedProductsList();
