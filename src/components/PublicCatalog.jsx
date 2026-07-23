@@ -777,30 +777,30 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
         </div>
       )}
-      {/* 🏛️ স্লিক মিনিমাল ফুটার */}
-      <footer className="bg-slate-900 text-white py-12 px-6 border-t border-slate-800 mt-auto">
-        <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="text-center md:text-left">
-            <h5 className="text-lg font-black text-orange-500 tracking-tighter uppercase">LAMS POWER</h5>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
-          </div>
-
-          {/* এডমিন পোর্টাল লগইন বাটন - ফুটারে স্থানান্তরিত */}
-          <div className="flex justify-center">
-            <button 
-              onClick={onAdminClick}
-              className="border border-slate-700 text-slate-400 hover:border-orange-500 hover:text-orange-500 px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm active:scale-95 bg-transparent"
-            >
-              Portal Login
-            </button>
-          </div>
-                    {landingConfig.actual_footer_image && (
-                      <div className="max-w-[600px] w-full opacity-80 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
-                        <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain" />
-                      </div>
-                    )}
-        </div>
-      </footer>
+            {/* 🏛️ স্লিক মিনিমাল ফুটার - লাইট থিম */}
+            <footer className="bg-slate-50 text-slate-800 py-12 px-6 border-t border-slate-200 mt-auto">
+              <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="text-center md:text-left">
+                  <h5 className="text-lg font-black text-slate-900 tracking-tighter uppercase">LAMS <span className="text-orange-500">POWER</span></h5>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
+                </div>
+      
+                {/* এডমিন পোর্টাল লগইন বাটন */}
+                <div className="flex justify-center">
+                  <button 
+                    onClick={onAdminClick}
+                    className="border border-slate-200 text-slate-600 hover:border-orange-500 hover:text-orange-500 px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm active:scale-95 bg-transparent hover:bg-orange-50/30"
+                  >
+                    Portal Login
+                  </button>
+                </div>
+                          {landingConfig.actual_footer_image && (
+                            <div className="max-w-[600px] w-full opacity-90 hover:opacity-100 transition-opacity flex justify-center md:justify-end mix-blend-multiply">
+                              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain" />
+                            </div>
+                          )}
+              </div>
+            </footer>
 
     </div>
   );
