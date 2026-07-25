@@ -726,57 +726,96 @@ const PublicCatalog = ({ onAdminClick }) => {
       )}
 
       {/* 🎯 মডাল উইন্ডো */}
-      {selectedModalProduct && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-          <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
-            
-            <button 
-              onClick={() => setSelectedModalProduct(null)}
-              className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl"
-            >
-              ✕
-            </button>
+      {selectedModalProduct && (() => {
+        let parsedDescText = '';
+        let catalogUrl = '';
+        const desc = selectedModalProduct.description || '';
+        if (desc.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(desc);
+            parsedDescText = parsed.text || '';
+            catalogUrl = parsed.catalog_url || '';
+          } catch (e) {
+            parsedDescText = desc;
+          }
+        } else {
+          parsedDescText = desc;
+        }
 
-            <div className="border-b pb-4 mb-5">
-              <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3.5 py-1 rounded-full uppercase">
-                {selectedModalProduct.category}
-              </span>
-              <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
-              <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
-            </div>
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
+              
+              <button 
+                onClick={() => setSelectedModalProduct(null)}
+                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl"
+              >
+                ✕
+              </button>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
-                <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+              <div className="border-b pb-4 mb-5">
+                <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3.5 py-1 rounded-full uppercase">
+                  {selectedModalProduct.category}
+                </span>
+                <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
+                <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
               </div>
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
-                <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
+
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
+                  <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
+                  <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
-              <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
-                {selectedModalProduct.description ? (
-                  <p className="whitespace-pre-line">{selectedModalProduct.description}</p>
-                ) : (
-                  <p className="text-slate-400 italic text-center">বিবরণ এখনো যুক্ত করা হয়নি</p>
-                )}
+              <div className="space-y-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+                <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
+                  {parsedDescText ? (
+                    <p className="whitespace-pre-line">{parsedDescText}</p>
+                  ) : (
+                    <p className="text-slate-400 italic text-center">বিবরণ এখনো যুক্ত করা হয়নি</p>
+                  )}
+                </div>
               </div>
+
+              {catalogUrl && (
+                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center">
+                  {/\.(jpg|jpeg|png|webp|gif|svg)/i.test(catalogUrl) && (
+                    <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
+                      <img 
+                        src={catalogUrl} 
+                        alt="Product Catalog" 
+                        className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
+                      />
+                    </div>
+                  )}
+                  <a 
+                    href={catalogUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                  >
+                    {/\.pdf/i.test(catalogUrl) ? '📄 PDF ক্যাটালগ ডাউনলোড / দেখুন' : '🖼️ ক্যাটালগ ডাউনলোড / দেখুন'}
+                  </a>
+                </div>
+              )}
+
+              <button 
+                onClick={() => setSelectedModalProduct(null)}
+                className="w-full mt-6 bg-slate-900 hover:bg-orange-600 text-white py-4 rounded-2xl font-black text-md transition-colors shadow-lg"
+              >
+                বন্ধ করুন
+              </button>
+
             </div>
-
-            <button 
-              onClick={() => setSelectedModalProduct(null)}
-              className="w-full mt-6 bg-slate-900 hover:bg-orange-600 text-white py-4 rounded-2xl font-black text-md transition-colors shadow-lg"
-            >
-              বন্ধ করুন
-            </button>
-
           </div>
-        </div>
-      )}
+        );
+      })()}
             {/* 🏛️ স্লিক মিনিমাল ফুটার - লাইট থিম */}
             <footer className="bg-slate-50 text-slate-800 py-12 px-6 border-t border-slate-200 mt-auto">
               <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
