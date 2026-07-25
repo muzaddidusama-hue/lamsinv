@@ -87,6 +87,24 @@ const PublicCatalog = ({ onAdminClick }) => {
     fetchData();
   }, []);
 
+  // Dynamically update page title & description metadata for SEO and AI Search crawlers
+  useEffect(() => {
+    if (siteSettings.header_name) {
+      document.title = `${siteSettings.header_name} | Premium Solar Energy Solutions`;
+    }
+  }, [siteSettings]);
+
+  useEffect(() => {
+    let metaDesc = document.querySelector('meta[name="description"]');
+    if (!metaDesc) {
+      metaDesc = document.createElement('meta');
+      metaDesc.setAttribute('name', 'description');
+      document.head.appendChild(metaDesc);
+    }
+    const descText = landingConfig.about_profile_text || "Lams Power is a trusted pioneer in Bangladesh's renewable energy sector.";
+    metaDesc.setAttribute('content', descText.substring(0, 160));
+  }, [landingConfig.about_profile_text]);
+
   const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
   
   const getGroupedProducts = (catProds) => {
