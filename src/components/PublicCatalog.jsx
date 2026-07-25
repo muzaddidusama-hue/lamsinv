@@ -55,7 +55,7 @@ const PublicCatalog = ({ onAdminClick }) => {
       const { data: prodData } = await supabase
         .from('products')
         .select('*')
-        .neq('is_hidden', true)
+        .or('is_hidden.is.null,is_hidden.eq.false')
         .in('house', ['Head Office', 'Showroom']);
       setProducts(prodData || []);
       
