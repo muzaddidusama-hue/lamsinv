@@ -45,8 +45,9 @@ const FrontEndCustom = () => {
   // প্রোডাক্ট এডিটর স্টেটস (Tab 5: প্রোডাক্ট বিবরণী এডিটর)
   const [uniqueProducts, setUniqueProducts] = useState([]);
   const [selectedProductKey, setSelectedProductKey] = useState(''); 
-  const [productForm, setProductForm] = useState({ volt: '', watt: '', description: '', catalog_url: '' });
-  const [uploadingCatalog, setUploadingCatalog] = useState(false);
+  const [productForm, setProductForm] = useState({ volt: '', watt: '', description: '', pdf_url: '', catalog_image_url: '' });
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // প্রোডাক্ট সার্চ ফিল্টার (নতুন আগমন টগল করার সুবিধার জন্য)
   const [featuredSearchTerm, setFeaturedSearchTerm] = useState('');
@@ -104,12 +105,23 @@ const FrontEndCustom = () => {
             seen.add(uniqueKey);
 
             let parsedText = p.description || '';
-            let parsedCatalogUrl = '';
+            let parsedPdfUrl = '';
+            let parsedCatalogImageUrl = '';
             if (p.description && p.description.trim().startsWith('{')) {
               try {
                 const parsed = JSON.parse(p.description);
                 parsedText = parsed.text || '';
-                parsedCatalogUrl = parsed.catalog_url || '';
+                parsedPdfUrl = parsed.pdf_url || '';
+                parsedCatalogImageUrl = parsed.catalog_image_url || '';
+
+                // Fallback for old catalog_url format
+                if (parsed.catalog_url) {
+                  if (/\.pdf/i.test(parsed.catalog_url)) {
+                    if (!parsedPdfUrl) parsedPdfUrl = parsed.catalog_url;
+                  } else {
+                    if (!parsedCatalogImageUrl) parsedCatalogImageUrl = parsed.catalog_url;
+                  }
+                }
               } catch (e) {
                 console.error("Error parsing description JSON:", e);
               }
@@ -123,7 +135,8 @@ const FrontEndCustom = () => {
               volt: p.volt || '',
               watt: p.watt || '',
               description: parsedText,
-              catalog_url: parsedCatalogUrl
+              pdf_url: parsedPdfUrl,
+              catalog_image_url: parsedCatalogImageUrl
             });
           }
         });
@@ -141,7 +154,7 @@ const FrontEndCustom = () => {
     setSelectedProductKey(key);
 
     if (!key) {
-      setProductForm({ volt: '', watt: '', description: '', catalog_url: '' });
+      setProductForm({ volt: '', watt: '', description: '', pdf_url: '', catalog_image_url: '' });
       return;
     }
 
@@ -151,7 +164,8 @@ const FrontEndCustom = () => {
         volt: targetProd.volt,
         watt: targetProd.watt,
         description: targetProd.description,
-        catalog_url: targetProd.catalog_url || ''
+        pdf_url: targetProd.pdf_url || '',
+        catalog_image_url: targetProd.catalog_image_url || ''
       });
     }
   };
@@ -186,15 +200,15 @@ const FrontEndCustom = () => {
     }
   };
 
-  // ক্যাটালগ আপলোড হ্যান্ডলার (PDF বা ইমেজ)
-  const handleCatalogUpload = async (e) => {
+  // ক্যাটালগ PDF আপলোড হ্যান্ডলার
+  const handlePdfUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    setUploadingCatalog(true);
+    setUploadingPdf(true);
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `product_catalog_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const fileName = `product_catalog_pdf_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -209,14 +223,48 @@ const FrontEndCustom = () => {
 
       setProductForm(prev => ({
         ...prev,
-        catalog_url: publicUrl
+        pdf_url: publicUrl
       }));
-      alert('✅ ক্যাটালগ ফাইল সফলভাবে আপলোড হয়েছে!');
+      alert('✅ PDF ক্যাটালগ সফলভাবে আপলোড হয়েছে!');
     } catch (error) {
       console.error(error);
-      alert('ক্যাটালগ ফাইল আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+      alert('PDF আপলোড করতে সমস্যা হয়েছে: ' + error.message);
     } finally {
-      setUploadingCatalog(false);
+      setUploadingPdf(false);
+    }
+  };
+
+  // ক্যাটালগ ইমেজ আপলোড হ্যান্ডলার
+  const handleCatalogImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `product_catalog_img_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product image')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product image')
+        .getPublicUrl(filePath);
+
+      setProductForm(prev => ({
+        ...prev,
+        catalog_image_url: publicUrl
+      }));
+      alert('✅ ক্যাটালগ ইমেজ সফলভাবে আপলোড হয়েছে!');
+    } catch (error) {
+      console.error(error);
+      alert('ক্যাটালগ ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -282,7 +330,8 @@ const FrontEndCustom = () => {
 
     const descriptionJson = JSON.stringify({
       text: productForm.description,
-      catalog_url: productForm.catalog_url
+      pdf_url: productForm.pdf_url,
+      catalog_image_url: productForm.catalog_image_url
     });
 
     try {
@@ -689,42 +738,88 @@ const FrontEndCustom = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 block">ক্যাটালগ ফাইল (PDF অথবা ইমেজ)</label>
+                {/* PDF Catalog Option */}
+                <div className="space-y-2 border-t pt-4 mt-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 block">১. PDF ক্যাটালগ ফাইল</label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-bold text-slate-500 uppercase px-1">ক্যাটালগ ফাইল URL (সরাসরি লিঙ্ক দিতে পারেন)</label>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase px-1">PDF লিঙ্ক (সরাসরি লিঙ্ক দিতে পারেন)</label>
                       <input 
                         type="text" 
-                        value={productForm.catalog_url || ''}
-                        onChange={e => setProductForm({...productForm, catalog_url: e.target.value})}
+                        value={productForm.pdf_url || ''}
+                        onChange={e => setProductForm({...productForm, pdf_url: e.target.value})}
                         placeholder="https://example.com/catalog.pdf" 
                         className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-950" 
                       />
                     </div>
                     <div className="space-y-1 flex flex-col justify-end">
                       <label className="cursor-pointer flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors p-3.5 text-center min-h-[50px] relative">
-                        {uploadingCatalog ? (
+                        {uploadingPdf ? (
                           <span className="text-slate-500 font-bold text-xs">⏳ আপলোড হচ্ছে...</span>
                         ) : (
-                          <span className="text-slate-700 font-bold text-xs">📤 ক্যাটালগ আপলোড করুন (PDF/Image)</span>
+                          <span className="text-slate-700 font-bold text-xs">📤 PDF আপলোড করুন (PDF Only)</span>
                         )}
                         <input 
                           type="file" 
-                          accept="image/*,application/pdf" 
-                          onChange={handleCatalogUpload} 
+                          accept="application/pdf" 
+                          onChange={handlePdfUpload} 
                           className="hidden" 
-                          disabled={uploadingCatalog} 
+                          disabled={uploadingPdf} 
                         />
                       </label>
                     </div>
                   </div>
-                  {productForm.catalog_url && (
-                    <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800">
-                      <span className="truncate max-w-[80%]">সংযুক্ত ক্যাটালগ: {productForm.catalog_url}</span>
+                  {productForm.pdf_url && (
+                    <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 animate-in fade-in duration-200">
+                      <span className="truncate max-w-[80%]">📄 সংযুক্ত PDF: {productForm.pdf_url}</span>
                       <button 
                         type="button" 
-                        onClick={() => setProductForm({...productForm, catalog_url: ''})}
+                        onClick={() => setProductForm({...productForm, pdf_url: ''})}
+                        className="text-red-500 hover:text-red-700 font-bold px-2"
+                      >
+                        ✕ মুছে ফেলুন
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Image Catalog Option */}
+                <div className="space-y-2 border-t pt-4 mt-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider px-1 block">২. ইমেজ ক্যাটালগ ফাইল</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-bold text-slate-500 uppercase px-1">ইমেজ লিঙ্ক (সরাসরি লিঙ্ক দিতে পারেন)</label>
+                      <input 
+                        type="text" 
+                        value={productForm.catalog_image_url || ''}
+                        onChange={e => setProductForm({...productForm, catalog_image_url: e.target.value})}
+                        placeholder="https://example.com/catalog.jpg" 
+                        className="w-full p-3.5 bg-slate-50 border rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-slate-950" 
+                      />
+                    </div>
+                    <div className="space-y-1 flex flex-col justify-end">
+                      <label className="cursor-pointer flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors p-3.5 text-center min-h-[50px] relative">
+                        {uploadingImage ? (
+                          <span className="text-slate-500 font-bold text-xs">⏳ আপলোড হচ্ছে...</span>
+                        ) : (
+                          <span className="text-slate-700 font-bold text-xs">📤 ইমেজ আপলোড করুন (Images Only)</span>
+                        )}
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={handleCatalogImageUpload} 
+                          className="hidden" 
+                          disabled={uploadingImage} 
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  {productForm.catalog_image_url && (
+                    <div className="p-3 bg-orange-50 border border-orange-100 rounded-xl flex items-center justify-between text-xs font-semibold text-slate-800 animate-in fade-in duration-200">
+                      <span className="truncate max-w-[80%]">🖼️ সংযুক্ত ইমেজ: {productForm.catalog_image_url}</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setProductForm({...productForm, catalog_image_url: ''})}
                         className="text-red-500 hover:text-red-700 font-bold px-2"
                       >
                         ✕ মুছে ফেলুন

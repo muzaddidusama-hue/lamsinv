@@ -728,13 +728,24 @@ const PublicCatalog = ({ onAdminClick }) => {
       {/* 🎯 মডাল উইন্ডো */}
       {selectedModalProduct && (() => {
         let parsedDescText = '';
-        let catalogUrl = '';
+        let pdfUrl = '';
+        let catalogImageUrl = '';
         const desc = selectedModalProduct.description || '';
         if (desc.trim().startsWith('{')) {
           try {
             const parsed = JSON.parse(desc);
             parsedDescText = parsed.text || '';
-            catalogUrl = parsed.catalog_url || '';
+            pdfUrl = parsed.pdf_url || '';
+            catalogImageUrl = parsed.catalog_image_url || '';
+
+            // Fallback for old catalog_url format
+            if (parsed.catalog_url) {
+              if (/\.pdf/i.test(parsed.catalog_url)) {
+                if (!pdfUrl) pdfUrl = parsed.catalog_url;
+              } else {
+                if (!catalogImageUrl) catalogImageUrl = parsed.catalog_url;
+              }
+            }
           } catch (e) {
             parsedDescText = desc;
           }
@@ -772,36 +783,49 @@ const PublicCatalog = ({ onAdminClick }) => {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
-                <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
-                  {parsedDescText ? (
+              {parsedDescText && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+                  <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
                     <p className="whitespace-pre-line">{parsedDescText}</p>
-                  ) : (
-                    <p className="text-slate-400 italic text-center">বিবরণ এখনো যুক্ত করা হয়নি</p>
-                  )}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {catalogUrl && (
-                <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col items-center">
-                  {/\.(jpg|jpeg|png|webp|gif|svg)/i.test(catalogUrl) && (
-                    <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
-                      <img 
-                        src={catalogUrl} 
-                        alt="Product Catalog" 
-                        className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
-                      />
+              {(catalogImageUrl || pdfUrl) && (
+                <div className={`space-y-4 ${parsedDescText ? 'mt-5 pt-4 border-t border-slate-100' : ''}`}>
+                  {catalogImageUrl && (
+                    <div className="flex flex-col items-center animate-in fade-in duration-200">
+                      <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
+                        <img 
+                          src={catalogImageUrl} 
+                          alt="Product Catalog" 
+                          className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
+                        />
+                      </div>
+                      <a 
+                        href={catalogImageUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-650 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                      >
+                        🖼️ ইমেজ ক্যাটালগ ডাউনলোড / দেখুন
+                      </a>
                     </div>
                   )}
-                  <a 
-                    href={catalogUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
-                  >
-                    {/\.pdf/i.test(catalogUrl) ? '📄 PDF ক্যাটালগ ডাউনলোড / দেখুন' : '🖼️ ক্যাটালগ ডাউনলোড / দেখুন'}
-                  </a>
+
+                  {pdfUrl && (
+                    <div className="flex flex-col items-center animate-in fade-in duration-200">
+                      <a 
+                        href={pdfUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                      >
+                        📄 PDF ক্যাটালগ ডাউনলোড / দেখুন
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
 
