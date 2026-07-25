@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 
 // Modern Minimal SVG Icons for Sidebar
 const DashboardIcon = () => (
@@ -57,22 +57,22 @@ const LogoutIcon = () => (
   </svg>
 );
 
-// আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট
-import Dashboard from './Dashboard';
-import BillingSystem from './BillingSystem';
-import ChalanManager from './ChalanManager';
-import BillManager from './BillManager';
-import NawabpurBilling from './NawabpurBilling';
-import FalseBilling from './FalseBilling';
-import Reports from './Reports';
-import ProductEntry from './ProductEntry';
-import StockManagement from './StockManagement';
-import FrontEndCustom from './FrontEndCustom';
-import SmartUpload from "./SmartUpload";
-import ReturnManager from './ReturnManager';
-import ServiceManager from "./ServiceManager"; 
-import UserManagement from "./UserManagement";
-import LabelPrint from './LabelPrint';
+// আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট (lazy load)
+const Dashboard = lazy(() => import('./Dashboard'));
+const BillingSystem = lazy(() => import('./BillingSystem'));
+const ChalanManager = lazy(() => import('./ChalanManager'));
+const BillManager = lazy(() => import('./BillManager'));
+const NawabpurBilling = lazy(() => import('./NawabpurBilling'));
+const FalseBilling = lazy(() => import('./FalseBilling'));
+const Reports = lazy(() => import('./Reports'));
+const ProductEntry = lazy(() => import('./ProductEntry'));
+const StockManagement = lazy(() => import('./StockManagement'));
+const FrontEndCustom = lazy(() => import('./FrontEndCustom'));
+const SmartUpload = lazy(() => import('./SmartUpload'));
+const ReturnManager = lazy(() => import('./ReturnManager'));
+const ServiceManager = lazy(() => import('./ServiceManager')); 
+const UserManagement = lazy(() => import('./UserManagement'));
+const LabelPrint = lazy(() => import('./LabelPrint'));
 
 const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const [view, setView] = useState('dashboard');
@@ -216,21 +216,28 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
 
         {/* কন্টেন্ট লোড এরিয়া */}
         <div key={view} className="p-4 md:p-8 pb-28 md:pb-8 flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {view === 'dashboard' && <Dashboard setView={setView} />}
-          {view === 'nawabpur_billing' && <NawabpurBilling />}
-          {view === 'smart_scan' && <SmartUpload />} 
-          {view === 'product_entry' && <ProductEntry />}
-          {view === 'billing' && <BillingSystem />}
-          {view === 'chalans' && <ChalanManager />}
-          {view === 'bills' && <BillManager />}
-          {view === 'stock_management' && <StockManagement />}
-          {view === 'service_manager' && <ServiceManager />} 
-          {view === 'reports' && <Reports />}
-          {view === 'false_billing' && <FalseBilling />}
-          {view === 'return_manager' && <ReturnManager />}
-          {view === 'label_print' && <LabelPrint />}
-          {view === 'frontend_custom' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <FrontEndCustom />}
-          {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
+          <Suspense fallback={
+            <div className="flex flex-col items-center justify-center p-12 gap-3 min-h-[300px]">
+              <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-orange-500 animate-spin"></div>
+              <span className="text-xs text-slate-500 font-semibold uppercase tracking-widest">লোডিং হচ্ছে...</span>
+            </div>
+          }>
+            {view === 'dashboard' && <Dashboard setView={setView} />}
+            {view === 'nawabpur_billing' && <NawabpurBilling />}
+            {view === 'smart_scan' && <SmartUpload />} 
+            {view === 'product_entry' && <ProductEntry />}
+            {view === 'billing' && <BillingSystem />}
+            {view === 'chalans' && <ChalanManager />}
+            {view === 'bills' && <BillManager />}
+            {view === 'stock_management' && <StockManagement />}
+            {view === 'service_manager' && <ServiceManager />} 
+            {view === 'reports' && <Reports />}
+            {view === 'false_billing' && <FalseBilling />}
+            {view === 'return_manager' && <ReturnManager />}
+            {view === 'label_print' && <LabelPrint />}
+            {view === 'frontend_custom' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <FrontEndCustom />}
+            {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
+          </Suspense>
         </div>
       </main>
 

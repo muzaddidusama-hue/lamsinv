@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { supabase } from './supabaseClient';
 import PublicCatalog from './components/PublicCatalog';
-import AdminPanel from './components/AdminPanel';
-import Login from './components/Login';
+
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const Login = lazy(() => import('./components/Login'));
 
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -155,7 +156,17 @@ function App() {
           </div>
 
           <div className="flex-1">
-            <AdminPanel onLogout={handleLogout} currentUserRole={userRole} currentUserName={userName} />
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
+                <div className="relative w-16 h-16">
+                  <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
+                  <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+                </div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Admin Portal...</p>
+              </div>
+            }>
+              <AdminPanel onLogout={handleLogout} currentUserRole={userRole} currentUserName={userName} />
+            </Suspense>
           </div>
         </div>
       ) : (
@@ -171,7 +182,14 @@ function App() {
                 >
                   ✕ বাতিল
                 </button>
-                <Login onLoginSuccess={handleLoginSuccess} />
+                <Suspense fallback={
+                  <div className="h-64 flex flex-col items-center justify-center gap-3">
+                    <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-orange-500 animate-spin"></div>
+                    <span className="text-xs text-slate-500 font-semibold">লগইন ফর্ম লোড হচ্ছে...</span>
+                  </div>
+                }>
+                  <Login onLoginSuccess={handleLoginSuccess} />
+                </Suspense>
               </div>
             </div>
           )}

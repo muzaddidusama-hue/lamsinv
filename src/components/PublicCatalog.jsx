@@ -52,7 +52,11 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: prodData } = await supabase.from('products').select('*');
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('*')
+        .neq('is_hidden', true)
+        .in('house', ['Head Office', 'Showroom']);
       setProducts(prodData || []);
       
       const { data: settingsData } = await supabase.from('site_settings').select('*').single();
@@ -315,7 +319,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                                         New
                                       </span>
                                       {displayImg ? (
-                                        <img src={displayImg} alt={p.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                                        <img src={displayImg} alt={p.name} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
                                       ) : (
                                         <div className="text-3xl">📦</div>
                                       )}
@@ -339,6 +343,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                                     <img 
                                       src={landingConfig.featured_banner_image_url} 
                                       alt="Featured Product Banner" 
+                                      loading="lazy"
                                       className="max-h-[500px] w-auto h-auto object-contain rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,0,0,0.15)] hover:shadow-[0_20px_40px_-5px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-500" 
                                     />
                                   </div>
@@ -413,7 +418,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
                       <div className="w-full">
                         <div className="w-full bg-slate-50/50 rounded-[2rem] aspect-[4/3] mb-6 flex items-center justify-center p-4 overflow-hidden relative">
-                          <img src={catImage} alt={displayCat} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                          <img src={catImage} alt={displayCat} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
                         </div>
 
                         <h4 className="text-2xl font-black text-slate-900 tracking-tight text-center mb-2">
@@ -583,7 +588,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                             <div className="w-full">
                               <div className="w-full bg-slate-50/50 rounded-[2rem] aspect-[4/3] mb-6 flex items-center justify-center p-4 overflow-hidden">
                                 {brand.image_url ? (
-                                  <img src={brand.image_url} alt={brand.name} className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
+                                  <img src={brand.image_url} alt={brand.name} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
                                 ) : (
                                   <div className="text-4xl">📦</div>
                                 )}
@@ -800,6 +805,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                         <img 
                           src={catalogImageUrl} 
                           alt="Product Catalog" 
+                          loading="lazy"
                           className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
                         />
                       </div>
@@ -859,7 +865,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                 </div>
                           {landingConfig.actual_footer_image && (
                             <div className="max-w-[600px] w-full opacity-90 hover:opacity-100 transition-opacity flex justify-center md:justify-end mix-blend-multiply">
-                              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain" />
+                              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" loading="lazy" className="max-h-36 w-auto object-contain" />
                             </div>
                           )}
               </div>
