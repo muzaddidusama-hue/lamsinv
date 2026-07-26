@@ -778,84 +778,86 @@ const PublicCatalog = ({ onAdminClick }) => {
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
               
               <button 
                 onClick={() => setSelectedModalProduct(null)}
-                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl"
+                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl z-50"
               >
                 ✕
               </button>
 
-              <div className="border-b pb-4 mb-5">
-                <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3.5 py-1 rounded-full uppercase">
-                  {selectedModalProduct.category}
-                </span>
-                <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
-                <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
-                  <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+              <div className="overflow-y-auto custom-scrollbar pr-1 flex-1 space-y-6 mt-4">
+                <div className="border-b pb-4 mb-5">
+                  <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3.5 py-1 rounded-full uppercase">
+                    {selectedModalProduct.category}
+                  </span>
+                  <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
+                  <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
-                  <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
-                </div>
-              </div>
 
-              {parsedDescText && (
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
-                  <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
-                    <p className="whitespace-pre-line">{parsedDescText}</p>
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
+                    <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
+                    <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
                   </div>
                 </div>
-              )}
 
-              {(catalogImageUrl || pdfUrl) && (
-                <div className={`space-y-4 ${parsedDescText ? 'mt-5 pt-4 border-t border-slate-100' : ''}`}>
-                  {catalogImageUrl && (
-                    <div className="flex flex-col items-center animate-in fade-in duration-200">
-                      <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
-                        <img 
-                          src={catalogImageUrl} 
-                          alt="Product Catalog" 
-                          loading="lazy"
-                          className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
-                        />
+                {parsedDescText && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
+                    <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
+                      <p className="whitespace-pre-line">{parsedDescText}</p>
+                    </div>
+                  </div>
+                )}
+
+                {(catalogImageUrl || pdfUrl) && (
+                  <div className={`space-y-4 ${parsedDescText ? 'mt-5 pt-4 border-t border-slate-100' : ''}`}>
+                    {catalogImageUrl && (
+                      <div className="flex flex-col items-center animate-in fade-in duration-200">
+                        <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
+                          <img 
+                            src={catalogImageUrl} 
+                            alt="Product Catalog" 
+                            loading="lazy"
+                            className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
+                          />
+                        </div>
+                        <a 
+                          href={catalogImageUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-650 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                        >
+                          🖼️ ইমেজ ক্যাটালগ ডাউনলোড / দেখুন
+                        </a>
                       </div>
-                      <a 
-                        href={catalogImageUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-650 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
-                      >
-                        🖼️ ইমেজ ক্যাটালগ ডাউনলোড / দেখুন
-                      </a>
-                    </div>
-                  )}
+                    )}
 
-                  {pdfUrl && (
-                    <div className="flex flex-col items-center animate-in fade-in duration-200">
-                      <a 
-                        href={pdfUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
-                      >
-                        📄 PDF ক্যাটালগ ডাউনলোড / দেখুন
-                      </a>
-                    </div>
-                  )}
-                </div>
-              )}
+                    {pdfUrl && (
+                      <div className="flex flex-col items-center animate-in fade-in duration-200">
+                        <a 
+                          href={pdfUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                        >
+                          📄 PDF ক্যাটালগ ডাউনলোড / দেখুন
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <button 
                 onClick={() => setSelectedModalProduct(null)}
-                className="w-full mt-6 bg-slate-900 hover:bg-orange-600 text-white py-4 rounded-2xl font-black text-md transition-colors shadow-lg"
+                className="w-full mt-6 bg-slate-900 hover:bg-orange-600 text-white py-4 rounded-2xl font-black text-md transition-colors shadow-lg shrink-0"
               >
                 বন্ধ করুন
               </button>
