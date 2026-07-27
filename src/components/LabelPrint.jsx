@@ -4,6 +4,8 @@ import Barcode from 'react-barcode';
 import html2canvas from 'html2canvas';
 import Swal from 'sweetalert2';
 
+const SCALE_MM_TO_PX = 96 / 25.4; // 3.779527559
+
 const LabelPrint = () => {
   const [activeTab, setActiveTab] = useState('print');
   const [templates, setTemplates] = useState([]);
@@ -301,8 +303,8 @@ const LabelPrint = () => {
     if (selectedTemplateData && parentRef.current) {
       const parentWidth = parentRef.current.clientWidth - 64;
       const parentHeight = parentRef.current.clientHeight - 64;
-      const templateW = selectedTemplateData.width * 2.5;
-      const templateH = selectedTemplateData.height * 2.5;
+      const templateW = selectedTemplateData.width * SCALE_MM_TO_PX;
+      const templateH = selectedTemplateData.height * SCALE_MM_TO_PX;
       
       let fitScale = 1;
       const scaleX = parentWidth / templateW;
@@ -584,8 +586,8 @@ const LabelPrint = () => {
                     >
                       <div 
                         style={{
-                          width: `${selectedTemplateData.width * 2.5 * previewZoom}px`,
-                          height: `${selectedTemplateData.height * 2.5 * previewZoom}px`,
+                          width: `${selectedTemplateData.width * SCALE_MM_TO_PX * previewZoom}px`,
+                          height: `${selectedTemplateData.height * SCALE_MM_TO_PX * previewZoom}px`,
                           display: 'flex',
                           alignItems: 'flex-start',
                           justifyContent: 'flex-start',
@@ -598,8 +600,8 @@ const LabelPrint = () => {
                           id="live-sticker-preview"
                           className="relative shadow-2xl bg-white border overflow-hidden origin-top-left flex-shrink-0"
                           style={{
-                            width: `${selectedTemplateData.width * 2.5}px`, 
-                            height: `${selectedTemplateData.height * 2.5}px`,
+                            width: `${selectedTemplateData.width * SCALE_MM_TO_PX}px`, 
+                            height: `${selectedTemplateData.height * SCALE_MM_TO_PX}px`,
                             transform: `scale(${previewZoom})`,
                             transformOrigin: 'top left',
                           }}
@@ -997,9 +999,9 @@ const LabelPrint = () => {
                   >
                     <Barcode 
                       value={item.serial || 'BLANK'} 
-                      width={item.barcodePos.width * 1.512} 
-                      height={item.barcodePos.height * 1.512} 
-                      fontSize={Math.round(14 * 1.512)} 
+                      width={item.barcodePos.width} 
+                      height={item.barcodePos.height} 
+                      fontSize={14} 
                       margin={0} 
                       background="#ffffff" 
                     />
