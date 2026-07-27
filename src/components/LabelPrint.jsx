@@ -580,17 +580,18 @@ const LabelPrint = () => {
                     {/* Viewport Workspace */}
                     <div 
                       ref={parentRef}
-                      className="flex-1 min-h-[350px] overflow-auto flex items-center justify-center p-6 relative custom-scrollbar bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]"
+                      className="flex-1 min-h-[350px] overflow-auto flex p-6 relative custom-scrollbar bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]"
                     >
                       <div 
                         style={{
                           width: `${selectedTemplateData.width * 2.5 * previewZoom}px`,
                           height: `${selectedTemplateData.height * 2.5 * previewZoom}px`,
                           display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
+                          alignItems: 'flex-start',
+                          justifyContent: 'flex-start',
                           overflow: 'hidden',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          margin: 'auto'
                         }}
                       >
                         <div 
@@ -996,9 +997,9 @@ const LabelPrint = () => {
                   >
                     <Barcode 
                       value={item.serial || 'BLANK'} 
-                      width={item.barcodePos.width} 
-                      height={item.barcodePos.height} 
-                      fontSize={14} 
+                      width={item.barcodePos.width * 1.512} 
+                      height={item.barcodePos.height * 1.512} 
+                      fontSize={Math.round(14 * 1.512)} 
                       margin={0} 
                       background="#ffffff" 
                     />
