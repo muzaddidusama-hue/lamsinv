@@ -42,6 +42,10 @@ const FrontEndCustom = () => {
   const [featuredBannerDesc, setFeaturedBannerDesc] = useState('Experience top-tier quality solar equipment manufactured under strict environmental and safety compliance standards.');
   const [featuredBannerImageUrl, setFeaturedBannerImageUrl] = useState('');
 
+  // স্লাইডার ইমেজ স্টেটস
+  const [sliderImages, setSliderImages] = useState([]);
+  const [uploadingSlider, setUploadingSlider] = useState(false);
+
   // প্রোডাক্ট এডিটর স্টেটস (Tab 5: প্রোডাক্ট বিবরণী এডিটর)
   const [uniqueProducts, setUniqueProducts] = useState([]);
   const [selectedProductKey, setSelectedProductKey] = useState(''); 
@@ -80,6 +84,7 @@ const FrontEndCustom = () => {
             if (parsed.featured_banner_desc) setFeaturedBannerDesc(parsed.featured_banner_desc);
             if (parsed.featured_banner_image_url) setFeaturedBannerImageUrl(parsed.featured_banner_image_url);
             if (parsed.actual_footer_image) setActualFooterImage(parsed.actual_footer_image);
+            if (parsed.slider_images) setSliderImages(parsed.slider_images);
           } catch (jsonErr) {
             console.error("JSON Parsing Error:", jsonErr);
             setActualFooterImage(settings.footer_image_url);
@@ -268,6 +273,116 @@ const FrontEndCustom = () => {
     }
   };
 
+  // স্লাইডার ইমেজ আপলোড হ্যান্ডলার
+  const handleSliderImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingSlider(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `slider_image_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product image')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('product image')
+        .getPublicUrl(filePath);
+
+      const updatedSliders = [...sliderImages, publicUrl];
+      setSliderImages(updatedSliders);
+      
+      // Auto save
+      const customPayload = {
+        about_profile_title: aboutProfileTitle,
+        about_profile_text: aboutProfileText,
+        about_quality_title: aboutQualityTitle,
+        about_quality_text: aboutQualityText,
+        category_images: categoryImages,
+        featured_keys: featuredKeys,
+        featured_text: featuredText,
+        featured_custom_images: featuredCustomImages,
+        featured_banner_title: featuredBannerTitle,
+        featured_banner_desc: featuredBannerDesc,
+        featured_banner_image_url: featuredBannerImageUrl,
+        actual_footer_image: actualFooterImage,
+        slider_images: updatedSliders
+      };
+
+      const finalSettings = {
+        ...siteSettings,
+        footer_image_url: JSON.stringify(customPayload)
+      };
+
+      const { error } = await supabase.from('site_settings').upsert([finalSettings]);
+      if (error) throw error;
+      setSiteSettings(finalSettings);
+      
+      alert('✅ স্লাইডার ইমেজ সফলভাবে আপলোড ও সেভ হয়েছে!');
+    } catch (error) {
+      console.error(error);
+      alert('স্লাইডার ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
+    } finally {
+      setUploadingSlider(false);
+    }
+  };
+
+  // স্লাইডার ইমেজ ডিলিট হ্যান্ডলার
+  const handleDeleteSliderImage = async (urlToDelete) => {
+    const confirmDelete = window.confirm("আপনি কি এই স্লাইডার ইমেজটি ডিলিট করতে চান?");
+    if (!confirmDelete) return;
+
+    try {
+      // Storage থেকে ডিলিট করার চেষ্টা করি
+      try {
+        const urlParts = urlToDelete.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        await supabase.storage.from('product image').remove([fileName]);
+      } catch (storageErr) {
+        console.error("Storage delete error:", storageErr);
+      }
+
+      const updatedSliders = sliderImages.filter(url => url !== urlToDelete);
+      setSliderImages(updatedSliders);
+
+      // Auto save
+      const customPayload = {
+        about_profile_title: aboutProfileTitle,
+        about_profile_text: aboutProfileText,
+        about_quality_title: aboutQualityTitle,
+        about_quality_text: aboutQualityText,
+        category_images: categoryImages,
+        featured_keys: featuredKeys,
+        featured_text: featuredText,
+        featured_custom_images: featuredCustomImages,
+        featured_banner_title: featuredBannerTitle,
+        featured_banner_desc: featuredBannerDesc,
+        featured_banner_image_url: featuredBannerImageUrl,
+        actual_footer_image: actualFooterImage,
+        slider_images: updatedSliders
+      };
+
+      const finalSettings = {
+        ...siteSettings,
+        footer_image_url: JSON.stringify(customPayload)
+      };
+
+      const { error } = await supabase.from('site_settings').upsert([finalSettings]);
+      if (error) throw error;
+      setSiteSettings(finalSettings);
+
+      alert('🗑️ স্লাইডার ইমেজ ডিলিট করা হয়েছে!');
+    } catch (error) {
+      console.error(error);
+      alert('ডিলিট করতে সমস্যা হয়েছে: ' + error.message);
+    }
+  };
+
   // সম্পূরক কাস্টম ডাটা ও সেটিংস একসাথে ডাটাবেজে সেভ করার মেথড
   const saveAllSettings = async (updatedSettingsObject) => {
     setLoading(true);
@@ -284,7 +399,8 @@ const FrontEndCustom = () => {
         featured_banner_title: featuredBannerTitle,
         featured_banner_desc: featuredBannerDesc,
         featured_banner_image_url: featuredBannerImageUrl,
-        actual_footer_image: actualFooterImage
+        actual_footer_image: actualFooterImage,
+        slider_images: sliderImages
       };
 
       const finalSettings = {
@@ -377,6 +493,12 @@ const FrontEndCustom = () => {
           ⚙️ সাইট সাধারণ তথ্য (Site Info)
         </button>
         <button 
+          onClick={() => setActiveTab('image_slider')}
+          className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'image_slider' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
+        >
+          🖼️ প্রোডাক্ট স্লাইডার (Image Slider)
+        </button>
+        <button 
           onClick={() => setActiveTab('about_categories')}
           className={`px-5 py-2.5 rounded-xl font-black text-xs md:text-sm transition-all ${activeTab === 'about_categories' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'}`}
         >
@@ -447,6 +569,53 @@ const FrontEndCustom = () => {
               {loading ? 'সংরক্ষণ করা হচ্ছে...' : 'পাবলিশ করুন (Publish Info)'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ---------------- ট্যাব: প্রোডাক্ট ইমেজ স্লাইডার এডিটর ---------------- */}
+      {activeTab === 'image_slider' && (
+        <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm animate-in fade-in duration-200 space-y-6">
+          <div>
+            <h2 className="text-xl font-black text-slate-800">🖼️ হোম পেজ প্রোডাক্ট ইমেজ স্লাইডার (Image Slider)</h2>
+            <p className="text-xs font-bold text-slate-400 mt-1">এখানে আপলোড করা ছবিগুলো হোম পেজে স্লাইডার হিসেবে ৩ সেকেন্ড পরপর দেখা যাবে।</p>
+          </div>
+
+          {/* Upload Widget */}
+          <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-300 text-center">
+            <span className="text-3xl block mb-2">📸</span>
+            <label className="bg-slate-900 text-white px-5 py-2.5 rounded-xl font-black text-xs md:text-sm hover:bg-slate-800 cursor-pointer active:scale-95 transition-all shadow-md inline-block">
+              {uploadingSlider ? 'আপলোড হচ্ছে...' : 'নতুন স্লাইডার ইমেজ আপলোড করুন'}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleSliderImageUpload} 
+                className="hidden" 
+                disabled={uploadingSlider}
+              />
+            </label>
+          </div>
+
+          {/* Slider List Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {sliderImages && sliderImages.map((url, idx) => (
+              <div key={idx} className="relative group rounded-xl border overflow-hidden shadow-sm aspect-video bg-slate-50 flex items-center justify-center p-1">
+                <img src={url} alt={`Slider ${idx + 1}`} className="max-w-full max-h-full object-contain" />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <button 
+                    onClick={() => handleDeleteSliderImage(url)}
+                    className="bg-red-600 text-white font-black text-xs px-3 py-1.5 rounded-lg shadow-md hover:bg-red-700 transition-all active:scale-95"
+                  >
+                    🗑️ ডিলিট
+                  </button>
+                </div>
+              </div>
+            ))}
+            {(!sliderImages || sliderImages.length === 0) && (
+              <div className="col-span-full text-center py-10 text-slate-400 font-bold italic">
+                কোনো স্লাইডার ছবি যোগ করা হয়নি।
+              </div>
+            )}
+          </div>
         </div>
       )}
 

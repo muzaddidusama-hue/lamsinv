@@ -18,9 +18,38 @@ const sortModelsByCapacity = (modelsArray) => {
   });
 };
 
+const AnimatedCounter = ({ target, duration = 1500 }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    let start = 0;
+    const end = parseInt(target, 10);
+    if (isNaN(end) || end === 0) return;
+    
+    const totalSteps = 50;
+    const stepTime = duration / totalSteps;
+    const increment = end / totalSteps;
+
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= end) {
+        setCount(end);
+        clearInterval(timer);
+      } else {
+        setCount(Math.floor(start));
+      }
+    }, stepTime);
+
+    return () => clearInterval(timer);
+  }, [target, duration]);
+
+  return <span>{count}</span>;
+};
+
 const PublicCatalog = ({ onAdminClick }) => {
   const [products, setProducts] = useState([]);
-  const [siteSettings, setSiteSettings] = useState({}); 
+  const [siteSettings, setSiteSettings] = useState({});
+  const [currentSliderIdx, setCurrentSliderIdx] = useState(0);
   const [landingConfig, setLandingConfig] = useState({
     about_profile_title: 'Brief Company Profile',
     about_profile_text: "Founded in 2010, Lams Power has established itself as a trusted leader and pioneer in Bangladesh's renewable energy sector. We specialize in the import, marketing, and distribution of top-tier solar equipment, driven by a steadfast commitment to promoting sustainable and green energy solutions nationwide. Over the past decade, we have dedicated ourselves to accelerating the transition to clean energy by ensuring that consumers have access to the most reliable and efficient solar technologies available.",
@@ -104,6 +133,14 @@ const PublicCatalog = ({ onAdminClick }) => {
     const descText = landingConfig.about_profile_text || "Lams Power is a trusted pioneer in Bangladesh's renewable energy sector.";
     metaDesc.setAttribute('content', descText.substring(0, 160));
   }, [landingConfig.about_profile_text]);
+
+  useEffect(() => {
+    if (!landingConfig?.slider_images || landingConfig.slider_images.length === 0) return;
+    const interval = setInterval(() => {
+      setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [landingConfig?.slider_images]);
 
   const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
   
@@ -239,6 +276,11 @@ const PublicCatalog = ({ onAdminClick }) => {
     </div>
   );
 
+  const uniqueBrands = [...new Set(products.map(p => p.name ? p.name.trim() : '').filter(Boolean))];
+  const uniqueModels = [...new Set(products.map(p => `${p.name?.trim() || ''}|${p.model?.trim() || ''}`).filter(b => b && b !== '|'))];
+  const totalBrands = uniqueBrands.length;
+  const totalModels = uniqueModels.length;
+
   return (
     <div className="min-h-screen bg-white relative flex flex-col" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
             {/* 🏛️ প্রিমিয়াম স্লিক নেভিগেশন বার */}
@@ -351,6 +393,27 @@ const PublicCatalog = ({ onAdminClick }) => {
                             </div>
             </section>
           )}
+
+          {/* 📊 Animated Stats Counter */}
+          {products.length > 0 && (
+            <section className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
+              {/* Background styling elements */}
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
+              <div className="absolute -top-40 -left-40 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="max-w-[1200px] mx-auto text-center space-y-8 relative z-10">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Inventory Strength</span>
+                  <h3 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
+                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} /></span> Models of products for you.
+                  </h3>
+                  <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-4"></div>
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
           {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
             <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
@@ -389,6 +452,51 @@ const PublicCatalog = ({ onAdminClick }) => {
                   </div>
                 </div>
 
+              </div>
+            </section>
+          )}
+
+          {/* 🖼️ Product Image Slider */}
+          {landingConfig?.slider_images && landingConfig.slider_images.length > 0 && (
+            <section className="py-12 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
+              <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl bg-white border border-slate-100 aspect-[16/9] md:aspect-[21/9] flex items-center justify-center group">
+                {landingConfig.slider_images.map((url, idx) => (
+                  <div 
+                    key={idx}
+                    className={`absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-4 md:p-8 bg-slate-50/50 ${idx === currentSliderIdx ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
+                  >
+                    <img 
+                      src={url} 
+                      alt={`Slider ${idx + 1}`} 
+                      className="max-h-full max-w-full object-contain rounded-2xl drop-shadow-lg" 
+                    />
+                  </div>
+                ))}
+                
+                {/* Navigation Arrows */}
+                <button 
+                  onClick={() => setCurrentSliderIdx((prev) => (prev - 1 + landingConfig.slider_images.length) % landingConfig.slider_images.length)}
+                  className="absolute left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                >
+                  &larr;
+                </button>
+                <button 
+                  onClick={() => setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length)}
+                  className="absolute right-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                >
+                  &rarr;
+                </button>
+
+                {/* Dot Indicators */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                  {landingConfig.slider_images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSliderIdx(idx)}
+                      className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentSliderIdx ? 'w-6 bg-orange-500' : 'w-2.5 bg-slate-300 hover:bg-slate-400'}`}
+                    />
+                  ))}
+                </div>
               </div>
             </section>
           )}
