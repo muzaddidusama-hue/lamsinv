@@ -8,6 +8,16 @@ const LabelPrint = () => {
   const [activeTab, setActiveTab] = useState('print');
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Edit Template State
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editBrand, setEditBrand] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editWidth, setEditWidth] = useState('');
+  const [editHeight, setEditHeight] = useState('');
+  const [editFile, setEditFile] = useState(null);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // প্রিন্ট লিস্ট বা কিউ (Queue) স্টেট
   const [printQueue, setPrintQueue] = useState([]);
@@ -42,6 +52,137 @@ const LabelPrint = () => {
   const fetchTemplates = async () => {
     const { data, error } = await supabase.from('sticker_templates').select('*');
     if (!error && data) setTemplates(data);
+  };
+
+  const handleDeleteTemplate = async (template) => {
+    const result = await Swal.fire({
+      title: 'আপনি কি নিশ্চিত?',
+      text: `"${template.brand} - ${template.model_name}" টেমপ্লেটটি ডিলিট করতে চান?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'হ্যাঁ, ডিলিট করুন!',
+      cancelButtonText: 'বাতিল'
+    });
+
+    if (!result.isConfirmed) return;
+
+    setLoading(true);
+    try {
+      // 1. Storage থেকে ছবি ডিলিট করুন (যদি থাকে)
+      if (template.template_url) {
+        try {
+          const urlParts = template.template_url.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          await supabase.storage.from('stickers').remove([fileName]);
+        } catch (storageErr) {
+          console.error('Storage deletion error:', storageErr);
+        }
+      }
+
+      // 2. Database থেকে রেকর্ড ডিলিট করুন
+      const { error } = await supabase
+        .from('sticker_templates')
+        .delete()
+        .eq('id', template.id);
+
+      if (error) throw error;
+
+      Swal.fire('ডিলিট হয়েছে!', 'টেমপ্লেটটি সফলভাবে ডিলিট করা হয়েছে।', 'success');
+      
+      // Select model clear if the deleted one was selected
+      if (selectedModel === template.id.toString()) {
+        setSelectedModel('');
+      }
+      
+      fetchTemplates();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('এরর!', 'টেমপ্লেট ডিলিট করতে সমস্যা হয়েছে!', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenEditModal = (template) => {
+    setEditingTemplate(template);
+    setEditBrand(template.brand || '');
+    setEditModel(template.model_name || '');
+    setEditWidth(template.width || '');
+    setEditHeight(template.height || '');
+    setEditFile(null);
+  };
+
+  const handleSaveEditTemplate = async (e) => {
+    e.preventDefault();
+    if (!editingTemplate || !editBrand || !editModel || !editWidth || !editHeight) {
+      return Swal.fire('সতর্কতা', 'সবগুলো তথ্য সঠিকভাবে দিন!', 'warning');
+    }
+
+    setSavingEdit(true);
+    try {
+      let finalImageUrl = editingTemplate.template_url;
+
+      // যদি নতুন ছবি আপলোড করা হয়
+      if (editFile) {
+        const fileExt = editFile.name.split('.').pop();
+        const fileName = `${editModel.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('stickers')
+          .upload(fileName, editFile);
+
+        if (uploadErr) throw uploadErr;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('stickers')
+          .getPublicUrl(fileName);
+
+        finalImageUrl = publicUrl;
+
+        // পুরানো ছবি ডিলিট করুন (যদি থাকে)
+        if (editingTemplate.template_url) {
+          try {
+            const oldUrlParts = editingTemplate.template_url.split('/');
+            const oldFileName = oldUrlParts[oldUrlParts.length - 1];
+            await supabase.storage.from('stickers').remove([oldFileName]);
+          } catch (storageErr) {
+            console.error('Old storage deletion error:', storageErr);
+          }
+        }
+      }
+
+      // ডাটাবেজ আপডেট
+      const { error: dbErr } = await supabase
+        .from('sticker_templates')
+        .update({
+          brand: editBrand,
+          model_name: editModel,
+          width: Number(editWidth),
+          height: Number(editHeight),
+          template_url: finalImageUrl
+        })
+        .eq('id', editingTemplate.id);
+
+      if (dbErr) throw dbErr;
+
+      Swal.fire({
+        title: 'আপডেট হয়েছে!',
+        text: 'টেমপ্লেট সফলভাবে আপডেট করা হয়েছে।',
+        icon: 'success',
+        timer: 1500,
+        showConfirmButton: false
+      });
+
+      setEditingTemplate(null);
+      fetchTemplates();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('এরর!', 'টেমপ্লেট আপডেট করতে সমস্যা হয়েছে!', 'error');
+    } finally {
+      setSavingEdit(false);
+    }
   };
 
   const handleQuantityChange = (e) => {
@@ -295,16 +436,22 @@ const LabelPrint = () => {
   return (
     <div className="w-full max-w-[1400px] mx-auto p-4 md:p-8 space-y-6 font-['Inter'] pb-20">
       
-      <div className="bg-white p-6 rounded-3xl border shadow-sm flex gap-4">
+      <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-wrap md:flex-nowrap gap-4">
         <button 
           onClick={() => setActiveTab('print')}
-          className={`flex-1 py-3 rounded-xl font-black transition-all ${activeTab === 'print' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+          className={`flex-1 py-3 px-4 rounded-xl font-black transition-all text-sm md:text-base ${activeTab === 'print' ? 'bg-slate-900 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
         >
           🖨️ লেবেল প্রিন্ট ও লিস্ট
         </button>
         <button 
+          onClick={() => setActiveTab('manage')}
+          className={`flex-1 py-3 px-4 rounded-xl font-black transition-all text-sm md:text-base ${activeTab === 'manage' ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+        >
+          📋 টেমপ্লেট তালিকা ও ম্যানেজমেন্ট
+        </button>
+        <button 
           onClick={() => setActiveTab('add_new')}
-          className={`flex-1 py-3 rounded-xl font-black transition-all ${activeTab === 'add_new' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+          className={`flex-1 py-3 px-4 rounded-xl font-black transition-all text-sm md:text-base ${activeTab === 'add_new' ? 'bg-orange-600 text-white shadow-lg' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
         >
           ➕ নতুন মডেল ও সাইজ এন্ট্রি
         </button>
@@ -704,6 +851,94 @@ const LabelPrint = () => {
         </div>
       )}
 
+      {activeTab === 'manage' && (
+        <div className="bg-white p-6 md:p-8 rounded-3xl border shadow-sm space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+            <div>
+              <h2 className="text-xl font-black text-slate-800 animate-pulse-subtle">📋 টেমপ্লেট তালিকা ও ম্যানেজমেন্ট</h2>
+              <p className="text-xs font-bold text-slate-400 mt-1">এখানে সকল স্টিকার টেমপ্লেট দেখতে, এডিট বা ডিলিট করতে পারবেন</p>
+            </div>
+            
+            {/* Search Filter */}
+            <div className="w-full md:w-80">
+              <input 
+                type="text" 
+                placeholder="🔍 মডেল বা ব্র্যান্ড খুঁজুন..." 
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full p-3 bg-slate-50 border-2 rounded-xl font-bold outline-none focus:border-blue-500 text-sm shadow-inner"
+              />
+            </div>
+          </div>
+
+          {/* Templates Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
+                  <th className="pb-3 pl-2">ছবি (Preview)</th>
+                  <th className="pb-3">ব্র্যান্ড ও মডেল</th>
+                  <th className="pb-3">সাইজ (mm)</th>
+                  <th className="pb-3 text-right pr-2">অ্যাকশন</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {templates
+                  .filter(t => 
+                    (t.brand || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                    (t.model_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((template) => (
+                    <tr key={template.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 pl-2">
+                        <a 
+                          href={template.template_url} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="block w-16 h-10 border rounded-lg overflow-hidden bg-slate-100 hover:opacity-85 transition-opacity"
+                          title="সম্পূর্ণ ছবি দেখতে ক্লিক করুন"
+                        >
+                          <img src={template.template_url} alt="" className="w-full h-full object-contain" />
+                        </a>
+                      </td>
+                      <td className="py-3 font-bold text-slate-800">
+                        {template.brand} <span className="text-xs text-slate-400 ml-1">{template.model_name}</span>
+                      </td>
+                      <td className="py-3 text-xs font-bold text-slate-500">
+                        {template.width} x {template.height} mm
+                      </td>
+                      <td className="py-3 text-right pr-2 space-x-2">
+                        <button 
+                          onClick={() => handleOpenEditModal(template)} 
+                          className="text-blue-500 font-bold hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm transition-colors border border-transparent hover:border-blue-100"
+                        >
+                          ✏️ এডিট
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteTemplate(template)} 
+                          className="text-red-500 font-bold hover:bg-red-50 px-3 py-1.5 rounded-lg text-sm transition-colors border border-transparent hover:border-red-100"
+                        >
+                          🗑️ ডিলিট
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                {templates.filter(t => 
+                  (t.brand || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                  (t.model_name || '').toLowerCase().includes(searchQuery.toLowerCase())
+                ).length === 0 && (
+                  <tr>
+                    <td colSpan="4" className="text-center py-10 text-slate-400 font-bold italic">
+                      কোনো টেমপ্লেট খুঁজে পাওয়া যায়নি।
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'add_new' && (
         <div className="bg-white p-8 rounded-3xl border shadow-sm max-w-2xl mx-auto">
           <h2 className="text-xl font-black border-b pb-4 mb-6 text-slate-800">নতুন স্টিকার টেমপ্লেট ও সাইজ যুক্ত করুন</h2>
@@ -774,6 +1009,113 @@ const LabelPrint = () => {
           ))}
         </div>
       </div>
+
+      {/* ✏️ এডিট টেমপ্লেট মোডাল */}
+      {editingTemplate && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border shadow-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto custom-scrollbar p-6 md:p-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center border-b pb-4 mb-5">
+              <h3 className="text-lg font-black text-slate-850 flex items-center gap-2">
+                <span>✏️</span> টেমপ্লেট এডিট করুন: {editingTemplate.brand} - {editingTemplate.model_name}
+              </h3>
+              <button 
+                onClick={() => setEditingTemplate(null)} 
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditTemplate} className="space-y-5">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">ব্র্যান্ডের নাম</label>
+                <input 
+                  type="text" 
+                  value={editBrand} 
+                  onChange={(e) => setEditBrand(e.target.value)} 
+                  placeholder="যেমন: INHENERGY" 
+                  className="w-full p-3.5 border-2 rounded-xl font-bold outline-none focus:border-blue-500 text-sm" 
+                  required 
+                />
+              </div>
+              
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">ইনভার্টার মডেল</label>
+                <input 
+                  type="text" 
+                  value={editModel} 
+                  onChange={(e) => setEditModel(e.target.value)} 
+                  placeholder="যেমন: SI-3K-T2" 
+                  className="w-full p-3.5 border-2 rounded-xl font-bold outline-none focus:border-blue-500 text-sm" 
+                  required 
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">প্রস্থ / Width (mm)</label>
+                  <input 
+                    type="number" 
+                    value={editWidth} 
+                    onChange={(e) => setEditWidth(e.target.value)} 
+                    placeholder="যেমন: 100" 
+                    className="w-full p-3.5 border-2 rounded-xl font-bold outline-none focus:border-blue-500 text-sm" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">উচ্চতা / Height (mm)</label>
+                  <input 
+                    type="number" 
+                    value={editHeight} 
+                    onChange={(e) => setEditHeight(e.target.value)} 
+                    placeholder="যেমন: 150" 
+                    className="w-full p-3.5 border-2 rounded-xl font-bold outline-none focus:border-blue-500 text-sm" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              {/* Current / New Image preview */}
+              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 flex flex-col md:flex-row gap-4 items-center">
+                <div className="w-24 h-16 bg-white rounded-lg border overflow-hidden flex items-center justify-center p-1 flex-shrink-0">
+                  <img 
+                    src={editFile ? URL.createObjectURL(editFile) : editingTemplate.template_url} 
+                    alt="Current preview" 
+                    className="max-w-full max-h-full object-contain" 
+                  />
+                </div>
+                <div className="flex-1 w-full text-center md:text-left">
+                  <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">ব্ল্যাংক স্টিকারের ছবি (যদি পরিবর্তন করতে চান)</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    onChange={(e) => setEditFile(e.target.files[0])} 
+                    className="w-full p-1.5 bg-white border rounded-xl font-bold text-xs outline-none" 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 border-t pt-4">
+                <button 
+                  type="button" 
+                  onClick={() => setEditingTemplate(null)} 
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-bold text-sm active:scale-95 transition-all"
+                >
+                  বাতিল করুন
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={savingEdit} 
+                  className="flex-1 py-3.5 bg-blue-600 text-white rounded-xl font-black text-sm shadow-md hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-all"
+                >
+                  {savingEdit ? 'আপলোড ও সেভ হচ্ছে...' : 'পরিবর্তন সংরক্ষণ করুন'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );
