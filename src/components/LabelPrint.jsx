@@ -17,10 +17,13 @@ const LabelPrint = () => {
   const [quantity, setQuantity] = useState('');
   const [serials, setSerials] = useState([]);
   const printRef = useRef();
+  const parentRef = useRef(null);
 
   const [barcodePos, setBarcodePos] = useState({ 
     x: 50, y: 82, scale: 1, width: 1.5, height: 40  
   });
+
+  const [previewZoom, setPreviewZoom] = useState(1);
 
   // Add New Template State
   const [newModel, setNewModel] = useState('');
@@ -54,7 +57,14 @@ const LabelPrint = () => {
   };
 
   const handlePosChange = (axis, value) => {
-    setBarcodePos(prev => ({ ...prev, [axis]: parseFloat(value) }));
+    if (value === '') {
+      setBarcodePos(prev => ({ ...prev, [axis]: '' }));
+      return;
+    }
+    const val = parseFloat(value);
+    if (!isNaN(val)) {
+      setBarcodePos(prev => ({ ...prev, [axis]: val }));
+    }
   };
 
   const handleAddToQueue = () => {
@@ -146,6 +156,42 @@ const LabelPrint = () => {
 
   const selectedTemplateData = templates.find(t => t.id.toString() === selectedModel);
 
+  const handleAutoFit = () => {
+    if (selectedTemplateData && parentRef.current) {
+      const parentWidth = parentRef.current.clientWidth - 64;
+      const parentHeight = parentRef.current.clientHeight - 64;
+      const templateW = selectedTemplateData.width * 2.5;
+      const templateH = selectedTemplateData.height * 2.5;
+      
+      let fitScale = 1;
+      const scaleX = parentWidth / templateW;
+      const scaleY = parentHeight / templateH;
+      fitScale = Math.min(scaleX, scaleY);
+      
+      setPreviewZoom(Math.max(0.1, Math.min(2, Math.round(fitScale * 100) / 100)));
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedTemplateData) return;
+    
+    // Auto fit on mount / template change
+    const timer = setTimeout(() => {
+      handleAutoFit();
+    }, 100);
+
+    const handleResize = () => {
+      handleAutoFit();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [selectedModel, selectedTemplateData]);
+
   // 🖨️ আপডেট: গ্যাপ ছাড়া একসাথে প্রিন্ট করার লজিক
   const handlePrintAll = () => {
     if (printQueue.length === 0) return Swal.fire('সতর্কতা', 'লিস্টে কোনো স্টিকার নেই!', 'warning');
@@ -219,7 +265,12 @@ const LabelPrint = () => {
     const element = document.getElementById('live-sticker-preview');
     if (!element) return Swal.fire('সতর্কতা', 'ডাউনলোড করার মতো কিছু নেই!', 'warning');
     
+    const originalZoom = previewZoom;
     try {
+      setPreviewZoom(1);
+      // Wait for React to render at scale 1 before capturing
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       const canvas = await html2canvas(element, { scale: 3, useCORS: true });
       const dataUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
@@ -228,6 +279,8 @@ const LabelPrint = () => {
       link.click();
     } catch (err) {
       Swal.fire('এরর', 'ছবি ডাউনলোড করতে সমস্যা হয়েছে!', 'error');
+    } finally {
+      setPreviewZoom(originalZoom);
     }
   };
 
@@ -322,44 +375,118 @@ const LabelPrint = () => {
 
             <div className="lg:col-span-8 flex flex-col xl:flex-row gap-6">
               
-              <div className="flex-1 bg-slate-100 p-6 rounded-3xl border flex flex-col items-center justify-center min-h-[400px]">
+              <div className="flex-1 bg-white rounded-3xl border shadow-sm flex flex-col overflow-hidden min-h-[450px]">
                 {selectedTemplateData && serials[0] !== undefined ? (
-                  <>
+                  <div className="flex flex-col h-full">
+                    {/* Zoom Toolbar */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 border-b px-4 py-3 text-xs font-bold text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <span>🖼️</span>
+                        <span>স্টিকার প্রিভিউ (Preview)</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewZoom(prev => Math.max(0.1, Math.round((prev - 0.1) * 10) / 10))}
+                          className="w-7 h-7 flex items-center justify-center bg-white border hover:bg-slate-100 rounded-lg text-slate-800 active:scale-95 transition-all shadow-sm"
+                          title="Zoom Out"
+                        >
+                          ➖
+                        </button>
+                        <input 
+                          type="range" 
+                          min="0.1" 
+                          max="2" 
+                          step="0.05" 
+                          value={previewZoom} 
+                          onChange={(e) => setPreviewZoom(parseFloat(e.target.value))} 
+                          className="w-20 md:w-28 accent-slate-800 cursor-pointer" 
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewZoom(prev => Math.min(2, Math.round((prev + 0.1) * 10) / 10))}
+                          className="w-7 h-7 flex items-center justify-center bg-white border hover:bg-slate-100 rounded-lg text-slate-800 active:scale-95 transition-all shadow-sm"
+                          title="Zoom In"
+                        >
+                          ➕
+                        </button>
+                        <span className="bg-slate-200 px-2 py-1 rounded text-slate-700 font-mono w-12 text-center text-[10px]">
+                          {Math.round(previewZoom * 100)}%
+                        </span>
+                        <button 
+                          type="button"
+                          onClick={handleAutoFit}
+                          className="px-2.5 py-1 bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 rounded-lg active:scale-95 transition-all text-[10px]"
+                        >
+                          Auto Fit
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setPreviewZoom(1)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 border rounded-lg active:scale-95 transition-all text-[10px]"
+                        >
+                          100%
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Viewport Workspace */}
                     <div 
-                      id="live-sticker-preview"
-                      className="relative shadow-2xl bg-white border overflow-hidden mb-4"
-                      style={{
-                        width: `${selectedTemplateData.width * 2.5}px`, 
-                        height: `${selectedTemplateData.height * 2.5}px`
-                      }}
+                      ref={parentRef}
+                      className="flex-1 min-h-[350px] overflow-auto flex items-center justify-center p-6 relative custom-scrollbar bg-slate-50 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:16px_16px]"
                     >
-                      <img src={selectedTemplateData.template_url} alt="template" className="absolute top-0 left-0 w-full h-full object-fill z-10 pointer-events-none" crossOrigin="anonymous" />
-                      
-                      {serials[0].trim() !== '' && (
+                      <div 
+                        style={{
+                          width: `${selectedTemplateData.width * 2.5 * previewZoom}px`,
+                          height: `${selectedTemplateData.height * 2.5 * previewZoom}px`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          overflow: 'hidden',
+                          flexShrink: 0
+                        }}
+                      >
                         <div 
-                          className="absolute z-20 flex justify-center w-full"
+                          id="live-sticker-preview"
+                          className="relative shadow-2xl bg-white border overflow-hidden origin-top-left flex-shrink-0"
                           style={{
-                            left: `${barcodePos.x}%`,
-                            top: `${barcodePos.y}%`,
-                            transform: `translate(-50%, -50%) scale(${barcodePos.scale})`,
+                            width: `${selectedTemplateData.width * 2.5}px`, 
+                            height: `${selectedTemplateData.height * 2.5}px`,
+                            transform: `scale(${previewZoom})`,
+                            transformOrigin: 'top left',
                           }}
                         >
-                          <Barcode 
-                            value={serials[0]} 
-                            width={barcodePos.width} 
-                            height={barcodePos.height} 
-                            fontSize={14} 
-                            margin={0}
-                            displayValue={true} 
-                            background="#ffffff"
-                          />
+                          <img src={selectedTemplateData.template_url} alt="template" className="absolute top-0 left-0 w-full h-full object-fill z-10 pointer-events-none" crossOrigin="anonymous" />
+                          
+                          {serials[0].trim() !== '' && (
+                            <div 
+                              className="absolute z-20 flex justify-center w-full"
+                              style={{
+                                left: `${barcodePos.x || 0}%`,
+                                top: `${barcodePos.y || 0}%`,
+                                transform: `translate(-50%, -50%) scale(${barcodePos.scale || 1})`,
+                              }}
+                            >
+                              <Barcode 
+                                value={serials[0]} 
+                                width={parseFloat(barcodePos.width) || 1.5} 
+                                height={parseFloat(barcodePos.height) || 40} 
+                                fontSize={14} 
+                                margin={0}
+                                displayValue={true} 
+                                background="#ffffff"
+                              />
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                    <button onClick={handleDownloadImage} className="text-xs font-bold text-blue-600 underline">📥 প্রিভিউ ডাউনলোড করুন</button>
-                  </>
+                    <div className="bg-slate-50 p-3 border-t text-center">
+                      <button onClick={handleDownloadImage} className="text-xs font-black text-blue-600 hover:text-blue-700 transition-colors">📥 প্রিভিউ ডাউনলোড করুন</button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="text-center text-slate-400 space-y-2">
+                  <div className="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50 min-h-[400px] text-center text-slate-400 space-y-2">
                     <p className="text-4xl">📸</p>
                     <p className="font-bold text-sm">মডেল সিলেক্ট করে সিরিয়াল টাইপ করলে প্রিভিউ দেখা যাবে</p>
                   </div>
@@ -375,37 +502,149 @@ const LabelPrint = () => {
                   
                   <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
-                        <span>ডানে-বামে (X)</span> <span className="text-blue-600">{barcodePos.x}%</span>
+                      <label className="text-[10px] font-black text-slate-500 uppercase block">
+                        ডানে-বামে (X)
                       </label>
-                      <input type="range" min="0" max="100" step="0.5" value={barcodePos.x} onChange={(e) => handlePosChange('x', e.target.value)} className="w-full accent-blue-600" />
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          step="0.5" 
+                          value={barcodePos.x === '' ? 0 : barcodePos.x} 
+                          onChange={(e) => handlePosChange('x', e.target.value)} 
+                          className="flex-1 accent-blue-600 cursor-pointer" 
+                        />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            step="0.5" 
+                            value={barcodePos.x} 
+                            onChange={(e) => handlePosChange('x', e.target.value)} 
+                            className="w-16 p-1.5 text-center bg-white border rounded-lg font-bold text-xs text-blue-600 outline-none focus:border-blue-500 shadow-sm" 
+                          />
+                          <span className="text-xs text-slate-400 font-bold">%</span>
+                        </div>
+                      </div>
                     </div>
+                    
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
-                        <span>উপরে-নিচে (Y)</span> <span className="text-blue-600">{barcodePos.y}%</span>
+                      <label className="text-[10px] font-black text-slate-500 uppercase block">
+                        উপরে-নিচে (Y)
                       </label>
-                      <input type="range" min="0" max="100" step="0.5" value={barcodePos.y} onChange={(e) => handlePosChange('y', e.target.value)} className="w-full accent-blue-600" />
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0" 
+                          max="100" 
+                          step="0.5" 
+                          value={barcodePos.y === '' ? 0 : barcodePos.y} 
+                          onChange={(e) => handlePosChange('y', e.target.value)} 
+                          className="flex-1 accent-blue-600 cursor-pointer" 
+                        />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            step="0.5" 
+                            value={barcodePos.y} 
+                            onChange={(e) => handlePosChange('y', e.target.value)} 
+                            className="w-16 p-1.5 text-center bg-white border rounded-lg font-bold text-xs text-blue-600 outline-none focus:border-blue-500 shadow-sm" 
+                          />
+                          <span className="text-xs text-slate-400 font-bold">%</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-4 p-4 bg-slate-50 rounded-2xl border">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
-                        <span>প্রস্থ (Width)</span> <span className="text-orange-600">{barcodePos.width}</span>
+                      <label className="text-[10px] font-black text-slate-500 uppercase block">
+                        প্রস্থ (Width)
                       </label>
-                      <input type="range" min="0.5" max="4" step="0.1" value={barcodePos.width} onChange={(e) => handlePosChange('width', e.target.value)} className="w-full accent-orange-600" />
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0.5" 
+                          max="4" 
+                          step="0.1" 
+                          value={barcodePos.width === '' ? 0.5 : barcodePos.width} 
+                          onChange={(e) => handlePosChange('width', e.target.value)} 
+                          className="flex-1 accent-orange-600 cursor-pointer" 
+                        />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input 
+                            type="number" 
+                            min="0.5" 
+                            max="4" 
+                            step="0.1" 
+                            value={barcodePos.width} 
+                            onChange={(e) => handlePosChange('width', e.target.value)} 
+                            className="w-16 p-1.5 text-center bg-white border rounded-lg font-bold text-xs text-orange-600 outline-none focus:border-orange-500 shadow-sm" 
+                          />
+                        </div>
+                      </div>
                     </div>
+
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
-                        <span>উচ্চতা (Height)</span> <span className="text-orange-600">{barcodePos.height}px</span>
+                      <label className="text-[10px] font-black text-slate-500 uppercase block">
+                        উচ্চতা (Height)
                       </label>
-                      <input type="range" min="10" max="150" step="1" value={barcodePos.height} onChange={(e) => handlePosChange('height', e.target.value)} className="w-full accent-orange-600" />
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="10" 
+                          max="150" 
+                          step="1" 
+                          value={barcodePos.height === '' ? 10 : barcodePos.height} 
+                          onChange={(e) => handlePosChange('height', e.target.value)} 
+                          className="flex-1 accent-orange-600 cursor-pointer" 
+                        />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input 
+                            type="number" 
+                            min="10" 
+                            max="150" 
+                            step="1" 
+                            value={barcodePos.height} 
+                            onChange={(e) => handlePosChange('height', e.target.value)} 
+                            className="w-16 p-1.5 text-center bg-white border rounded-lg font-bold text-xs text-orange-600 outline-none focus:border-orange-500 shadow-sm" 
+                          />
+                          <span className="text-xs text-slate-400 font-bold">px</span>
+                        </div>
+                      </div>
                     </div>
+
                     <div className="space-y-2 pt-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase flex justify-between">
-                        <span>জুম (Scale)</span> <span className="text-slate-800">{barcodePos.scale}x</span>
+                      <label className="text-[10px] font-black text-slate-500 uppercase block">
+                        জুম (Scale)
                       </label>
-                      <input type="range" min="0.5" max="2" step="0.05" value={barcodePos.scale} onChange={(e) => handlePosChange('scale', e.target.value)} className="w-full accent-slate-800" />
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="range" 
+                          min="0.5" 
+                          max="2" 
+                          step="0.05" 
+                          value={barcodePos.scale === '' ? 0.5 : barcodePos.scale} 
+                          onChange={(e) => handlePosChange('scale', e.target.value)} 
+                          className="flex-1 accent-slate-800 cursor-pointer" 
+                        />
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <input 
+                            type="number" 
+                            min="0.5" 
+                            max="2" 
+                            step="0.05" 
+                            value={barcodePos.scale} 
+                            onChange={(e) => handlePosChange('scale', e.target.value)} 
+                            className="w-16 p-1.5 text-center bg-white border rounded-lg font-bold text-xs text-slate-800 outline-none focus:border-slate-500 shadow-sm" 
+                          />
+                          <span className="text-xs text-slate-400 font-bold">x</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
