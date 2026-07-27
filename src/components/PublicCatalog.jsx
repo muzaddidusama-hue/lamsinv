@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 
 const sortModelsByCapacity = (modelsArray) => {
@@ -18,13 +18,20 @@ const sortModelsByCapacity = (modelsArray) => {
   });
 };
 
-const AnimatedCounter = ({ target, duration = 1500 }) => {
+const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    if (!trigger) {
+      setCount(0);
+      return;
+    }
     let start = 0;
     const end = parseInt(target, 10);
-    if (isNaN(end) || end === 0) return;
+    if (isNaN(end) || end === 0) {
+      setCount(0);
+      return;
+    }
     
     const totalSteps = 50;
     const stepTime = duration / totalSteps;
@@ -41,7 +48,7 @@ const AnimatedCounter = ({ target, duration = 1500 }) => {
     }, stepTime);
 
     return () => clearInterval(timer);
-  }, [target, duration]);
+  }, [target, duration, trigger]);
 
   return <span>{count}</span>;
 };
@@ -50,6 +57,8 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [products, setProducts] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
   const [currentSliderIdx, setCurrentSliderIdx] = useState(0);
+  const counterRef = useRef(null);
+  const [isCounterVisible, setIsCounterVisible] = useState(false);
   const [landingConfig, setLandingConfig] = useState({
     about_profile_title: 'Brief Company Profile',
     about_profile_text: "Founded in 2010, Lams Power has established itself as a trusted leader and pioneer in Bangladesh's renewable energy sector. We specialize in the import, marketing, and distribution of top-tier solar equipment, driven by a steadfast commitment to promoting sustainable and green energy solutions nationwide. Over the past decade, we have dedicated ourselves to accelerating the transition to clean energy by ensuring that consumers have access to the most reliable and efficient solar technologies available.",
@@ -141,6 +150,21 @@ const PublicCatalog = ({ onAdminClick }) => {
     }, 3000);
     return () => clearInterval(interval);
   }, [landingConfig?.slider_images]);
+
+  useEffect(() => {
+    if (loading || !counterRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsCounterVisible(true);
+          observer.unobserve(entry.target);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(counterRef.current);
+    return () => observer.disconnect();
+  }, [loading]);
 
   const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
   
@@ -396,7 +420,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {/* 📊 Animated Stats Counter */}
           {products.length > 0 && (
-            <section className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
+            <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
               {/* Background styling elements */}
               <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
               <div className="absolute -top-40 -left-40 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
@@ -406,7 +430,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                 <div className="space-y-2">
                   <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Inventory Strength</span>
                   <h3 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
-                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} /></span> Models of products for you.
+                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of products for you.
                   </h3>
                   <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-4"></div>
                 </div>
