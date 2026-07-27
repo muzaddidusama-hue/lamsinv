@@ -88,6 +88,16 @@ const PublicCatalog = ({ onAdminClick }) => {
   // প্রোডাক্ট সার্চ স্টেট
   const [productSearch, setProductSearch] = useState('');
 
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     const fetchData = async () => {
       const { data: prodData } = await supabase
@@ -482,25 +492,86 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {/* 🖼️ Product Image Slider */}
           {landingConfig?.slider_images && landingConfig.slider_images.length > 0 && (
-            <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex justify-center mb-6">
-              <div className="relative w-full max-w-4xl h-[450px] md:h-[600px] flex items-center justify-center group bg-transparent">
-                {landingConfig.slider_images.map((url, idx) => (
-                  <div 
-                    key={idx}
-                    className={`absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-2 ${idx === currentSliderIdx ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
-                  >
-                    <img 
-                      src={url} 
-                      alt={`Slider ${idx + 1}`} 
-                      className="h-full w-auto max-w-full object-contain rounded-3xl shadow-[0_15px_35px_-5px_rgba(0,0,0,0.15)] border border-slate-100 bg-white" 
-                    />
-                  </div>
-                ))}
+            <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex flex-col items-center mb-10 overflow-x-hidden">
+              <div className="relative w-full max-w-4xl h-[350px] md:h-[600px] flex items-center justify-center group bg-transparent overflow-visible">
+                {landingConfig.slider_images.map((url, idx) => {
+                  const total = landingConfig.slider_images.length;
+                  const diff = (idx - currentSliderIdx + total) % total;
+                  let normDiff = diff;
+                  if (normDiff > total / 2) normDiff -= total;
+
+                  // CSS inline styles dynamic values
+                  let transformStyle = 'translateX(0) scale(0.95)';
+                  let opacityStyle = 0;
+                  let zIndexStyle = 0;
+                  let pointerEventsStyle = 'none';
+
+                  if (isMobile) {
+                    if (idx === currentSliderIdx) {
+                      transformStyle = 'translateX(0) scale(1)';
+                      opacityStyle = 1;
+                      zIndexStyle = 30;
+                      pointerEventsStyle = 'auto';
+                    }
+                  } else {
+                    if (normDiff === 0) {
+                      transformStyle = 'translateX(0) scale(1)';
+                      opacityStyle = 1;
+                      zIndexStyle = 30;
+                      pointerEventsStyle = 'auto';
+                    } else if (normDiff === -1) {
+                      transformStyle = 'translateX(-45%) scale(0.75)';
+                      opacityStyle = 0.6;
+                      zIndexStyle = 20;
+                      pointerEventsStyle = 'auto';
+                    } else if (normDiff === 1) {
+                      transformStyle = 'translateX(45%) scale(0.75)';
+                      opacityStyle = 0.6;
+                      zIndexStyle = 20;
+                      pointerEventsStyle = 'auto';
+                    } else if (normDiff === -2) {
+                      transformStyle = 'translateX(-85%) scale(0.55)';
+                      opacityStyle = 0.6;
+                      zIndexStyle = 10;
+                      pointerEventsStyle = 'auto';
+                    } else if (normDiff === 2) {
+                      transformStyle = 'translateX(85%) scale(0.55)';
+                      opacityStyle = 0.6;
+                      zIndexStyle = 10;
+                      pointerEventsStyle = 'auto';
+                    }
+                  }
+
+                  return (
+                    <div 
+                      key={idx}
+                      onClick={() => {
+                        if (!isMobile && normDiff !== 0 && normDiff >= -2 && normDiff <= 2) {
+                          setCurrentSliderIdx(idx);
+                        }
+                      }}
+                      style={{
+                        transform: transformStyle,
+                        opacity: opacityStyle,
+                        zIndex: zIndexStyle,
+                        pointerEvents: pointerEventsStyle,
+                        cursor: !isMobile && normDiff !== 0 && normDiff >= -2 && normDiff <= 2 ? 'pointer' : 'default'
+                      }}
+                      className="absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-2"
+                    >
+                      <img 
+                        src={url} 
+                        alt={`Slider ${idx + 1}`} 
+                        className="h-full w-auto max-w-full object-contain rounded-3xl shadow-[0_15px_35px_-5px_rgba(0,0,0,0.15)] border border-slate-100 bg-white" 
+                      />
+                    </div>
+                  );
+                })}
                 
                 {/* Navigation Arrows */}
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev - 1 + landingConfig.slider_images.length) % landingConfig.slider_images.length)}
-                  className="absolute left-2 md:left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                  className="absolute left-2 md:left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40"
                 >
                   &larr;
                 </button>
