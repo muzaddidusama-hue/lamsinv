@@ -428,68 +428,6 @@ const PublicCatalog = ({ onAdminClick }) => {
             </section>
           )}
 
-          {/* 📊 Animated Stats Counter */}
-          {products.length > 0 && (
-            <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
-              {/* Background styling elements */}
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
-              <div className="absolute -top-40 -left-40 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="max-w-[1200px] mx-auto text-center space-y-8 relative z-10">
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Inventory Strength</span>
-                  <h3 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
-                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of products for you.
-                  </h3>
-                  <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-4"></div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
-          {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
-            <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
-              <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে, ব্যাকগ্রাউন্ড বক্স ছাড়া সরাসরি ইমেজ দেখাবে যার নিজস্ব শ্যাডো থাকবে) */}
-                                {landingConfig.featured_banner_image_url && (
-                                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-center w-full">
-                                    <img 
-                                      src={landingConfig.featured_banner_image_url} 
-                                      alt="Featured Product Banner" 
-                                      loading="lazy"
-                                      className="max-h-[500px] w-auto h-auto object-contain rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,0,0,0.15)] hover:shadow-[0_20px_40px_-5px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-500" 
-                                    />
-                                  </div>
-                                )}
-
-                {/* টেক্সট পার্ট (মোবাইলে নিচে থাকবে, ডেক্সটপে বাম পাশে) */}
-                <div className="lg:col-span-6 space-y-6 order-2 lg:order-1">
-                  {landingConfig.featured_banner_title && (
-                    <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                      {landingConfig.featured_banner_title}
-                    </h3>
-                  )}
-                  {landingConfig.featured_banner_desc && (
-                    <p className="text-slate-600 font-semibold text-sm md:text-base leading-relaxed whitespace-pre-line">
-                      {landingConfig.featured_banner_desc}
-                    </p>
-                  )}
-                  <div className="pt-2">
-                    <button 
-                      onClick={() => setActiveTab('products')} 
-                      className="bg-slate-900 hover:bg-orange-500 text-white px-8 py-3.5 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-300 shadow-md"
-                    >
-                      View Catalog
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </section>
-          )}
-
           {/* 🖼️ Product Image Slider */}
           {landingConfig?.slider_images && landingConfig.slider_images.length > 0 && (
             <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex flex-col items-center mb-10 overflow-x-hidden">
@@ -591,6 +529,68 @@ const PublicCatalog = ({ onAdminClick }) => {
                       className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentSliderIdx ? 'w-6 bg-orange-500' : 'w-2.5 bg-slate-300 hover:bg-slate-400'}`}
                     />
                   ))}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
+          {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
+            <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
+              <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে, ব্যাকগ্রাউন্ড বক্স ছাড়া সরাসরি ইমেজ দেখাবে যার নিজস্ব শ্যাডো থাকবে) */}
+                                {landingConfig.featured_banner_image_url && (
+                                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-center w-full">
+                                    <img 
+                                      src={landingConfig.featured_banner_image_url} 
+                                      alt="Featured Product Banner" 
+                                      loading="lazy"
+                                      className="max-h-[500px] w-auto h-auto object-contain rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,0,0,0.15)] hover:shadow-[0_20px_40px_-5px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-500" 
+                                    />
+                                  </div>
+                                )}
+
+                {/* টেক্সট পার্ট (মোবাইলে নিচে থাকবে, ডেক্সটপে বাম পাশে) */}
+                <div className="lg:col-span-6 space-y-6 order-2 lg:order-1">
+                  {landingConfig.featured_banner_title && (
+                    <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                      {landingConfig.featured_banner_title}
+                    </h3>
+                  )}
+                  {landingConfig.featured_banner_desc && (
+                    <p className="text-slate-600 font-semibold text-sm md:text-base leading-relaxed whitespace-pre-line">
+                      {landingConfig.featured_banner_desc}
+                    </p>
+                  )}
+                  <div className="pt-2">
+                    <button 
+                      onClick={() => setActiveTab('products')} 
+                      className="bg-slate-900 hover:bg-orange-500 text-white px-8 py-3.5 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-300 shadow-md"
+                    >
+                      View Catalog
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </section>
+          )}
+
+          {/* 📊 Animated Stats Counter */}
+          {products.length > 0 && (
+            <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
+              {/* Background styling elements */}
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
+              <div className="absolute -top-40 -left-40 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+              <div className="max-w-[1200px] mx-auto text-center space-y-8 relative z-10">
+                <div className="space-y-2">
+                  <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Inventory Strength</span>
+                  <h3 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
+                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of products for you.
+                  </h3>
+                  <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-4"></div>
                 </div>
               </div>
             </section>
