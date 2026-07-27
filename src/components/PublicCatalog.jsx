@@ -482,17 +482,17 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {/* 🖼️ Product Image Slider */}
           {landingConfig?.slider_images && landingConfig.slider_images.length > 0 && (
-            <section className="py-12 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
-              <div className="relative rounded-[2.5rem] overflow-hidden shadow-2xl bg-white border border-slate-100 aspect-[16/9] md:aspect-[21/9] flex items-center justify-center group">
+            <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex justify-center mb-6">
+              <div className="relative w-full max-w-4xl h-[450px] md:h-[600px] flex items-center justify-center group bg-transparent">
                 {landingConfig.slider_images.map((url, idx) => (
                   <div 
                     key={idx}
-                    className={`absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-4 md:p-8 bg-slate-50/50 ${idx === currentSliderIdx ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
+                    className={`absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-2 ${idx === currentSliderIdx ? 'opacity-100 scale-100 pointer-events-auto' : 'opacity-0 scale-95 pointer-events-none'}`}
                   >
                     <img 
                       src={url} 
                       alt={`Slider ${idx + 1}`} 
-                      className="max-h-full max-w-full object-contain rounded-2xl drop-shadow-lg" 
+                      className="h-full w-auto max-w-full object-contain rounded-3xl shadow-[0_15px_35px_-5px_rgba(0,0,0,0.15)] border border-slate-100 bg-white" 
                     />
                   </div>
                 ))}
@@ -500,19 +500,19 @@ const PublicCatalog = ({ onAdminClick }) => {
                 {/* Navigation Arrows */}
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev - 1 + landingConfig.slider_images.length) % landingConfig.slider_images.length)}
-                  className="absolute left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                  className="absolute left-2 md:left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
                 >
                   &larr;
                 </button>
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length)}
-                  className="absolute right-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                  className="absolute right-2 md:right-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
                 >
                   &rarr;
                 </button>
 
                 {/* Dot Indicators */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
                   {landingConfig.slider_images.map((_, idx) => (
                     <button
                       key={idx}
