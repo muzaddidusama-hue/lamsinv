@@ -73,6 +73,7 @@ const ReturnManager = lazy(() => import('./ReturnManager'));
 const ServiceManager = lazy(() => import('./ServiceManager')); 
 const UserManagement = lazy(() => import('./UserManagement'));
 const LabelPrint = lazy(() => import('./LabelPrint'));
+const BrokenManager = lazy(() => import('./BrokenManager'));
 
 const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const [view, setView] = useState('dashboard');
@@ -91,6 +92,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       subItems: [
         { id: 'product_entry', label: 'প্রোডাক্ট এন্ট্রি' },
         { id: 'stock_management', label: 'স্টক ম্যানেজমেন্ট' },
+        { id: 'broken', label: 'ব্রোকেন প্রোডাক্ট (Broken)' },
         { id: 'label_print', label: 'লেবেল প্রিন্ট' },
       ]
     },
@@ -230,6 +232,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
             {view === 'chalans' && <ChalanManager />}
             {view === 'bills' && <BillManager />}
             {view === 'stock_management' && <StockManagement />}
+            {view === 'broken' && <BrokenManager />}
             {view === 'service_manager' && <ServiceManager />} 
             {view === 'reports' && <Reports />}
             {view === 'false_billing' && <FalseBilling />}
