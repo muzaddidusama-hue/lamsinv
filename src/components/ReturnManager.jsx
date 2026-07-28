@@ -119,7 +119,7 @@ const ReturnManager = () => {
           await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
-            source: `Return from Inv: #${invoiceRef}`,
+            source: `Return from Inv: #${invoiceRef} (To: ${selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
             date: new Date().toISOString().split('T')[0],
             in: new Date().toISOString()
           }]);

@@ -106,7 +106,7 @@ const StockManagement = () => {
                   quantity: parseInt(newValue),
                   date: manualDate,
                   in: finalTimestamp, 
-                  source: purchaseSource 
+                  source: `${purchaseSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`
                 }
               ]);
               if (ledgerError) {
@@ -121,7 +121,7 @@ const StockManagement = () => {
                   type: selectedProduct.name,
                   model: selectedProduct.model,
                   amount: newValue.toString(),
-                  reason: reduceReason.trim(),
+                  reason: `${reduceReason.trim()} (From: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
                   date: manualDate
                 }
               ]);

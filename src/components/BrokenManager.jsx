@@ -231,6 +231,19 @@ const BrokenManager = () => {
           .eq('id', product.id);
 
         if (updateError) throw updateError;
+
+        // 1.5. Add entry to ledger table for logging restoration
+        const today = new Date().toISOString().split('T')[0];
+        const { error: ledgerError } = await supabase.from('ledger').insert([
+          {
+            product: `${brokenItem.panel} - ${brokenItem.watt}`,
+            quantity: qtyInt,
+            source: `Restored from Broken List (To: ${brokenItem.from})`,
+            date: today,
+            in: new Date().toISOString()
+          }
+        ]);
+        if (ledgerError) console.error('Ledger restore log failed:', ledgerError);
       } else {
         // If product was deleted, maybe warn the user, but proceed to delete the broken entry anyway
         console.warn('Product not found in stock to restore, deleting broken record directly.');
