@@ -77,6 +77,20 @@ const [invSerials, setInvSerials] = useState([]);
 
   const productWiseStats = getProductWiseStats();
 
+  const getReportTitle = () => {
+    if (reportType === 'summary') return "Grand Sales Summary Statement";
+    if (reportType === 'house') return "Sales Breakdown Statement (HO vs Showroom)";
+    if (reportType === 'product') return "Product Sales Statement";
+    if (reportType === 'customer') return "Customer Purchase Statement";
+    if (reportType === 'product_wise') return `Product Sales Statement - ${productSearch}`;
+    if (reportType === 'ledger_report') {
+      const prefix = ledgerTab === 'ho' ? 'Head Office' : ledgerTab === 'showroom' ? 'Showroom' : 'Overall';
+      return ledgerSearch ? `${ledgerSearch} - ${prefix} Ledger Statement` : `${prefix} Inventory Ledger Statement`;
+    }
+    if (reportType === 'serial_history') return "Inverter Serial & Service History Statement";
+    return "Financial Sales Statement";
+  };
+
   const getCategoryOrder = (cat) => {
     const c = (cat || '').toLowerCase().trim();
     if (c.includes('12v')) return 1;
@@ -675,6 +689,8 @@ const checkIsTransfer = (val) => {
     let filename = `LAMS_POWER_${reportType}_Report_${startDate}.xlsx`;
     let sheetName = "Report";
 
+    const reportTitle = getReportTitle();
+
     if (reportType === 'summary') {
       sheetName = "Summary Report";
       if (sortedCombinedProductStats.length > 0) {
@@ -774,7 +790,23 @@ const checkIsTransfer = (val) => {
       return;
     }
 
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Build title rows at the top of the spreadsheet
+    const titleBlock = [
+      ["LAMS POWER"],
+      [reportTitle],
+      [`Period: ${startDate} to ${endDate}`],
+      [] // blank row spacing
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(titleBlock);
+    XLSX.utils.sheet_add_json(ws, data, { origin: "A5" });
+
+    // Auto-fit columns
+    const maxCols = Object.keys(data[0] || {}).length;
+    const colWidths = Array(maxCols).fill({ wch: 15 });
+    colWidths[0] = { wch: 30 }; // Description / Spec usually wide
+    ws['!cols'] = colWidths;
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
     XLSX.writeFile(wb, filename);
@@ -1227,7 +1259,7 @@ const checkIsTransfer = (val) => {
       <div id="formal-corporate-portrait-pdf" className="hidden bg-white text-slate-900 mx-auto" style={{ width: '210mm', padding: '20mm 15mm', boxSizing: 'border-box', fontFamily: "Times New Roman, serif", lineHeight: '1.4' }}>
         <div className="pb-4 mb-6 flex justify-between items-start" style={{ borderBottom: '2px solid #0f172a' }}>
           <div><h1 className="text-3xl font-bold tracking-tight uppercase">LAMS POWER</h1><p className="text-[10px] text-slate-500 font-bold uppercase mt-0.5">Corporate Office: Alobdi Eidgah, Mirpur 12, Dhaka, Bangladesh</p></div>
-          <div className="text-right"><div className="border border-slate-900 px-4 py-1 bg-slate-50 font-bold text-xs uppercase tracking-wider">{reportType === 'ledger_report' ? 'Inventory Ledger Statement' : 'Financial Sales Statement'}</div><p className="text-[10px] text-slate-700 mt-2 font-bold">Period: {startDate} to {endDate}</p></div>
+          <div className="text-right"><div className="border border-slate-900 px-4 py-1 bg-slate-50 font-bold text-xs uppercase tracking-wider">{getReportTitle()}</div><p className="text-[10px] text-slate-700 mt-2 font-bold">Period: {startDate} to {endDate}</p></div>
         </div>
         <div className="border border-slate-300 py-3 my-4 grid grid-cols-3 text-center text-[10px] font-bold uppercase bg-slate-50">
           <div className="border-r"><span className="text-[9px] text-slate-400 block mb-0.5">Target Value (MRP)</span><span>{totals.totalMinAllowed} ৳</span></div>
