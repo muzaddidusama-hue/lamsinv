@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
+import * as XLSX from 'xlsx';
 
 const Reports = () => {
   const date = new Date();
@@ -31,6 +32,8 @@ const Reports = () => {
   const [showLedgerSuggestions, setShowLedgerSuggestions] = useState(false);
   // 🔴 নতুন: লেজারের সাব-ট্যাব স্টেট
   const [ledgerTab, setLedgerTab] = useState('total'); // 'total', 'ho', 'showroom'
+  // 🔴 নতুন: লেজার ব্র্যান্ড ফিল্টার স্টেট
+  const [selectedBrand, setSelectedBrand] = useState('');
 
   const [selectedCustomerBills, setSelectedCustomerBills] = useState(null);
   const [mrps, setMrps] = useState({});
@@ -74,6 +77,35 @@ const [invSerials, setInvSerials] = useState([]);
 
   const productWiseStats = getProductWiseStats();
 
+  const getCategoryOrder = (cat) => {
+    const c = (cat || '').toLowerCase().trim();
+    if (c.includes('12v')) return 1;
+    if (c.includes('24v')) return 2;
+    if (c.includes('solar panel')) return 3;
+    if (c.includes('hybrid')) return 4;
+    if (c.includes('on grid') || c.includes('on-grid') || c.includes('ongrid')) return 5;
+    if (c.includes('inverter')) return 6;
+    return 100;
+  };
+
+  const sortedCombinedProductStats = useMemo(() => {
+    if (!reportData || !reportData.combinedProductStats) return [];
+    return Object.values(reportData.combinedProductStats).sort((a, b) => {
+      const catA = getCategoryOrder(a.category);
+      const catB = getCategoryOrder(b.category);
+      if (catA !== catB) return catA - catB;
+
+      const brandA = a.brand || '';
+      const brandB = b.brand || '';
+      const brandComp = brandA.localeCompare(brandB, undefined, { sensitivity: 'base' });
+      if (brandComp !== 0) return brandComp;
+
+      const modelA = a.model || '';
+      const modelB = b.model || '';
+      return modelA.localeCompare(modelB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+  }, [reportData]);
+
   // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন (হাউজ স্পেসিফিক আপডেট)
   const getLedgerSummary = () => {
     const summaryMap = new Map();
@@ -84,6 +116,9 @@ const [invSerials, setInvSerials] = useState([]);
       if (!summaryMap.has(key)) {
         summaryMap.set(key, { 
           product: fullName, 
+          brand: p.name ? p.name.trim() : '',
+          model: p.model ? p.model.trim() : '',
+          category: p.category ? p.category.trim() : '',
           totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
           hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
@@ -100,8 +135,12 @@ const [invSerials, setInvSerials] = useState([]);
       if (!t.product) return;
       const key = getStandardKey(t.product);
       if (!summaryMap.has(key)) {
+        const match = rawProducts.find(p => getStandardKey(`${p.name || ''} - ${p.model || ''}`) === key);
         summaryMap.set(key, { 
           product: t.product, 
+          brand: t.product.split(' - ')[0] ? t.product.split(' - ')[0].trim() : '',
+          model: t.product.split(' - ')[1] ? t.product.split(' - ')[1].trim() : '',
+          category: match && match.category ? match.category.trim() : '',
           totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
           hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
@@ -176,12 +215,35 @@ const [invSerials, setInvSerials] = useState([]);
 
     return list
       .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.openingStock > 0 || item.closingStock > 0 || item.hoOpening > 0 || item.showOpening > 0 || item.hoClosing > 0 || item.showClosing > 0)
-      .sort((a, b) => a.product.localeCompare(b.product, undefined, { numeric: true, sensitivity: 'base' }));
+      .sort((a, b) => {
+        const catA = getCategoryOrder(a.category);
+        const catB = getCategoryOrder(b.category);
+        if (catA !== catB) return catA - catB;
+
+        const brandA = a.brand || '';
+        const brandB = b.brand || '';
+        const brandComp = brandA.localeCompare(brandB, undefined, { sensitivity: 'base' });
+        if (brandComp !== 0) return brandComp;
+
+        const modelA = a.model || '';
+        const modelB = b.model || '';
+        return modelA.localeCompare(modelB, undefined, { numeric: true, sensitivity: 'base' });
+      });
   };
 
   const ledgerSummaryList = useMemo(() => {
     return getLedgerSummary();
   }, [rawProducts, allTransactions]);
+
+  const uniqueBrands = useMemo(() => {
+    const brands = rawProducts.map(p => p.name).filter(Boolean);
+    return [...new Set(brands)].sort();
+  }, [rawProducts]);
+
+  const displayedLedgerSummaryList = useMemo(() => {
+    if (!selectedBrand) return ledgerSummaryList;
+    return ledgerSummaryList.filter(item => item.brand === selectedBrand);
+  }, [ledgerSummaryList, selectedBrand]);
 
   const selectedSummary = useMemo(() => {
     return ledgerSummaryList.find(s => s.product === ledgerSearch);
@@ -540,7 +602,16 @@ const checkIsTransfer = (val) => {
           data.productStats[pKey].qty += item.quantity;
           data.productStats[pKey].total += item.total_price;
 
-          if (!data.combinedProductStats[pName]) data.combinedProductStats[pName] = { name: pName, qty: 0, total: 0 };
+          if (!data.combinedProductStats[pName]) {
+            data.combinedProductStats[pName] = { 
+              name: pName, 
+              qty: 0, 
+              total: 0,
+              category: item.products?.category || '',
+              brand: item.products?.name || '',
+              model: item.products?.model || ''
+            };
+          }
           data.combinedProductStats[pName].qty += item.quantity;
           data.combinedProductStats[pName].total += item.total_price;
 
@@ -577,7 +648,7 @@ const checkIsTransfer = (val) => {
     const val = e.target.value;
     setLedgerSearch(val);
     if (val.length >= 1) {
-      const filtered = ledgerSummaryList.map(s => s.product).filter(name => name.toLowerCase().includes(val.toLowerCase()));
+      const filtered = displayedLedgerSummaryList.map(s => s.product).filter(name => name.toLowerCase().includes(val.toLowerCase()));
       setLedgerSuggestions(filtered.slice(0, 10)); setShowLedgerSuggestions(true);
     } else setShowLedgerSuggestions(false);
   };
@@ -597,6 +668,116 @@ const checkIsTransfer = (val) => {
       script.onload = executeDownload;
       document.head.appendChild(script);
     } else executeDownload();
+  };
+
+  const downloadReportExcel = () => {
+    let data = [];
+    let filename = `LAMS_POWER_${reportType}_Report_${startDate}.xlsx`;
+    let sheetName = "Report";
+
+    if (reportType === 'summary') {
+      sheetName = "Summary Report";
+      if (sortedCombinedProductStats.length > 0) {
+        data = sortedCombinedProductStats.map(prod => ({
+          "Product Description": prod.name,
+          "Volume (pcs)": prod.qty,
+          "Actual Sold (৳)": prod.total
+        }));
+      }
+    } else if (reportType === 'house') {
+      sheetName = "House Sales";
+      if (reportData && reportData.houseStats) {
+        data = Object.keys(reportData.houseStats).map(house => ({
+          "House Name": house,
+          "Total Bills": reportData.houseStats[house].bills,
+          "Gross Amount (৳)": reportData.houseStats[house].amount
+        }));
+      }
+    } else if (reportType === 'product') {
+      sheetName = "Product Sales";
+      if (sortedCombinedProductStats.length > 0) {
+        data = sortedCombinedProductStats.map(prod => {
+          const currentMrp = parseFloat(mrps[prod.name]) || 0;
+          const minVal = currentMrp * prod.qty;
+          const surplus = prod.total - minVal;
+          return {
+            "Product Description": prod.name,
+            "Qty Sold (pcs)": prod.qty,
+            "MRP (Unit)": currentMrp,
+            "Min Value (৳)": minVal || 0,
+            "Actual Sold (৳)": prod.total,
+            "Surplus (৳)": surplus || 0
+          };
+        });
+      }
+    } else if (reportType === 'customer') {
+      sheetName = "Customer Purchase";
+      data = filteredCustomers.map(cust => ({
+        "Client Name": cust.name,
+        "Phone": cust.phone || '',
+        "Total Purchase (৳)": cust.amount
+      }));
+    } else if (reportType === 'product_wise') {
+      sheetName = "Product Wise Summary";
+      data = [
+        { "Statistic": "Product Searched", "Value": productSearch },
+        { "Statistic": "Total Quantity (pcs)", "Value": productWiseStats.totalQty },
+        { "Statistic": "Gross Revenue (৳)", "Value": productWiseStats.totalAmount },
+        { "Statistic": "Head Office Qty (pcs)", "Value": productWiseStats.hoQty },
+        { "Statistic": "Head Office Amount (৳)", "Value": productWiseStats.hoAmount },
+        { "Statistic": "Showroom Qty (pcs)", "Value": productWiseStats.showroomQty },
+        { "Statistic": "Showroom Amount (৳)", "Value": productWiseStats.showroomAmount }
+      ];
+    } else if (reportType === 'ledger_report') {
+      if (!ledgerSearch) {
+        sheetName = "Inventory Ledger";
+        data = displayedLedgerSummaryList.map(item => {
+          const vals = getActiveTabValues(item);
+          return {
+            "Inventory Stock Specification": item.product,
+            "Opening Stock (pcs)": vals.open,
+            "Gross Incoming (+) (pcs)": vals.inp,
+            "Gross Outgoing (-) (pcs)": vals.out,
+            "Total Sold (pcs)": vals.sold,
+            "Closing Stock (pcs)": vals.close
+          };
+        });
+      } else {
+        sheetName = `${ledgerSearch.slice(0, 30)} Ledger`;
+        data = filteredLedgerHistory.map(l => ({
+          "Date": new Date(l.date).toLocaleDateString('bn-BD'),
+          "House": l.house,
+          "Transaction Type": l.type === 'in' ? 'STOCK IN' : 'SALES OUT',
+          "Reference/Source": l.source,
+          "Quantity (pcs)": l.quantity
+        }));
+      }
+    } else if (reportType === 'serial_history') {
+      sheetName = "Inverter Serials";
+      data = invSerials.map(s => {
+        const { count, lastDate } = getServiceDetails(s);
+        return {
+          "Model": s.inv_model || '',
+          "Type": s.inv_type || 'Hybrid',
+          "Serial Number": s.sl_no,
+          "Customer Name": s.customer_name || '',
+          "Address": s.address || '',
+          "Entry Date": s.created_at ? new Date(s.created_at).toLocaleDateString('bn-BD') : '',
+          "Total Service Count": count,
+          "Last Service Date": lastDate
+        };
+      });
+    }
+
+    if (data.length === 0) {
+      alert("এক্সপোর্ট করার জন্য কোনো ডাটা নেই!");
+      return;
+    }
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.writeFile(wb, filename);
   };
 
   const getServiceDetails = (inv) => {
@@ -643,7 +824,7 @@ const checkIsTransfer = (val) => {
             { id: 'serial_history', label: 'ইনভার্টার সিরিয়াল' } 
           ].map(tab => (
             <button 
-              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); setSerialSearch(''); setLedgerTab('total'); }}
+              key={tab.id} onClick={() => { setReportType(tab.id); setCustomerSearch(''); setProductSearch(''); setLedgerSearch(''); setSelectedBrand(''); setSerialSearch(''); setLedgerTab('total'); }}
               className={`flex-1 min-w-[130px] py-3 px-2 rounded-lg font-bold text-[11px] transition-all ${reportType === tab.id ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
             >
               {tab.label}
@@ -651,9 +832,14 @@ const checkIsTransfer = (val) => {
           ))}
         </div>
         
-        <button onClick={downloadReportPDF} disabled={pdfLoading} className="bg-slate-900 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95">
-          {pdfLoading ? 'প্রিন্ট ফাইল রেডি হচ্ছে...' : '📥 Download Formal PDF'}
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={downloadReportPDF} disabled={pdfLoading} className="bg-slate-900 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95">
+            {pdfLoading ? 'প্রিন্ট ফাইল রেডি হচ্ছে...' : '📥 Download Formal PDF'}
+          </button>
+          <button onClick={downloadReportExcel} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-lg font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-95">
+            📊 Export to Excel
+          </button>
+        </div>
       </div>
 
       {reportData && !loading && (
@@ -675,7 +861,7 @@ const checkIsTransfer = (val) => {
                 <div className="bg-slate-50 p-4 border-b font-black text-xs text-slate-600 uppercase">Head Office + Showroom প্রোডাক্ট সেলস ব্রেকডাউন</div>
                 <table className="w-full text-left text-xs">
                   <thead><tr className="bg-white font-black text-slate-400 border-b uppercase"><th className="p-3">Product Model</th><th className="p-3 text-center">Total Quantity</th><th className="p-3 text-right">Total Amount</th></tr></thead>
-                  <tbody className="divide-y font-bold">{Object.values(reportData.combinedProductStats).map((prod, i) => (<tr key={i} className="hover:bg-slate-50"><td className="p-3">{prod.name}</td><td className="p-3 text-center text-blue-600">{prod.qty} pcs</td><td className="p-3 text-right text-slate-900">{prod.total} ৳</td></tr>))}</tbody>
+                  <tbody className="divide-y font-bold">{sortedCombinedProductStats.map((prod, i) => (<tr key={i} className="hover:bg-slate-50"><td className="p-3">{prod.name}</td><td className="p-3 text-center text-blue-600">{prod.qty} pcs</td><td className="p-3 text-right text-slate-900">{prod.total} ৳</td></tr>))}</tbody>
                 </table>
               </div>
             </div>
@@ -713,7 +899,7 @@ const checkIsTransfer = (val) => {
                   <tr className="bg-slate-50 uppercase font-black text-slate-500 border-b"><th className="p-4">Product Description</th><th className="p-4 text-center">Qty Sold</th><th className="p-4 text-center w-32">MRP (Unit)</th><th className="p-4 text-right">Min Value</th><th className="p-4 text-right">Actual Sold</th><th className="p-4 text-right">Surplus</th></tr>
                 </thead>
                 <tbody className="divide-y">
-                  {Object.values(reportData.combinedProductStats).map((prod, idx) => {
+                  {sortedCombinedProductStats.map((prod, idx) => {
                     const currentMrp = parseFloat(mrps[prod.name]) || 0;
                     const minVal = currentMrp * prod.qty;
                     const surplus = prod.total - minVal;
@@ -798,7 +984,14 @@ const checkIsTransfer = (val) => {
 
           {reportType === 'ledger_report' && (
             <div className="space-y-6 animate-in fade-in duration-200">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-4 rounded-xl border">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🏷️ ব্র্যান্ড ফিল্টার (Brand)</label>
+                  <select value={selectedBrand} onChange={(e) => { setSelectedBrand(e.target.value); setLedgerSearch(''); }} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
+                    <option value="">সকল ব্র্যান্ড (All Brands)</option>
+                    {uniqueBrands.map((brand, i) => (<option key={i} value={brand}>{brand}</option>))}
+                  </select>
+                </div>
                 <div className="relative">
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">🔍 ইনপুট প্রোডাক্ট সার্চ (লেজার)</label>
                   <input type="text" value={ledgerSearch} onChange={handleLedgerSearchAction} onFocus={() => ledgerSearch && setShowLedgerSuggestions(true)} onBlur={() => setTimeout(() => setShowLedgerSuggestions(false), 200)} placeholder="যেমন: Inhenergy..." className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" />
@@ -810,7 +1003,7 @@ const checkIsTransfer = (val) => {
                   <label className="text-[10px] font-black text-slate-400 block mb-1 uppercase">📋 লেজার ড্রপডাউন সিলেকশন</label>
                   <select value={ledgerSearch} onChange={(e) => setLedgerSearch(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold text-xs text-slate-700 outline-none cursor-pointer focus:border-blue-500">
                     <option value="">লিস্টের সকল প্রোডাক্ট খতিয়ান সামারি (In & Out Summary)</option>
-                    {ledgerSummaryList.map((item, i) => (<option key={i} value={item.product}>{item.product}</option>))}
+                    {displayedLedgerSummaryList.map((item, i) => (<option key={i} value={item.product}>{item.product}</option>))}
                   </select>
                 </div>
               </div>
@@ -840,7 +1033,7 @@ const checkIsTransfer = (val) => {
                         </tr>
                       </thead>
                       <tbody className="divide-y font-bold text-slate-700">
-                        {ledgerSummaryList.map((item, i) => {
+                        {displayedLedgerSummaryList.map((item, i) => {
                           const vals = getActiveTabValues(item);
                           return (
                             <tr key={i} onClick={() => setLedgerSearch(item.product)} className="hover:bg-orange-50/30 cursor-pointer transition-colors">
@@ -1047,7 +1240,7 @@ const checkIsTransfer = (val) => {
               <>
                 <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2 w-2/5">Product Description Specification</th><th className="pb-2 text-center">Volume</th><th className="pb-2 text-right">Actual Sold</th></tr></thead>
                 <tbody className="divide-y divide-slate-200">
-                  {Object.values(reportData?.combinedProductStats || {}).map((prod, idx) => (
+                  {sortedCombinedProductStats.map((prod, idx) => (
                     <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">{prod.name}</td><td className="py-2 text-center font-bold">{prod.qty} pcs</td><td className="py-2 text-right font-bold">{prod.total} ৳</td></tr>
                   ))}
                 </tbody>
@@ -1079,7 +1272,7 @@ const checkIsTransfer = (val) => {
                   <>
                     <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Inventory Stock Specification</th><th className="pb-2 text-center">Opening Stock</th><th className="pb-2 text-center">Gross Incoming (+)</th><th className="pb-2 text-center">Gross Outgoing (-)</th><th className="pb-2 text-center">Total Sold</th><th className="pb-2 text-center">Closing Stock</th></tr></thead>
                     <tbody className="divide-y divide-slate-200">
-                      {ledgerSummaryList.map((item, idx) => {
+                      {displayedLedgerSummaryList.map((item, idx) => {
                         const vals = getActiveTabValues(item);
                         return (
                           <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">📦 {item.product}</td><td className="py-2 text-center text-slate-500 font-bold">{vals.open} PCS</td><td className="py-2 text-center text-green-600 font-bold">{vals.inp} PCS</td><td className="py-2 text-center text-red-600 font-bold">{vals.out} PCS</td><td className="py-2 text-center text-orange-600 font-bold">{vals.sold} PCS</td><td className="py-2 text-center text-blue-600 font-bold">{vals.close} PCS</td></tr>
