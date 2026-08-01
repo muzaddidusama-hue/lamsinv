@@ -87,6 +87,8 @@ const [invSerials, setInvSerials] = useState([]);
           totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
           hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          totalSold: 0, hoSold: 0, showSold: 0,
+          futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
           stocks: { 'Head Office': 0, 'Showroom': 0 } 
         });
       }
@@ -103,12 +105,15 @@ const [invSerials, setInvSerials] = useState([]);
           totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
           hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          totalSold: 0, hoSold: 0, showSold: 0,
+          futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
           stocks: { 'Head Office': 0, 'Showroom': 0 } 
         });
       }
       
       const isHo = t.house === 'Head Office';
       const isShow = t.house === 'Showroom';
+      const isSale = t.type === 'out' && t.id.startsWith('sale_');
 
       if (t.isFuture) {
         if (t.type === 'in') {
@@ -120,6 +125,12 @@ const [invSerials, setInvSerials] = useState([]);
           summaryMap.get(key).futureOut += t.quantity;
           if (isHo) summaryMap.get(key).hoFutureOut += t.quantity;
           if (isShow) summaryMap.get(key).showFutureOut += t.quantity;
+          
+          if (isSale) {
+            summaryMap.get(key).futureSold += t.quantity;
+            if (isHo) summaryMap.get(key).hoFutureSold += t.quantity;
+            if (isShow) summaryMap.get(key).showFutureSold += t.quantity;
+          }
         }
       } else {
         if (t.type === 'in') {
@@ -131,6 +142,12 @@ const [invSerials, setInvSerials] = useState([]);
           summaryMap.get(key).totalOut += t.quantity;
           if (isHo) summaryMap.get(key).hoOut += t.quantity;
           if (isShow) summaryMap.get(key).showOut += t.quantity;
+
+          if (isSale) {
+            summaryMap.get(key).totalSold += t.quantity;
+            if (isHo) summaryMap.get(key).hoSold += t.quantity;
+            if (isShow) summaryMap.get(key).showSold += t.quantity;
+          }
         }
       }
     });
@@ -189,10 +206,10 @@ const [invSerials, setInvSerials] = useState([]);
   }, [combinedLedgerHistory, ledgerTab]);
 
   const getActiveTabValues = (item) => {
-    if (!item) return { open: 0, inp: 0, out: 0, close: 0 };
-    if (ledgerTab === 'ho') return { open: item.hoOpening, inp: item.hoIn, out: item.hoOut, close: item.hoClosing };
-    if (ledgerTab === 'showroom') return { open: item.showOpening, inp: item.showIn, out: item.showOut, close: item.showClosing };
-    return { open: item.openingStock, inp: item.totalIn, out: item.totalOut, close: item.closingStock };
+    if (!item) return { open: 0, inp: 0, out: 0, sold: 0, close: 0 };
+    if (ledgerTab === 'ho') return { open: item.hoOpening, inp: item.hoIn, out: item.hoOut, sold: item.hoSold, close: item.hoClosing };
+    if (ledgerTab === 'showroom') return { open: item.showOpening, inp: item.showIn, out: item.showOut, sold: item.showSold, close: item.showClosing };
+    return { open: item.openingStock, inp: item.totalIn, out: item.totalOut, sold: item.totalSold, close: item.closingStock };
   };
 
   const filteredCustomers = useMemo(() => {
@@ -818,6 +835,7 @@ const checkIsTransfer = (val) => {
                           <th className="p-4 text-center bg-slate-100 text-slate-600">ওপেনিং স্টক</th>
                           <th className="p-4 text-center w-32 text-emerald-600 bg-emerald-50">মোট ইন (+)</th>
                           <th className="p-4 text-center w-32 text-rose-600 bg-rose-50">মোট আউট (-)</th>
+                          <th className="p-4 text-center w-32 text-orange-600 bg-orange-50">মোট বিক্রি</th>
                           <th className="p-4 text-center text-blue-600 bg-blue-50">ক্লোজিং স্টক</th>
                         </tr>
                       </thead>
@@ -830,6 +848,7 @@ const checkIsTransfer = (val) => {
                               <td className="p-4 text-center font-black text-slate-500">{vals.open} PCS</td>
                               <td className="p-4 text-center text-emerald-600">{vals.inp} PCS</td>
                               <td className="p-4 text-center text-rose-600">{vals.out} PCS</td>
+                              <td className="p-4 text-center text-orange-600">{vals.sold} PCS</td>
                               <td className="p-4 text-center font-black text-blue-600">{vals.close} PCS</td>
                             </tr>
                           );
@@ -1058,12 +1077,12 @@ const checkIsTransfer = (val) => {
               <>
                 {(!ledgerSearch) ? (
                   <>
-                    <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Inventory Stock Specification</th><th className="pb-2 text-center">Opening Stock</th><th className="pb-2 text-center">Gross Incoming (+)</th><th className="pb-2 text-center">Gross Outgoing (-)</th><th className="pb-2 text-center">Closing Stock</th></tr></thead>
+                    <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Inventory Stock Specification</th><th className="pb-2 text-center">Opening Stock</th><th className="pb-2 text-center">Gross Incoming (+)</th><th className="pb-2 text-center">Gross Outgoing (-)</th><th className="pb-2 text-center">Total Sold</th><th className="pb-2 text-center">Closing Stock</th></tr></thead>
                     <tbody className="divide-y divide-slate-200">
                       {ledgerSummaryList.map((item, idx) => {
                         const vals = getActiveTabValues(item);
                         return (
-                          <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">📦 {item.product}</td><td className="py-2 text-center text-slate-500 font-bold">{vals.open} PCS</td><td className="py-2 text-center text-green-600 font-bold">{vals.inp} PCS</td><td className="py-2 text-center text-red-600 font-bold">{vals.out} PCS</td><td className="py-2 text-center text-blue-600 font-bold">{vals.close} PCS</td></tr>
+                          <tr key={idx} className="hover:bg-slate-50"><td className="py-2 font-semibold">📦 {item.product}</td><td className="py-2 text-center text-slate-500 font-bold">{vals.open} PCS</td><td className="py-2 text-center text-green-600 font-bold">{vals.inp} PCS</td><td className="py-2 text-center text-red-600 font-bold">{vals.out} PCS</td><td className="py-2 text-center text-orange-600 font-bold">{vals.sold} PCS</td><td className="py-2 text-center text-blue-600 font-bold">{vals.close} PCS</td></tr>
                         );
                       })}
                     </tbody>
@@ -1082,7 +1101,7 @@ const checkIsTransfer = (val) => {
             )}
             <tfoot>
               <tr className="border-t border-b border-slate-800 font-bold text-slate-900 uppercase bg-slate-100">
-                <td className="py-2 text-right font-bold" colSpan={reportType === 'ledger_report' && !ledgerSearch ? 4 : (reportType === 'ledger_report' && ledgerSearch ? 3 : 2)}>Grand Valuation Totals:</td>
+                <td className="py-2 text-right font-bold" colSpan={reportType === 'ledger_report' && !ledgerSearch ? 5 : (reportType === 'ledger_report' && ledgerSearch ? 3 : 2)}>Grand Valuation Totals:</td>
                 <td className="py-2 text-right font-bold text-blue-900">
                   {reportType === 'ledger_report' ? (ledgerSearch ? `${filteredLedgerHistory.reduce((s,c)=>s+c.quantity, 0)} PCS` : `-`) : `${totals.totalActualSold} ৳`}
                 </td>
