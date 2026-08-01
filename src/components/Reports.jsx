@@ -434,10 +434,23 @@ const checkIsTransfer = (val) => {
                   ref: `Chl: #${ch.chalan_no}`,
                   isFuture
                 });
+              } else if (ch.status === 'cancelled') {
+                extractedTrans.push({
+                  id: `sale_cancelled_${ch.id}_${item.id}`,
+                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                  timestamp: ch.created_at,
+                  product: pName,
+                  type: 'out',
+                  house: ch.house || 'Head Office',
+                  quantity: item.quantity,
+                  source: `Cancelled Invoice: ${cName}`,
+                  ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
+                  isFuture
+                });
               }
             });
           }
-          if (checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
+          if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status !== 'cancelled') {
             ch.chalan_items.forEach(item => {
               const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               extractedTrans.push({
