@@ -38,6 +38,21 @@ const StockManagement = () => {
 
   useEffect(() => {
     fetchProducts();
+
+    const productsChannel = supabase
+      .channel('stock-products-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(productsChannel);
+    };
   }, []);
 
   const fetchProducts = async () => {

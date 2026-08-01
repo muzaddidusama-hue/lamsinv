@@ -452,8 +452,19 @@ setCart([...cart, {
 
               <div className="flex justify-between items-center">
                 <div className="text-2xl font-black text-slate-900">{cart.reduce((acc, item) => acc + item.total, 0)} ৳</div>
-                <button onClick={handleDirectBill} disabled={loading || cart.length === 0} className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase tracking-tighter">
-                  {loading ? 'Processing...' : 'Confirm & Bill'}
+                <button 
+                  onClick={handleDirectBill} 
+                  disabled={loading || cart.length === 0} 
+                  className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Confirming...
+                    </>
+                  ) : (
+                    "Confirm & Bill"
+                  )}
                 </button>
               </div>
             </div>
@@ -471,6 +482,20 @@ setCart([...cart, {
                 <button onClick={() => printBill(generatedData.chalan, generatedData.customer, generatedData.items)} className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase tracking-widest">🖨️ প্রিন্ট বিল</button>
                 <button onClick={() => setShowSuccessModal(false)} className="mt-2 text-slate-400 font-bold">বন্ধ করুন</button>
              </div>
+          </div>
+        </div>
+      )}
+      {loading && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-5 text-center max-w-xs mx-4 animate-in zoom-in-95 duration-300">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+            </div>
+            <div>
+              <h3 className="font-black text-slate-800 text-lg uppercase tracking-wider">Processing Request</h3>
+              <p className="text-xs font-bold text-slate-400 mt-1">অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন, ডাটাবেজ আপডেট করা হচ্ছে...</p>
+            </div>
           </div>
         </div>
       )}

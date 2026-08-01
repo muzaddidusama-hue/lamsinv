@@ -1,4 +1,5 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, Suspense } from 'react';
+import { useLocation, useNavigate, Link, Outlet } from 'react-router-dom';
 
 // Modern Minimal SVG Icons for Sidebar
 const DashboardIcon = () => (
@@ -57,43 +58,28 @@ const LogoutIcon = () => (
   </svg>
 );
 
-// আপনার ফোল্ডারের ফাইল অনুযায়ী সঠিক ইম্পোর্ট (lazy load)
-const Dashboard = lazy(() => import('./Dashboard'));
-const BillingSystem = lazy(() => import('./BillingSystem'));
-const ChalanManager = lazy(() => import('./ChalanManager'));
-const BillManager = lazy(() => import('./BillManager'));
-const NawabpurBilling = lazy(() => import('./NawabpurBilling'));
-const FalseBilling = lazy(() => import('./FalseBilling'));
-const Reports = lazy(() => import('./Reports'));
-const ProductEntry = lazy(() => import('./ProductEntry'));
-const StockManagement = lazy(() => import('./StockManagement'));
-const FrontEndCustom = lazy(() => import('./FrontEndCustom'));
-const SmartUpload = lazy(() => import('./SmartUpload'));
-const ReturnManager = lazy(() => import('./ReturnManager'));
-const ServiceManager = lazy(() => import('./ServiceManager')); 
-const UserManagement = lazy(() => import('./UserManagement'));
-const LabelPrint = lazy(() => import('./LabelPrint'));
-const BrokenManager = lazy(() => import('./BrokenManager'));
-
 const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
-  const [view, setView] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentPath = location.pathname;
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState('');
 
-  // রোল অনুযায়ী মেনু ফিল্টারিং
+  // রোল অনুযায়ী মেনু ফিল্টারিং ও রুট ম্যাপ
   const menuItems = [
-    { id: 'dashboard', icon: <DashboardIcon />, label: 'ড্যাশবোর্ড (Dashboard)' },
-    { id: 'smart_scan', icon: <ScanIcon />, label: 'স্মার্ট স্ক্যানার (AI)' },
+    { id: 'dashboard', path: '/dashboard', icon: <DashboardIcon />, label: 'ড্যাশবোর্ড (Dashboard)' },
+    { id: 'smart_scan', path: '/scan', icon: <ScanIcon />, label: 'স্মার্ট স্ক্যানার (AI)' },
     {
       id: 'product_section', 
       icon: <ProductIcon />, 
       label: 'প্রোডাক্ট',
       isDropdown: true,
       subItems: [
-        { id: 'product_entry', label: 'প্রোডাক্ট এন্ট্রি' },
-        { id: 'stock_management', label: 'স্টক ম্যানেজমেন্ট' },
-        { id: 'broken', label: 'ব্রোকেন প্রোডাক্ট (Broken)' },
-        { id: 'label_print', label: 'লেবেল প্রিন্ট' },
+        { id: 'product_entry', path: '/product-entry', label: 'প্রোডাক্ট এন্ট্রি' },
+        { id: 'stock_management', path: '/stock', label: 'স্টক ম্যানেজমেন্ট' },
+        { id: 'broken', path: '/broken', label: 'ব্রোকেন প্রোডাক্ট (Broken)' },
+        { id: 'label_print', path: '/label-print', label: 'লেবেল প্রিন্ট' },
       ]
     },
     {
@@ -102,20 +88,20 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       label: 'বিল সেকশন',
       isDropdown: true,
       subItems: [
-        { id: 'billing', label: 'চালান ও বিলিং (হেড অফিস)' },
-        { id: 'nawabpur_billing', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)' },
-        { id: 'chalans', label: 'পেমেন্ট ও চালান' },
-        { id: 'bills', label: 'বিল ও চালানের তালিকা (Bills & Chalan)' },
-        { id: 'false_billing', label: 'ফলস বিল/চালান' },
-        { id: 'return_manager', icon: '↩️', label: 'প্রোডাক্ট রিটার্ন (Return)' },
+        { id: 'billing', path: '/billing', label: 'চালান ও বিলিং (হেড অফিস)' },
+        { id: 'nawabpur_billing', path: '/challan/nawabpur', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)' },
+        { id: 'chalans', path: '/challans', label: 'পেমেন্ট ও চালান' },
+        { id: 'bills', path: '/bills', label: 'বিল ও চালানের তালিকা (Bills & Chalan)' },
+        { id: 'false_billing', path: '/false-billing', label: 'ফলস বিল/চালান' },
+        { id: 'return_manager', path: '/return-manager', label: 'প্রোডাক্ট রিটার্ন (Return)' },
       ]
     },
-    { id: 'service_manager', icon: <ServiceIcon />, label: 'ইনভার্টার সার্ভিস (Service)' }, 
-    { id: 'reports', icon: <ReportIcon />, label: 'রিপোর্ট (Reports)' },
+    { id: 'service_manager', path: '/service', icon: <ServiceIcon />, label: 'ইনভার্টার সার্ভিস (Service)' }, 
+    { id: 'reports', path: '/reports', icon: <ReportIcon />, label: 'রিপোর্ট (Reports)' },
     
     ...((currentUserRole === 'Admin' || currentUserRole === 'CEO') ? [
-      { id: 'frontend_custom', icon: <CustomIcon />, label: 'পাবলিক পেজ এডিট' },
-      { id: 'user_management', icon: <UsersIcon />, label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
+      { id: 'frontend_custom', path: '/frontend-custom', icon: <CustomIcon />, label: 'পাবলিক পেজ এডিট' },
+      { id: 'user_management', path: '/user-management', icon: <UsersIcon />, label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
     ] : [])
   ];
 
@@ -123,14 +109,14 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     if (item.isDropdown) {
       setOpenSubMenu(openSubMenu === item.id ? '' : item.id);
     } else {
-      setView(item.id);
-      setOpenSubMenu(''); // Close any open dropdown menu when selecting a main menu
+      navigate(item.path);
+      setOpenSubMenu(''); 
       setIsMobileMenuOpen(false);
     }
   };
 
-  const handleSubMenuClick = (subId) => {
-    setView(subId);
+  const handleSubMenuClick = (path) => {
+    navigate(path);
     setIsMobileMenuOpen(false);
   };
 
@@ -152,7 +138,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
               <button 
                 onClick={() => handleMenuClick(item)} 
                 className={`w-full text-left px-4 py-3.5 rounded-xl font-bold transition-all flex items-center justify-between group ${
-                  (!item.isDropdown && view === item.id) || (item.isDropdown && openSubMenu === item.id)
+                  (!item.isDropdown && currentPath === item.path) || (item.isDropdown && openSubMenu === item.id)
                     ? 'bg-slate-800/60 text-orange-400 border-l-4 border-orange-500 pl-3 shadow-sm shadow-orange-500/5' 
                     : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200 border-l-4 border-transparent pl-3'
                 }`}
@@ -171,14 +157,14 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                   {item.subItems.map((subItem) => (
                     <button
                       key={subItem.id}
-                      onClick={() => handleSubMenuClick(subItem.id)}
+                      onClick={() => handleSubMenuClick(subItem.path)}
                       className={`text-left px-4 py-2.5 rounded-lg text-sm font-bold transition-all flex items-center gap-2 group/sub ${
-                        view === subItem.id 
+                        currentPath === subItem.path 
                           ? 'text-orange-400 bg-orange-500/5' 
                           : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/35'
                       }`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full transition-all ${view === subItem.id ? 'bg-orange-400 scale-125' : 'bg-slate-700 group-hover/sub:bg-slate-500'}`}></span>
+                      <span className={`w-1.5 h-1.5 rounded-full transition-all ${currentPath === subItem.path ? 'bg-orange-400 scale-125' : 'bg-slate-700 group-hover/sub:bg-slate-500'}`}></span>
                       {subItem.label}
                     </button>
                   ))}
@@ -217,29 +203,14 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         </div>
 
         {/* কন্টেন্ট লোড এরিয়া */}
-        <div key={view} className="p-4 md:p-8 pb-28 md:pb-8 flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <Suspense fallback={
             <div className="flex flex-col items-center justify-center p-12 gap-3 min-h-[300px]">
               <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-orange-500 animate-spin"></div>
               <span className="text-xs text-slate-500 font-semibold uppercase tracking-widest">লোডিং হচ্ছে...</span>
             </div>
           }>
-            {view === 'dashboard' && <Dashboard setView={setView} />}
-            {view === 'nawabpur_billing' && <NawabpurBilling />}
-            {view === 'smart_scan' && <SmartUpload />} 
-            {view === 'product_entry' && <ProductEntry />}
-            {view === 'billing' && <BillingSystem />}
-            {view === 'chalans' && <ChalanManager />}
-            {view === 'bills' && <BillManager />}
-            {view === 'stock_management' && <StockManagement />}
-            {view === 'broken' && <BrokenManager />}
-            {view === 'service_manager' && <ServiceManager />} 
-            {view === 'reports' && <Reports />}
-            {view === 'false_billing' && <FalseBilling />}
-            {view === 'return_manager' && <ReturnManager />}
-            {view === 'label_print' && <LabelPrint />}
-            {view === 'frontend_custom' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <FrontEndCustom />}
-            {view === 'user_management' && (currentUserRole === 'Admin' || currentUserRole === 'CEO') && <UserManagement />}
+            <Outlet />
           </Suspense>
         </div>
       </main>
@@ -259,7 +230,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                 <button 
                   onClick={() => handleMenuClick(item)}
                   className={`flex items-center justify-between w-full text-left px-4 py-3 rounded-xl font-bold transition-all ${
-                    (!item.isDropdown && view === item.id) || (item.isDropdown && openSubMenu === item.id) ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'
+                    (!item.isDropdown && currentPath === item.path) || (item.isDropdown && openSubMenu === item.id) ? 'bg-orange-50 text-orange-600' : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -275,9 +246,9 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                     {item.subItems.map((subItem) => (
                       <button
                         key={subItem.id}
-                        onClick={() => handleSubMenuClick(subItem.id)}
+                        onClick={() => handleSubMenuClick(subItem.path)}
                         className={`text-left px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
-                          view === subItem.id ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'
+                          currentPath === subItem.path ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'
                         }`}
                       >
                         {subItem.label}

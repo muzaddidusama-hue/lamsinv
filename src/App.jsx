@@ -1,15 +1,99 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import PublicCatalog from './components/PublicCatalog';
 
 const AdminPanel = lazy(() => import('./components/AdminPanel'));
 const Login = lazy(() => import('./components/Login'));
 
+// Lazy load admin view components
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const BillingSystem = lazy(() => import('./components/BillingSystem'));
+const ChalanManager = lazy(() => import('./components/ChalanManager'));
+const BillManager = lazy(() => import('./components/BillManager'));
+const NawabpurBilling = lazy(() => import('./components/NawabpurBilling'));
+const FalseBilling = lazy(() => import('./components/FalseBilling'));
+const Reports = lazy(() => import('./components/Reports'));
+const ProductEntry = lazy(() => import('./components/ProductEntry'));
+const StockManagement = lazy(() => import('./components/StockManagement'));
+const FrontEndCustom = lazy(() => import('./components/FrontEndCustom'));
+const SmartUpload = lazy(() => import('./components/SmartUpload'));
+const ReturnManager = lazy(() => import('./components/ReturnManager'));
+const ServiceManager = lazy(() => import('./components/ServiceManager')); 
+const UserManagement = lazy(() => import('./components/UserManagement'));
+const LabelPrint = lazy(() => import('./components/LabelPrint'));
+const BrokenManager = lazy(() => import('./components/BrokenManager'));
+
+// 🌐 Public catalog page wrapper that handles navigation to login
+const PublicCatalogWrapper = () => {
+  const navigate = useNavigate();
+  return <PublicCatalog onAdminClick={() => navigate('/login')} />;
+};
+
+// 🔒 Protected admin layout component
+const AdminLayout = ({ isAdmin, userRole, userName, onLogout, loadingSession }) => {
+  const location = useLocation();
+
+  if (loadingSession) {
+    return (
+      <div className="min-h-screen bg-slate-955 flex flex-col items-center justify-center gap-4 text-white">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+        </div>
+        <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Session...</p>
+      </div>
+    );
+  }
+
+  if (!isAdmin) {
+    // Redirect to login page and save the attempted pathname
+    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
+  }
+
+  return <AdminPanel onLogout={onLogout} currentUserRole={userRole} currentUserName={userName} />;
+};
+
+// 🔐 Standalone login page component
+const LoginPage = ({ onLoginSuccess, isAdmin }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/dashboard';
+
+  useEffect(() => {
+    if (isAdmin) {
+      navigate(from, { replace: true });
+    }
+  }, [isAdmin, navigate, from]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-2 animate-in zoom-in-95 duration-300">
+        <button 
+          onClick={() => navigate('/')} 
+          className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 font-bold text-sm p-2 z-50"
+        >
+          ✕ বাতিল
+        </button>
+        <Login onLoginSuccess={onLoginSuccess} />
+      </div>
+    </div>
+  );
+};
+
+// 🚫 Role-based route guard
+const RoleRoute = ({ userRole, allowedRoles, children }) => {
+  if (!allowedRoles.includes(userRole)) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  return children;
+};
+
 function App() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
   const [userRole, setUserRole] = useState('Staff');
   const [userName, setUserName] = useState('');
+  const [loadingSession, setLoadingSession] = useState(true);
 
   // 🔴 পাসওয়ার্ড রিকভারি স্টেট
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -24,11 +108,11 @@ function App() {
         setUserRole(session.user.user_metadata?.role || 'Staff');
         setUserName(session.user.user_metadata?.name || 'Employee');
       }
+      setLoadingSession(false);
     });
 
     // লাইভ ইভেন্ট ট্র্যাকার
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      
       // পাসওয়ার্ড রিকভারি ইভেন্ট ধরা
       if (event === 'PASSWORD_RECOVERY') {
         setRecoveryMode(true);
@@ -43,6 +127,7 @@ function App() {
         setUserRole('Staff');
         setUserName('');
       }
+      setLoadingSession(false);
     });
 
     return () => subscription.unsubscribe();
@@ -52,7 +137,6 @@ function App() {
     setIsAdmin(true);
     setUserRole(user.role);
     setUserName(user.name);
-    setShowLogin(false);
   };
 
   const handleLogout = async () => {
@@ -79,123 +163,82 @@ function App() {
     setUpdatingPassword(false);
   };
 
-  // 🔴 লগইন থাকা অবস্থায় ইমেইলে রিসেট লিংক পাঠানোর ফাংশন
-  const handleSendPasswordReset = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user || !user.email) {
-      return alert("আপনার ইমেইল ঠিকানা খুঁজে পাওয়া যায়নি!");
-    }
-
-    const confirmMsg = `আমরা কি আপনার ${user.email} ঠিকানায় পাসওয়ার্ড পরিবর্তনের লিংক পাঠাবো?`;
-    if (!window.confirm(confirmMsg)) return;
-
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: window.location.origin,
-      });
-      
-      if (error) throw error;
-      
-      alert("✅ আপনার ইমেইলে পাসওয়ার্ড পরিবর্তনের লিংক পাঠানো হয়েছে! ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।");
-    } catch (err) {
-      alert("লিংক পাঠাতে সমস্যা হয়েছে: " + err.message);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
-      
-      {/* পাসওয়ার্ড রিকভারি মডাল (সবার উপরে দেখাবে) */}
-      {recoveryMode && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95">
-            <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              🔒
-            </div>
-            <h2 className="text-2xl font-black text-center text-slate-800 mb-2">নতুন পাসওয়ার্ড সেট করুন</h2>
-            <p className="text-xs text-center text-slate-500 mb-6 font-bold">আপনার অ্যাকাউন্টের জন্য একটি নতুন এবং শক্তিশালী পাসওয়ার্ড দিন।</p>
-            
-            <form onSubmit={handleUpdateRecoveryPassword} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">New Password</label>
-                <input 
-                  type="password" 
-                  placeholder="নতুন পাসওয়ার্ড লিখুন (কমপক্ষে ৬ অক্ষর)" 
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all text-slate-800" 
-                  required
-                />
+    <BrowserRouter>
+      <div className="min-h-screen bg-slate-50" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
+        
+        {/* পাসওয়ার্ড রিকভারি মডাল (সবার উপরে দেখাবে) */}
+        {recoveryMode && (
+          <div className="fixed inset-0 z-[200] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2rem] p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95">
+              <div className="w-16 h-16 bg-orange-50 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
+                🔒
               </div>
-              <button type="submit" disabled={updatingPassword} className="w-full py-4 bg-slate-900 hover:bg-orange-600 text-white rounded-xl font-black transition-all shadow-lg active:scale-95 uppercase tracking-wider text-sm mt-2">
-                {updatingPassword ? 'আপডেট হচ্ছে...' : 'পাসওয়ার্ড সেভ করুন'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ইউজার লগইন অবস্থায় থাকলে এডমিন প্যানেল দেখাবে */}
-      {isAdmin ? (
-        <div className="min-h-screen flex flex-col">
-          <div className="bg-slate-900 text-white px-6 py-3 flex justify-between items-center text-xs font-bold shadow-inner">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              <span className="text-slate-400">Current User:</span>
-              <span className="text-white font-black">{userName}</span>
-              <span className="bg-orange-600 text-white font-black text-[9px] px-2 py-0.5 rounded uppercase ml-1">
-                {userRole}
-              </span>
-            </div>
-            
-            {/* 🔴 ডানদিকের কন্ট্রোল প্যানেল */}
-            <div className="flex items-center gap-4">
-              <p className="text-slate-400 font-medium hidden md:block">LAMS Power ERP Panel</p>
-            </div>
-          </div>
-
-          <div className="flex-1">
-            <Suspense fallback={
-              <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center gap-4 text-white">
-                <div className="relative w-16 h-16">
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-800"></div>
-                  <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+              <h2 className="text-2xl font-black text-center text-slate-800 mb-2">নতুন পাসওয়ার্ড সেট করুন</h2>
+              <p className="text-xs text-center text-slate-500 mb-6 font-bold">আপনার অ্যাকাউন্টের জন্য একটি নতুন এবং শক্তিশালী পাসওয়ার্ড দিন।</p>
+              
+              <form onSubmit={handleUpdateRecoveryPassword} className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">New Password</label>
+                  <input 
+                    type="password" 
+                    placeholder="নতুন পাসওয়ার্ড লিখুন (কমপক্ষে ৬ অক্ষর)" 
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-all text-slate-800" 
+                    required
+                  />
                 </div>
-                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Admin Portal...</p>
-              </div>
-            }>
-              <AdminPanel onLogout={handleLogout} currentUserRole={userRole} currentUserName={userName} />
-            </Suspense>
-          </div>
-        </div>
-      ) : (
-        <>
-          <PublicCatalog onAdminClick={() => setShowLogin(true)} />
-          
-          {showLogin && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-in fade-in duration-200">
-              <div className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl p-2 animate-in zoom-in-95 duration-300">
-                <button 
-                  onClick={() => setShowLogin(false)} 
-                  className="absolute top-6 right-6 text-slate-400 hover:text-slate-900 font-bold text-sm p-2 z-50"
-                >
-                  ✕ বাতিল
+                <button type="submit" disabled={updatingPassword} className="w-full py-4 bg-slate-900 hover:bg-orange-600 text-white rounded-xl font-black transition-all shadow-lg active:scale-95 uppercase tracking-wider text-sm mt-2">
+                  {updatingPassword ? 'আপডেট হচ্ছে...' : 'পাসওয়ার্ড সেভ করুন'}
                 </button>
-                <Suspense fallback={
-                  <div className="h-64 flex flex-col items-center justify-center gap-3">
-                    <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-orange-500 animate-spin"></div>
-                    <span className="text-xs text-slate-500 font-semibold">লগইন ফর্ম লোড হচ্ছে...</span>
-                  </div>
-                }>
-                  <Login onLoginSuccess={handleLoginSuccess} />
-                </Suspense>
-              </div>
+              </form>
             </div>
-          )}
-        </>
-      )}
-    </div>
+          </div>
+        )}
+
+        <Routes>
+          {/* Public Page Route */}
+          <Route path="/" element={<PublicCatalogWrapper />} />
+
+          {/* Login Route */}
+          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} isAdmin={isAdmin} />} />
+
+          {/* Protected Admin Routes Layout */}
+          <Route element={<AdminLayout isAdmin={isAdmin} userRole={userRole} userName={userName} onLogout={handleLogout} loadingSession={loadingSession} />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/scan" element={<SmartUpload />} />
+            <Route path="/product-entry" element={<ProductEntry />} />
+            <Route path="/stock" element={<StockManagement />} />
+            <Route path="/broken" element={<BrokenManager />} />
+            <Route path="/label-print" element={<LabelPrint />} />
+            <Route path="/billing" element={<BillingSystem />} />
+            <Route path="/challan/nawabpur" element={<NawabpurBilling />} />
+            <Route path="/challans" element={<ChalanManager />} />
+            <Route path="/bills" element={<BillManager />} />
+            <Route path="/false-billing" element={<FalseBilling />} />
+            <Route path="/return-manager" element={<ReturnManager />} />
+            <Route path="/service" element={<ServiceManager />} />
+            <Route path="/reports" element={<Reports />} />
+            
+            {/* Admin-only and CEO-only Protected Routes */}
+            <Route path="/frontend-custom" element={
+              <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
+                <FrontEndCustom />
+              </RoleRoute>
+            } />
+            <Route path="/user-management" element={
+              <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
+                <UserManagement />
+              </RoleRoute>
+            } />
+          </Route>
+
+          {/* Redirect any other request back to root landing page */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
 

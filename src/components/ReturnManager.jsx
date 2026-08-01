@@ -55,14 +55,7 @@ const ReturnManager = () => {
   // 📋 ইনভয়েস সিলেক্ট করার পর তার সিরিয়ালগুলো ফেচ করা
   const handleSelectInvoice = async (record) => {
     setSelectedInvoice(record);
-    setReturnQtys({});
-    setSelectedSerialsToReturn([]);
     setInvoiceSerials([]);
-
-    // ডিফল্ট রিটার্ন কোয়ান্টিটি 0 সেট করা
-    const initialQtys = {};
-    record.chalan_items.forEach(item => { initialQtys[item.id] = 0; });
-    setReturnQtys(initialQtys);
 
     // এই ইনভয়েসের আন্ডারে থাকা সিরিয়ালগুলো খুঁজে বের করা
     let orQuery = [];
@@ -75,90 +68,55 @@ const ReturnManager = () => {
     }
   };
 
-  const handleReturnQtyChange = (itemId, val, maxQty) => {
-    let qty = parseInt(val) || 0;
-    if (qty > maxQty) qty = maxQty;
-    if (qty < 0) qty = 0;
-    setReturnQtys({ ...returnQtys, [itemId]: qty });
-  };
-
-  const toggleSerialSelection = (sl_no) => {
-    if (selectedSerialsToReturn.includes(sl_no)) {
-      setSelectedSerialsToReturn(selectedSerialsToReturn.filter(s => s !== sl_no));
-    } else {
-      setSelectedSerialsToReturn([...selectedSerialsToReturn, sl_no]);
-    }
-  };
-
-  // ♻️ আংশিক ও সম্পূর্ণ রিটার্ন প্রসেস করার মেইন লজিক
+  // ♻️ বিল/চালান বাতিল ও স্টক ফেরত দেওয়ার মেইন লজিক
   const handleConfirmReturn = async () => {
-    const totalReturnItems = Object.values(returnQtys).reduce((a, b) => a + b, 0);
-    if (totalReturnItems === 0 && selectedSerialsToReturn.length === 0) {
-      return alert("রিটার্ন করার জন্য অন্তত একটি প্রোডাক্টের পরিমাণ অথবা সিরিয়াল নম্বর সিলেক্ট করুন!");
-    }
-
-    if (!window.confirm('আপনি কি নিশ্চিতভাবে এই আইটেমগুলো রিটার্ন নিতে চান? ডাটাবেজ এবং স্টক আপডেট হয়ে যাবে।')) return;
+    if (!window.confirm('আপনি কি নিশ্চিতভাবে এই বিল/চালানটি বাতিল করতে চান? এর ফলে সকল আইটেম সেলার হাউজের স্টকে ফেরত যাবে এবং এটি বাতিল (Cancelled) হিসেবে চিহ্নিত হবে।')) return;
 
     setProcessing(true);
     try {
-      let totalRefundAmount = 0;
       const invoiceRef = selectedInvoice.bill_no !== 'N/A' && selectedInvoice.bill_no ? selectedInvoice.bill_no : selectedInvoice.chalan_no;
 
-      // ১. প্রোডাক্ট স্টক বাড়ানো এবং লেজার এন্ট্রি
+      // ১. প্রোডাক্ট স্টক বাড়ানো এবং লেজার এন্ট্রি (সব আইটেম ফেরত)
       for (let item of selectedInvoice.chalan_items) {
-        const rq = returnQtys[item.id];
+        const rq = item.quantity;
         if (rq > 0) {
-          totalRefundAmount += (rq * item.unit_price);
-
           // স্টক আপডেট
           const { data: prodData } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
           if (prodData) {
             await supabase.from('products').update({ stock_quantity: prodData.stock_quantity + rq }).eq('id', item.product_id);
           }
+          
           // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
           await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
-            source: `Return from Inv: #${invoiceRef} (To: ${selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
+            source: `Return from Cancelled Inv: #${invoiceRef} (To: ${selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
             date: new Date().toISOString().split('T')[0],
             in: new Date().toISOString()
           }]);
-
-          // Chalan Items আপডেট বা ডিলিট
-          if (rq === item.quantity) {
-            await supabase.from('chalan_items').delete().eq('id', item.id); // পুরোটা ফেরত দিলে আইটেম ডিলিট
-          } else {
-            await supabase.from('chalan_items')
-              .update({ 
-                quantity: item.quantity - rq, 
-                total_price: (item.quantity - rq) * item.unit_price 
-              })
-              .eq('id', item.id);
-          }
         }
       }
 
-      // ২. শুধুমাত্র সিলেক্ট করা ইনভার্টার সিরিয়াল (inv_sl) ডিলিট করা
-      for (let sl of selectedSerialsToReturn) {
-        await supabase.from('inv_sl').delete().eq('sl_no', sl);
+      // ২. এই চালানের সকল ইনভার্টার সিরিয়াল (inv_sl) ডিলিট করা
+      let orQuery = [];
+      if (selectedInvoice.chalan_no && selectedInvoice.chalan_no !== 'N/A') orQuery.push(`chalan_no.eq.${selectedInvoice.chalan_no}`);
+      if (selectedInvoice.bill_no && selectedInvoice.bill_no !== 'N/A') orQuery.push(`bill_no.eq.${selectedInvoice.bill_no}`);
+      
+      if (orQuery.length > 0) {
+        await supabase.from('inv_sl').delete().or(orQuery.join(','));
       }
 
-      // ৩. মেইন চালানের টোটাল অ্যামাউন্ট আপডেট করা
-      const newTotalAmount = selectedInvoice.total_amount - totalRefundAmount;
-      if (newTotalAmount <= 0) {
-        // যদি সব আইটেম রিটার্ন হয়ে যায়, তাহলে চালানটিই ডিলিট করে দাও
-        await supabase.from('chalans').delete().eq('id', selectedInvoice.id);
-      } else {
-        await supabase.from('chalans').update({ total_amount: newTotalAmount }).eq('id', selectedInvoice.id);
-      }
+      // ৩. মেইন চালানের স্ট্যাটাস 'cancelled' করা
+      await supabase.from('chalans').update({ status: 'cancelled' }).eq('id', selectedInvoice.id);
 
-      alert('✅ সফলভাবে আংশিক/সম্পূর্ণ রিটার্ন সম্পন্ন হয়েছে এবং স্টক আপডেট হয়েছে!');
+      alert('✅ সফলভাবে বিল/চালান বাতিল করা হয়েছে এবং সকল স্টক ফেরত নেওয়া হয়েছে!');
       
       // UI আপডেট করা
+      setSelectedInvoice(null);
       handleSearch({ preventDefault: () => {} }); // রিফ্রেশ
     } catch (error) {
       console.error(error);
-      alert('রিটার্ন প্রসেস করতে সমস্যা হয়েছে! কনসোল চেক করুন।');
+      alert('বাতিলকরণ প্রসেস করতে সমস্যা হয়েছে! কনসোল চেক করুন।');
     }
     setProcessing(false);
   };
@@ -169,8 +127,8 @@ const ReturnManager = () => {
       {/* 🔍 সার্চ সেকশন */}
       <div className="bg-white p-6 md:p-8 rounded-[2rem] border shadow-sm text-center space-y-4">
         <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto text-3xl mb-2">↩️</div>
-        <h2 className="text-2xl font-black text-slate-800">অ্যাডভান্সড প্রোডাক্ট রিটার্ন</h2>
-        <p className="text-sm font-bold text-slate-400">ইনভয়েস বের করে নির্দিষ্ট পরিমাণ বা সিরিয়াল রিটার্ন করুন</p>
+        <h2 className="text-2xl font-black text-slate-800">বিল/চালান বাতিল ও প্রোডাক্ট রিটার্ন</h2>
+        <p className="text-sm font-bold text-slate-400">ইনভয়েস বের করে সম্পূর্ণ বিল/চালান বাতিল এবং স্টক ফেরত নিন</p>
         
         <form onSubmit={handleSearch} className="max-w-2xl mx-auto flex flex-col md:flex-row gap-3 pt-4">
           <input 
@@ -199,10 +157,20 @@ const ReturnManager = () => {
                 {searchResults.map((record) => (
                   <tr key={record.id} className="hover:bg-red-50/30 transition-colors">
                     <td className="p-4 pl-6"><p className="font-bold text-slate-800">{new Date(record.created_at).toLocaleDateString('en-GB')}</p><span className={`inline-block mt-1 text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${record.house === 'Showroom' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>{record.house}</span></td>
-                    <td className="p-4 font-black text-slate-900">{record.bill_no !== 'N/A' && record.bill_no ? record.bill_no : record.chalan_no}{record.status === 'hold' && <span className="ml-2 text-[8px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full uppercase">Hold</span>}</td>
+                    <td className="p-4 font-black text-slate-900">
+                      {record.bill_no !== 'N/A' && record.bill_no ? record.bill_no : record.chalan_no}
+                      {record.status === 'hold' && <span className="ml-2 text-[8px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full uppercase">Hold</span>}
+                      {record.status === 'cancelled' && <span className="ml-2 text-[8px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase">Cancelled</span>}
+                    </td>
                     <td className="p-4 font-bold">{record.customer_name || record.customers?.name || 'Walk-in'}<span className="block text-[10px] text-slate-400 font-mono mt-0.5">{record.phone || record.customers?.phone}</span></td>
                     <td className="p-4 text-right font-black text-red-600">{record.total_amount} ৳</td>
-                    <td className="p-4 text-center pr-6"><button onClick={() => handleSelectInvoice(record)} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition-colors">রিটার্ন ম্যানেজ</button></td>
+                    <td className="p-4 text-center pr-6">
+                      {record.status === 'cancelled' ? (
+                        <span className="text-xs text-red-500 font-black">বাতিলকৃত (Cancelled)</span>
+                      ) : (
+                        <button onClick={() => handleSelectInvoice(record)} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-black hover:bg-red-600 hover:text-white transition-colors">রিটার্ন ম্যানেজ</button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -211,13 +179,13 @@ const ReturnManager = () => {
         </div>
       )}
 
-      {/* ⚠️ আংশিক/সম্পূর্ণ রিটার্ন মডাল */}
+      {/* ⚠️ বাতিল/রিটার্ন মডাল */}
       {selectedInvoice && (
         <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full border shadow-sm flex flex-col animate-in slide-in-from-bottom-4 duration-300">
           
           <div className="flex justify-between items-start border-b pb-4 mb-6">
             <div>
-              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 px-2 py-1 rounded-md">Return Details Selection</span>
+              <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-50 px-2 py-1 rounded-md">Cancel Bill/Challan</span>
               <h3 className="text-2xl font-black text-slate-800 mt-2">{selectedInvoice.bill_no !== 'N/A' && selectedInvoice.bill_no ? selectedInvoice.bill_no : selectedInvoice.chalan_no}</h3>
               <p className="text-sm font-bold text-slate-500 mt-1">Customer: {selectedInvoice.customer_name || 'Walk-in'}</p>
             </div>
@@ -226,9 +194,9 @@ const ReturnManager = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             
-            {/* ১. কোয়ান্টিটি সিলেকশন */}
+            {/* ১. রিটার্ন করা প্রোডাক্টের তালিকা */}
             <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b pb-2">১. রিটার্ন কোয়ান্টিটি সিলেক্ট করুন</h4>
+              <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b pb-2">১. রিটার্ন করা প্রোডাক্টের তালিকা</h4>
               <div className="max-h-64 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                 {selectedInvoice.chalan_items?.map((item) => (
                   <div key={item.id} className="flex justify-between items-center bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -236,42 +204,28 @@ const ReturnManager = () => {
                       <p className="font-bold text-sm text-slate-800">{item.products?.name}</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase">{item.products?.model}</p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-xs font-bold text-slate-400 mb-1">কেনা: {item.quantity} পিস</p>
-                        <input 
-                          type="number" 
-                          min="0" max={item.quantity}
-                          value={returnQtys[item.id] || ''}
-                          onChange={(e) => handleReturnQtyChange(item.id, e.target.value, item.quantity)}
-                          className="w-20 p-2 text-center border-2 border-red-200 rounded-xl font-black outline-none focus:border-red-500 text-red-600"
-                          placeholder="0"
-                        />
-                      </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-red-600">{item.quantity} পিস (স্টকে ফেরত যাবে)</p>
+                      <p className="text-[10px] font-bold text-slate-400">ইউনিট প্রাইস: {item.unit_price} ৳</p>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* ২. সিরিয়াল সিলেকশন */}
+            {/* ২. রিটার্ন করা ইনভার্টার সিরিয়াল */}
             <div className="space-y-3">
-              <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b pb-2">২. ইনভার্টার সিরিয়াল সিলেক্ট করুন (যদি থাকে)</h4>
+              <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest border-b pb-2">২. রিটার্ন করা ইনভার্টার সিরিয়াল (ডাটাবেজ থেকে মুছে যাবে)</h4>
               {invoiceSerials.length > 0 ? (
                 <div className="max-h-64 overflow-y-auto custom-scrollbar pr-2 space-y-2">
                   {invoiceSerials.map((serial) => (
-                    <label key={serial.id} className={`flex items-center gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${selectedSerialsToReturn.includes(serial.sl_no) ? 'bg-red-50 border-red-200' : 'bg-slate-50 border-slate-100 hover:bg-slate-100'}`}>
-                      <input 
-                        type="checkbox" 
-                        checked={selectedSerialsToReturn.includes(serial.sl_no)}
-                        onChange={() => toggleSerialSelection(serial.sl_no)}
-                        className="w-5 h-5 accent-red-500 cursor-pointer"
-                      />
+                    <div key={serial.id} className="flex items-center gap-3 p-4 rounded-2xl border bg-red-50/50 border-red-100">
+                      <span className="text-red-500 text-lg">📌</span>
                       <div>
                         <p className="font-black text-slate-800 font-mono text-sm">{serial.sl_no}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase">{serial.inv_type} {serial.inv_model}</p>
                       </div>
-                    </label>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -284,8 +238,8 @@ const ReturnManager = () => {
           </div>
 
           <div className="bg-red-50 border border-red-100 p-4 rounded-2xl mb-6">
-            <p className="text-xs font-bold text-red-800 text-center">
-              ⚠️ <strong className="font-black">সতর্কতা:</strong> আপনি যতটুকু কোয়ান্টিটি এবং যেই সিরিয়ালগুলোতে টিক দেবেন, শুধুমাত্র সেগুলোই ডাটাবেজ থেকে মুছে লেজারে ফেরত যাবে।
+            <p className="text-sm font-bold text-red-800 text-center">
+              ⚠️ <strong className="font-black">সতর্কতা:</strong> কনফার্ম করলে এই বিল/চালানটি সম্পূর্ণ বাতিল (Cancelled) হয়ে যাবে, এর সকল প্রোডাক্টের স্টক সেলার হাউজে ({selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'}) যোগ হবে এবং ইনভার্টার সিরিয়ালগুলো মুছে যাবে।
             </p>
           </div>
 
@@ -294,7 +248,7 @@ const ReturnManager = () => {
             disabled={processing}
             className="w-full py-5 bg-red-600 text-white font-black rounded-2xl text-lg hover:bg-red-700 shadow-xl shadow-red-500/30 transition-all active:scale-95 disabled:opacity-50 tracking-widest"
           >
-            {processing ? 'প্রসেসিং হচ্ছে...' : '✅ কনফার্ম রিটার্ন ও লেজার আপডেট'}
+            {processing ? 'প্রসেসিং হচ্ছে...' : '❌ বিল/চালান বাতিল ও স্টক আপডেট করুন'}
           </button>
 
         </div>

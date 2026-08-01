@@ -28,6 +28,23 @@ const BillManager = () => {
     }
   }, [selectedMonth, searchQuery]); 
 
+  useEffect(() => {
+    const chalansChannel = supabase
+      .channel('bill-manager-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chalans' },
+        () => {
+          fetchAllRecords();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chalansChannel);
+    };
+  }, [selectedMonth, searchQuery]);
+
   // মাস বা সার্চ অনুযায়ী সব ডাটা ফেচ করার লজিক
   const fetchAllRecords = async () => {
     setLoading(true);
@@ -248,6 +265,7 @@ const BillManager = () => {
                     <td className="p-4 font-black text-slate-900">
                       {activeTab === 'bills' ? record.bill_no : record.chalan_no}
                       {activeTab === 'bills' && record.chalan_no && <span className="block text-[9px] text-slate-400 font-normal uppercase mt-0.5">Ref: {record.chalan_no}</span>}
+                      {record.status === 'cancelled' && <span className="ml-2 text-[8px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full uppercase font-bold">Cancelled</span>}
                     </td>
                     <td className="p-4 font-bold">
                       {getCustomerData(record).name}
@@ -349,8 +367,8 @@ const BillManager = () => {
           <div className="bg-white p-8 rounded-[2.5rem] border shadow-2xl animate-in zoom-in-95 w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-6 mb-6 gap-4">
               <div>
-                <span className={`text-[10px] font-black px-3 py-1 rounded-md uppercase ${activeTab === 'bills' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
-                  {activeTab === 'bills' ? 'BILL DOCUMENT' : 'CHALAN DOCUMENT'}
+                <span className={`text-[10px] font-black px-3 py-1 rounded-md uppercase ${viewRecord.status === 'cancelled' ? 'bg-red-100 text-red-700' : activeTab === 'bills' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                  {viewRecord.status === 'cancelled' ? 'CANCELLED DOCUMENT' : activeTab === 'bills' ? 'BILL DOCUMENT' : 'CHALAN DOCUMENT'}
                 </span>
                 <h2 className="text-2xl font-black text-slate-900 uppercase mt-2">NO: {activeTab === 'bills' ? viewRecord.bill_no : viewRecord.chalan_no}</h2>
                 {activeTab === 'bills' && viewRecord.chalan_no && <p className="text-sm font-bold text-slate-400">Ref Challan: {viewRecord.chalan_no}</p>}

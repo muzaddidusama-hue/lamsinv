@@ -18,7 +18,36 @@ const Dashboard = ({ setView }) => {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [billNo, setBillNo] = useState('');
 
-  useEffect(() => { fetchDashboardData(); }, []);
+  useEffect(() => {
+    fetchDashboardData();
+
+    const chalansChannel = supabase
+      .channel('dashboard-chalans-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chalans' },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    const productsChannel = supabase
+      .channel('dashboard-products-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          fetchDashboardData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chalansChannel);
+      supabase.removeChannel(productsChannel);
+    };
+  }, []);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -199,7 +228,7 @@ const Dashboard = ({ setView }) => {
                  <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 hover-scale hover:bg-blue-50/30 cursor-pointer transition-all">
                     <div className="flex justify-between items-start">
                       <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : tc.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>
                     </div>
                  </div>
                ))}

@@ -25,6 +25,30 @@ const BrokenManager = () => {
     fetchSolarPanels();
   }, []);
 
+  useEffect(() => {
+    const brokenChannel = supabase
+      .channel('broken-manager-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'Broken' },
+        () => {
+          fetchBrokenList();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        () => {
+          fetchSolarPanels();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(brokenChannel);
+    };
+  }, []);
+
   // Whenever warehouse changes, reset the selected product and search text
   useEffect(() => {
     setSelectedProduct(null);

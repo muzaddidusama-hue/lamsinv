@@ -271,9 +271,30 @@ const checkIsTransfer = (val) => {
      return val === true || String(val).toLowerCase() === 'true';
    };
 
-   const generateReport = async () => {
-     setLoading(true);
-    try {
+    const generateReport = async () => {
+      setLoading(true);
+     try {
+       let productsList = rawProducts;
+       if (productsList.length === 0) {
+         const { data: pData } = await supabase
+           .from('products')
+           .select('id, name, model, category, house, stock_quantity')
+           .order('name', { ascending: true });
+         if (pData) {
+           productsList = pData;
+           setRawProducts(pData);
+           const uniqueProds = [];
+           const keys = new Set();
+           pData.forEach(p => {
+             const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
+             if (!keys.has(fullName)) {
+               keys.add(fullName);
+               uniqueProds.push({ ...p, fullName });
+             }
+           });
+           setAllProducts(uniqueProds);
+         }
+       }
       const { data: allChalans, error } = await supabase
         .from('chalans')
         .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`)
@@ -350,6 +371,33 @@ const checkIsTransfer = (val) => {
         allLedger.forEach(l => {
           if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
           const isFuture = l.date > endDate;
+          let resolvedHouse = l.house;
+          if (!resolvedHouse) {
+            if (l.source) {
+              const srcLower = l.source.toLowerCase();
+              if (srcLower.includes('to: nawabpur') || srcLower.includes('to: showroom') || srcLower.includes('from: nawabpur') || srcLower.includes('from: showroom')) {
+                resolvedHouse = 'Showroom';
+              } else if (srcLower.includes('to: head office') || srcLower.includes('from: head office')) {
+                resolvedHouse = 'Head Office';
+              }
+            }
+          }
+          if (!resolvedHouse && l.product) {
+            const targetKey = getStandardKey(l.product);
+            const matchingProducts = productsList.filter(p => {
+              const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
+              return getStandardKey(fullName) === targetKey;
+            });
+            if (matchingProducts.length > 0) {
+              const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+              if (uniqueHouses.length === 1) {
+                resolvedHouse = uniqueHouses[0];
+              }
+            }
+          }
+          if (!resolvedHouse) {
+            resolvedHouse = 'Head Office';
+          }
           extractedTrans.push({
             id: `leg_${l.id}`,
             dbId: l.id, 
@@ -358,7 +406,7 @@ const checkIsTransfer = (val) => {
             timestamp: l.in || l.date,
             product: l.product,
             type: l.type || 'in',
-            house: l.house || (l.source && (l.source.includes('To: Nawabpur') || l.source.includes('To: Showroom')) ? 'Showroom' : 'Head Office'),
+            house: resolvedHouse,
             quantity: parseInt(l.quantity) || 0,
             source: l.source || 'Import / Manual Entry',
             ref: 'Manual Entry',
@@ -376,6 +424,33 @@ const checkIsTransfer = (val) => {
       if (!stockOutErr && allStockOut) {
         allStockOut.forEach(s => {
           const isFuture = s.date > endDate;
+          let resolvedHouse = s.house;
+          if (!resolvedHouse) {
+            if (s.reason) {
+              const reasonLower = s.reason.toLowerCase();
+              if (reasonLower.includes('to: nawabpur') || reasonLower.includes('to: showroom') || reasonLower.includes('from: nawabpur') || reasonLower.includes('from: showroom')) {
+                resolvedHouse = 'Showroom';
+              } else if (reasonLower.includes('to: head office') || reasonLower.includes('from: head office')) {
+                resolvedHouse = 'Head Office';
+              }
+            }
+          }
+          if (!resolvedHouse && s.type && s.model) {
+            const targetKey = getStandardKey(`${s.type} - ${s.model}`);
+            const matchingProducts = productsList.filter(p => {
+              const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
+              return getStandardKey(fullName) === targetKey;
+            });
+            if (matchingProducts.length > 0) {
+              const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+              if (uniqueHouses.length === 1) {
+                resolvedHouse = uniqueHouses[0];
+              }
+            }
+          }
+          if (!resolvedHouse) {
+            resolvedHouse = 'Head Office';
+          }
           extractedTrans.push({
             id: `stout_${s.id}`,
             dbId: s.id,
@@ -384,7 +459,7 @@ const checkIsTransfer = (val) => {
             timestamp: s.date,
             product: `${s.type} - ${s.model}`,
             type: 'out',
-            house: s.house || (s.reason && (s.reason.includes('From: Nawabpur') || s.reason.includes('From: Showroom')) ? 'Showroom' : 'Head Office'),
+            house: resolvedHouse,
             quantity: parseInt(s.amount) || 0,
             source: s.reason || 'Manual Removal',
             ref: 'Manual Removal',

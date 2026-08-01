@@ -36,6 +36,21 @@ const UserManagement = () => {
 
   useEffect(() => {
     fetchUsers();
+
+    const usersChannel = supabase
+      .channel('user-management-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'users' },
+        () => {
+          fetchUsers();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(usersChannel);
+    };
   }, []);
 
   const fetchUsers = async () => {

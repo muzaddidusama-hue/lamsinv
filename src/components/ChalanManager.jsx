@@ -17,6 +17,23 @@ const ChalanManager = () => {
 
   useEffect(() => { fetchPendingChalans(); }, [chalan]); 
 
+  useEffect(() => {
+    const chalansChannel = supabase
+      .channel('chalan-manager-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'chalans' },
+        () => {
+          fetchPendingChalans();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chalansChannel);
+    };
+  }, []);
+
   const fetchPendingChalans = async () => {
     const { data } = await supabase
       .from('chalans')

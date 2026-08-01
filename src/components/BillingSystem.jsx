@@ -574,7 +574,20 @@ const handleQuickBillConfirm = async () => {
             </div>
             <div className="mt-6 pt-6 border-t flex justify-between items-center">
               <div className="text-2xl font-black text-slate-900">{cart.reduce((acc, item) => acc + item.total, 0)} ৳</div>
-              <button onClick={handleGenerateChallan} disabled={loading || cart.length === 0} className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-orange-600 transition-all uppercase tracking-tighter">Generate Challan</button>
+              <button 
+                onClick={handleGenerateChallan} 
+                disabled={loading || cart.length === 0} 
+                className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-orange-600 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Generating...
+                  </>
+                ) : (
+                  "Generate Challan"
+                )}
+              </button>
             </div>
           </div>
         </div>
@@ -647,7 +660,20 @@ const handleQuickBillConfirm = async () => {
                   <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
                 </select>
                 
-                <button onClick={handleQuickBillConfirm} disabled={loading || !paymentMethod} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all">কনফার্ম ও বিল প্রিন্ট</button>
+                <button 
+                  onClick={handleQuickBillConfirm} 
+                  disabled={loading || !paymentMethod} 
+                  className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      প্রসেসিং...
+                    </>
+                  ) : (
+                    "কনফার্ম ও বিল প্রিন্ট"
+                  )}
+                </button>
                 
                 <div className="flex justify-center">
                     <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="text-blue-600 font-bold text-sm underline">📥 আপাতত চালানটি PDF ডাউনলোড করুন</button>
@@ -656,6 +682,21 @@ const handleQuickBillConfirm = async () => {
                 <button onClick={() => setQuickBillMode(false)} className="w-full text-slate-400 font-bold text-center">পিছনে যান</button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-5 text-center max-w-xs mx-4 animate-in zoom-in-95 duration-300">
+            <div className="relative w-16 h-16">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+            </div>
+            <div>
+              <h3 className="font-black text-slate-800 text-lg uppercase tracking-wider">Processing Request</h3>
+              <p className="text-xs font-bold text-slate-400 mt-1">অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন, ডাটাবেজ আপডেট করা হচ্ছে...</p>
+            </div>
           </div>
         </div>
       )}
