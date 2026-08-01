@@ -434,19 +434,6 @@ const checkIsTransfer = (val) => {
                   ref: `Chl: #${ch.chalan_no}`,
                   isFuture
                 });
-              } else if (ch.status === 'cancelled') {
-                extractedTrans.push({
-                  id: `sale_cancelled_${ch.id}_${item.id}`,
-                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
-                  timestamp: ch.created_at,
-                  product: pName,
-                  type: 'out',
-                  house: ch.house || 'Head Office',
-                  quantity: item.quantity,
-                  source: `Cancelled Invoice: ${cName}`,
-                  ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
-                  isFuture
-                });
               }
             });
           }
@@ -476,6 +463,7 @@ const checkIsTransfer = (val) => {
       if (!ledgerErr && allLedger) {
         allLedger.forEach(l => {
           if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
+          if (l.source && l.source.includes('Return from Cancelled')) return;
           const isFuture = l.date > endDate;
           let resolvedHouse = l.house;
           if (!resolvedHouse) {
