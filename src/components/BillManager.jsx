@@ -138,11 +138,11 @@ const BillManager = () => {
       const { error } = await supabase
         .from('chalans')
         .update({
-          chalan_no: editForm.chalan_no,
-          bill_no: editForm.bill_no,
+          chalan_no: (editForm.chalan_no || '').trim() || null,
+          bill_no: (editForm.bill_no || '').trim() || null,
           status: editForm.status,
           total_amount: editForm.total_amount,
-          payment_method: editForm.payment_method,
+          payment_method: (editForm.payment_method || '').trim() || null,
           created_at: new Date(editForm.created_at).toISOString() 
         })
         .eq('id', editForm.id);
