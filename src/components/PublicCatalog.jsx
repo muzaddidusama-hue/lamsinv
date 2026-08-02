@@ -88,8 +88,9 @@ const PublicCatalog = ({ onAdminClick }) => {
   // Catalog Live Search state
   const [productSearch, setProductSearch] = useState('');
   
-  // Interactive specs card active showcase model index
-  const [activeShowcaseIdx, setActiveShowcaseIdx] = useState(0);
+  // Interactive specs card showcase queue and hover state
+  const [showcaseQueue, setShowcaseQueue] = useState([]);
+  const [isShowcaseHovered, setIsShowcaseHovered] = useState(false);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -235,8 +236,9 @@ const PublicCatalog = ({ onAdminClick }) => {
     const deDuplicated = getDeDuplicatedProductsList(products);
 
     return deDuplicated.filter(p => {
-      // Stock quantity check: Must have at least 10 pcs in stock across all houses
-      if (Number(p.stock_quantity) < 10) return false;
+      // Stock quantity check: Must have at least 10 pcs in stock across all houses (except Jarrett in Hybrid Inverter)
+      const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+      if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
 
       const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
@@ -390,17 +392,65 @@ const PublicCatalog = ({ onAdminClick }) => {
     return finalModels;
   };
 
-  const showcaseModels = getShowcaseModelsList();
-  const activeShowcaseProduct = showcaseModels[activeShowcaseIdx] || showcaseModels[0];
-
-  // Autoplay effect for switcher (Cycles through the 8-10 models list every 4 seconds)
+  // Initialize showcaseQueue once products are fetched
   useEffect(() => {
-    if (showcaseModels.length === 0) return;
+    if (products.length === 0) return;
+    const pool = getShowcaseModelsList();
+    if (pool.length >= 4) {
+      setShowcaseQueue(pool.slice(0, 4));
+    } else {
+      setShowcaseQueue(pool);
+    }
+  }, [products]);
+
+  // Autoplay conveyor-belt effect (Shifts out top model, appends a new brand model at the 4th position)
+  useEffect(() => {
+    if (showcaseQueue.length === 0 || isShowcaseHovered) return;
+
     const interval = setInterval(() => {
-      setActiveShowcaseIdx((prev) => (prev + 1) % showcaseModels.length);
+      setShowcaseQueue(prevQueue => {
+        if (prevQueue.length < 4) return prevQueue;
+
+        const pool = getShowcaseModelsList();
+        const nextQueue = prevQueue.slice(1);
+
+        // Find brands not in nextQueue to ensure no more than 1 model of the same product/brand
+        const currentBrands = nextQueue.map(p => p.name?.toLowerCase().trim());
+        const candidates = pool.filter(p => !currentBrands.includes(p.name?.toLowerCase().trim()));
+
+        let newItem = null;
+        if (candidates.length > 0) {
+          newItem = candidates[Math.floor(Math.random() * candidates.length)];
+        } else {
+          newItem = pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        return [...nextQueue, newItem];
+      });
     }, 4000);
+
     return () => clearInterval(interval);
-  }, [showcaseModels.length]);
+  }, [showcaseQueue.length, isShowcaseHovered]);
+
+  const handleShowcaseItemClick = (idx) => {
+    if (idx === 0) return;
+    setShowcaseQueue(prevQueue => {
+      const clickedItem = prevQueue[idx];
+      const rest = prevQueue.filter((_, i) => i !== idx);
+      return [clickedItem, ...rest];
+    });
+  };
+
+  const activeShowcaseProduct = showcaseQueue[0] || {
+    category: "Hybrid Inverter",
+    name: "SolarOn",
+    model: "3600VA",
+    image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
+    volt: "24V",
+    watt: "3600W",
+    availability: "in stock",
+    description: "High efficiency SolarOn 3600VA hybrid inverter."
+  };
 
   // Dynamic clean display mapping
   const getDisplayCategoryName = (c) => {
@@ -445,19 +495,21 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-8 md:gap-12 font-bold text-xs uppercase tracking-widest text-slate-500">
+          <nav className="flex items-center gap-2.5 sm:gap-8 md:gap-12 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:ml-0 mr-0 sm:mr-auto">
             <button 
               onClick={() => setActiveTab('home')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
             >
               Home
             </button>
+            <span className="text-slate-300 font-normal">|</span>
             <button 
               onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'products' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
             >
               Products
             </button>
+            <span className="text-slate-300 font-normal">|</span>
             <button 
               onClick={() => setActiveTab('contact')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'contact' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
@@ -467,7 +519,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           </nav>
 
           {/* Portal Access */}
-          <div className="flex items-center gap-4">
+          <div className="hidden sm:flex items-center gap-4">
             <button 
               onClick={onAdminClick}
               className="bg-white border border-slate-200 hover:border-[#ea3838] text-slate-700 hover:text-[#ea3838] px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all duration-300 shadow-sm active:scale-95 flex items-center gap-2"
@@ -689,7 +741,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           {/* 🕒 DRIVING FORCE IN GREEN ENERGY SECTION */}
           <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             {/* Text description */}
-            <div className="lg:col-span-6 space-y-6 text-left">
+            <div className="lg:col-span-6 space-y-6 text-left order-2 lg:order-1">
               <span className="text-[10px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Our Legacy</span>
               <h3 className="text-3xl md:text-5xl font-black text-[#0f172a] leading-tight font-['Outfit']">
                 Driving force in solar energy industry over <span className="text-[#ea3838]">16 years</span>
@@ -712,7 +764,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             </div>
 
             {/* Overlapping capsules image showcase (mimicking vertical capsule design) */}
-            <div className="lg:col-span-6 flex items-center justify-center h-[420px] relative w-full">
+            <div className="lg:col-span-6 flex items-center justify-center h-[420px] relative w-full order-1 lg:order-2">
               {/* Capsule Left */}
               <div className="w-[110px] h-[240px] rounded-[5rem] overflow-hidden border-[6px] border-white shadow-lg rotate-[-6deg] absolute left-6 md:left-16 hover:scale-105 transition-all duration-500 hover:rotate-0 hover:z-30 group">
                 <img 
@@ -743,7 +795,11 @@ const PublicCatalog = ({ onAdminClick }) => {
           </section>
 
           {/* 🌟 INTERACTIVE PORTFOLIO SPECS CARD SECTION (Autoplay switcher cycling 8-10 models) */}
-          <section className="py-12 px-6 md:px-12 bg-[#eaecf0] rounded-[3.5rem] max-w-[1400px] mx-auto w-full border border-slate-300/40">
+          <section 
+            onMouseEnter={() => setIsShowcaseHovered(true)}
+            onMouseLeave={() => setIsShowcaseHovered(false)}
+            className="py-12 px-6 md:px-12 bg-[#eaecf0] rounded-[3.5rem] max-w-[1400px] mx-auto w-full border border-slate-300/40"
+          >
             <div className="text-center mb-10">
               <span className="text-[10px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Portfolio Grid</span>
               <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Our top collections</h3>
@@ -822,16 +878,16 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               </div>
 
-              {/* Right Side: Autoplay scrollable list of 8-10 product models */}
+              {/* Right Side: Autoplay conveyor-belt list of 4 unique brand models */}
               <div className="lg:col-span-5 flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1.5 custom-scrollbar text-left">
-                {showcaseModels.map((p, idx) => {
-                  const isActive = activeShowcaseIdx === idx;
+                {showcaseQueue.map((p, idx) => {
+                  const isActive = idx === 0;
                   const displayCat = getDisplayCategoryName(p.category);
 
                   return (
                     <div 
                       key={idx}
-                      onClick={() => setActiveShowcaseIdx(idx)}
+                      onClick={() => handleShowcaseItemClick(idx)}
                       className={`bg-white p-4 rounded-[2rem] border transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 group ${
                         isActive 
                           ? 'border-[#ea3838] ring-2 ring-[#ea3838]/10 shadow-md' 
@@ -845,7 +901,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                           {isActive ? '✓' : idx + 1}
                         </div>
                         <div>
-                          <h4 className="font-extrabold text-[#0f172a] text-sm md:text-base font-['Outfit'] leading-tight">
+                          <h4 className="font-extrabold text-[#0f172a] text-sm md:text-base font-['Outfit'] leading-tight font-black">
                             {p.name} {p.model}
                           </h4>
                           <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block mt-0.5">
