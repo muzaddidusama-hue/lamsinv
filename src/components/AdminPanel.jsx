@@ -1,5 +1,5 @@
 import React, { useState, Suspense } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 
 // Modern Minimal SVG Icons for Sidebar - styled to match MatDash (lavender/indigo color schemes)
 const DashboardIcon = () => (
