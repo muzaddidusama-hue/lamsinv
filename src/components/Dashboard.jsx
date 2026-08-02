@@ -17,6 +17,9 @@ const Dashboard = ({ setView }) => {
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [billNo, setBillNo] = useState('');
+  
+  // Dashboard tab state for recent logs
+  const [recentLogTab, setRecentLogTab] = useState('chalans');
 
   useEffect(() => {
     fetchDashboardData();
@@ -81,7 +84,6 @@ const Dashboard = ({ setView }) => {
     return val === true || String(val).toLowerCase() === 'true';
   };
 
-  // ইন-হাউজ স্টক ট্রান্সফারের ডাটাবেজ কনফ্লিক্ট ঠিক করা হয়েছে
   const handleAction = async (actionType) => {
     setProcessing(true);
     try {
@@ -91,20 +93,16 @@ const Dashboard = ({ setView }) => {
         if (!isTransferMode) throw new Error("অবৈধ রিকোয়েস্ট!");
         
         for (let itm of modalItems) {
-          // ১. সোর্স হাউজ থেকে কমানো
           const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
           if (sourceP) {
             await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
           }
           
-          // ২. টার্গেট হাউজে বাড়ানো বা নতুন তৈরি করা
           const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('model', itm.products.model).eq('house', selectedItem.transfer_to).maybeSingle();
           
           if (targetP) {
-            // যদি ঐ হাউজে আগে থেকেই এই প্রোডাক্ট থাকে, তাহলে স্টক যোগ হবে
             await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
           } else {
-            // যদি ঐ হাউজে প্রোডাক্টটি না থাকে, তবে নতুন করে এন্ট্রি হবে (আগের ID বাদ দিয়ে)
             const { id, created_at, stock_quantity, house, ...cleanProductData } = itm.products;
             
             await supabase.from('products').insert([{ 
@@ -114,7 +112,6 @@ const Dashboard = ({ setView }) => {
             }]);
           }
         }
-        // ৩. চালানের স্ট্যাটাস কমপ্লিট করে দেওয়া
         await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
       } 
       
@@ -163,173 +160,576 @@ const Dashboard = ({ setView }) => {
     downloadPDF(selectedItem, customerData, printItems, modalType === 'bill' ? 'Bill' : 'Challan');
   };
 
-  if (loading) return <div className="flex justify-center items-center h-screen text-slate-400 font-black animate-pulse uppercase tracking-widest text-xs">Loading LAMS System...</div>;
+  // Aggregated data calculation for custom SVG charts
+  const getMonthlyChartsData = () => {
+    const today = new Date();
+    const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+    const currentDay = today.getDate();
 
-  const cardIcons = [
-    // Clock Icon (Pending)
-    <svg key="pending" className="w-6 h-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    // Arrays of objects initialized with day and value
+    const salesData = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, total: 0 }));
+    const challanData = Array.from({ length: daysInMonth }, (_, i) => ({ day: i + 1, count: 0 }));
+
+    todayBills.forEach(bill => {
+      const day = new Date(bill.created_at).getDate();
+      if (day >= 1 && day <= daysInMonth) {
+        salesData[day - 1].total += (bill.total_amount || 0);
+      }
+    });
+
+    todayChalans.forEach(chalan => {
+      const day = new Date(chalan.created_at).getDate();
+      if (day >= 1 && day <= daysInMonth) {
+        challanData[day - 1].count += 1;
+      }
+    });
+
+    return { salesData, challanData, daysInMonth, currentDay };
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
+        <div className="w-10 h-10 rounded-full border-4 border-slate-100 border-t-violet-650 animate-spin"></div>
+        <span className="text-xs text-slate-400 font-bold uppercase tracking-widest animate-pulse">Loading Dashboard...</span>
+      </div>
+    );
+  }
+
+  const { salesData, challanData, daysInMonth } = getMonthlyChartsData();
+
+  // SVG Area Chart parameters calculation (Sales Revenue)
+  const maxSales = Math.max(...salesData.map(d => d.total), 100000);
+  const salesChartWidth = 550;
+  const salesChartHeight = 180;
+  const salesPaddingX = 40;
+  const salesPaddingY = 20;
+
+  // Generate SVG path for Sales Line/Area
+  let salesPointsStr = "";
+  let salesAreaStr = "";
+  salesData.forEach((d, idx) => {
+    const x = salesPaddingX + (idx / (daysInMonth - 1)) * (salesChartWidth - salesPaddingX * 2);
+    const y = (salesChartHeight - salesPaddingY * 2) - (d.total / maxSales) * (salesChartHeight - salesPaddingY * 2) + salesPaddingY;
+    if (idx === 0) {
+      salesPointsStr += `M ${x} ${y}`;
+      salesAreaStr += `M ${x} ${salesChartHeight - salesPaddingY} L ${x} ${y}`;
+    } else {
+      salesPointsStr += ` L ${x} ${y}`;
+    }
+    if (idx === salesData.length - 1) {
+      salesAreaStr += `${salesPointsStr} L ${x} ${salesChartHeight - salesPaddingY} Z`;
+    }
+  });
+
+  // SVG Bar Chart parameters calculation (Challan Count)
+  const maxChallans = Math.max(...challanData.map(d => d.count), 10);
+  const chChartWidth = 550;
+  const chChartHeight = 180;
+  const chPaddingX = 40;
+  const chPaddingY = 20;
+  const barGap = 4;
+  const totalBarWidth = chChartWidth - chPaddingX * 2;
+  const singleBarWidth = (totalBarWidth / daysInMonth) - barGap;
+
+  // Icons used inside top cards
+  const pendingIcon = (
+    <svg className="w-6 h-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>,
-    // Box Icon (Today's Chalans)
-    <svg key="chalans" className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    </svg>
+  );
+
+  const chalansIcon = (
+    <svg className="w-6 h-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-    </svg>,
-    // Receipt Icon (Today's Sales)
-    <svg key="sales" className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    </svg>
+  );
+
+  const salesIcon = (
+    <svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>,
-    // Warning Icon (Low Stock Alert)
-    <svg key="warning" className="w-6 h-6 text-red-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    </svg>
+  );
+
+  const stockIcon = (
+    <svg className="w-6 h-6 text-rose-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
-  ];
+  );
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto p-4 md:p-8 space-y-8 font-['Inter'] pb-20">
+    <div className="w-full max-w-[1600px] mx-auto space-y-8 pb-16 font-sans">
+      
+      {/* Welcome segment */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tight">Overview Dashboard</h2>
+          <p className="text-xs text-slate-400 font-medium">Realtime inventory status, daily transaction volume, and operational logs.</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={fetchDashboardData} className="px-4 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-bold text-slate-650 hover:bg-slate-50 transition-colors shadow-sm flex items-center gap-2">
+            🔄 Refresh Data
+          </button>
+        </div>
+      </div>
+
+      {/* Top statistical cards - modern, sleek design with lavender highlights */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         {[
-          { label: 'Pending Action', val: holdChalans.length, bg: 'bg-orange-50/80 border-orange-100/50', icon: cardIcons[0] },
-          { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: cardIcons[1] },
-          { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: cardIcons[2] },
-          { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-red-50/80 border-red-100/50', icon: cardIcons[3] }
+          { label: 'Pending Action', val: holdChalans.length, bg: 'bg-violet-50/80 border-violet-100/50', icon: pendingIcon, colorText: 'text-violet-650' },
+          { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: chalansIcon, colorText: 'text-blue-600' },
+          { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: salesIcon, colorText: 'text-emerald-600' },
+          { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-rose-50/80 border-rose-100/50', icon: stockIcon, colorText: 'text-rose-600' }
         ].map((s, i) => (
-          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm hover-scale flex items-center justify-between relative overflow-hidden group">
+          <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm hover-scale flex items-center justify-between relative overflow-hidden group">
             <div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{s.label}</p>
               <h3 className="text-3xl font-black text-slate-800 mt-1.5">{s.val}</h3>
+              <span className="text-[9px] text-slate-400 mt-1 block">Live database stats</span>
             </div>
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${s.bg}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center border ${s.bg}`}>
               {s.icon}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        <div className="xl:col-span-3 space-y-4">
-          <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest px-2">Pending Action</h2>
-          <div className="space-y-3">
-            {holdChalans.map(c => (
-              <div key={c.id} onClick={() => handleViewDetails(c, 'chalan')} className="bg-white p-5 rounded-3xl border border-slate-100 hover-scale hover:shadow-lg transition-all cursor-pointer group">
-                <div className="flex justify-between items-start mb-3"><span className={`text-[9px] font-black px-2 py-1 rounded-md uppercase ${checkIsTransfer(c.is_in_house) ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}</span><span className="text-[10px] font-bold text-slate-300">{new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></div>
-                <h4 className="font-black text-slate-800 text-lg">{c.chalan_no}</h4>
-                <p className="text-xs font-bold text-slate-400 mt-1 truncate">{c.customer_name || c.customers?.name || (checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}</p>
-                <div className="mt-4 flex justify-between items-center"><span className="text-lg font-black text-slate-700">{c.total_amount} ৳</span><div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center transition-colors">→</div></div>
-              </div>
-            ))}
+      {/* Graphs Section - Replaces the huge monthly lists */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Graph 1: Sales Revenue line/area chart */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[340px]">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Sales Revenue (BDT)</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">Total sales amount generated per day this month.</p>
+            </div>
+            <span className="text-xs font-black text-emerald-600 bg-emerald-55/10 px-2.5 py-1 rounded-full">
+              ৳ {salesData.reduce((acc, curr) => acc + curr.total, 0).toLocaleString()} Total
+            </span>
+          </div>
+
+          <div className="flex-1 min-h-0 w-full relative">
+            <svg viewBox={`0 0 ${salesChartWidth} ${salesChartHeight}`} className="w-full h-full">
+              {/* Definitions for glowing gradient overlays */}
+              <defs>
+                <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.00" />
+                </linearGradient>
+              </defs>
+              
+              {/* Horizontal grid lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                const y = salesPaddingY + ratio * (salesChartHeight - salesPaddingY * 2);
+                return (
+                  <line 
+                    key={idx} 
+                    x1={salesPaddingX} 
+                    y1={y} 
+                    x2={salesChartWidth - salesPaddingX} 
+                    y2={y} 
+                    stroke="#e2e8f0" 
+                    strokeWidth="1" 
+                    strokeDasharray="4 4" 
+                  />
+                );
+              })}
+
+              {/* Area graph */}
+              {salesAreaStr && (
+                <path d={salesAreaStr} fill="url(#salesGrad)" />
+              )}
+
+              {/* Line graph */}
+              {salesPointsStr && (
+                <path d={salesPointsStr} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+
+              {/* Dots on points */}
+              {salesData.map((d, idx) => {
+                if (d.total === 0) return null;
+                const x = salesPaddingX + (idx / (daysInMonth - 1)) * (salesChartWidth - salesPaddingX * 2);
+                const y = (salesChartHeight - salesPaddingY * 2) - (d.total / maxSales) * (salesChartHeight - salesPaddingY * 2) + salesPaddingY;
+                return (
+                  <g key={idx} className="group/dot cursor-pointer">
+                    <circle cx={x} cy={y} r="4.5" fill="#7c3aed" stroke="#ffffff" strokeWidth="2" />
+                    <title>{`Day ${d.day}: ${d.total} ৳`}</title>
+                  </g>
+                );
+              })}
+
+              {/* Y Axis helper labels */}
+              <text x={salesPaddingX - 5} y={salesPaddingY + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">{(maxSales / 1000).toFixed(0)}k</text>
+              <text x={salesPaddingX - 5} y={salesChartHeight / 2 + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">{(maxSales / 2000).toFixed(0)}k</text>
+              <text x={salesPaddingX - 5} y={salesChartHeight - salesPaddingY + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">0</text>
+              
+              {/* X Axis labels */}
+              <text x={salesPaddingX} y={salesChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day 1</text>
+              <text x={salesChartWidth / 2} y={salesChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day {Math.floor(daysInMonth / 2)}</text>
+              <text x={salesChartWidth - salesPaddingX} y={salesChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day {daysInMonth}</text>
+            </svg>
           </div>
         </div>
 
-        <div className="xl:col-span-9 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">This Month's Chalans</h2>
-            <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
-               {todayChalans.map(tc => (
-                 <div key={tc.id} onClick={() => handleViewDetails(tc, 'chalan')} className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100 hover-scale hover:bg-blue-50/30 cursor-pointer transition-all">
-                    <div className="flex justify-between items-start">
-                      <div><p className="font-black text-slate-800 text-sm">{tc.chalan_no}</p><p className="text-[10px] font-bold text-slate-400 uppercase mt-1">{tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}</p></div>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${tc.status === 'paid' ? 'bg-green-100 text-green-600' : tc.status === 'cancelled' ? 'bg-red-100 text-red-600' : 'bg-orange-100 text-orange-600'}`}>{tc.status}</span>
-                    </div>
-                 </div>
-               ))}
+        {/* Graph 2: Challans Volume bar chart */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[340px]">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Challan Volume (Daily Count)</h3>
+              <p className="text-[10px] font-bold text-slate-400 mt-0.5">Total number of challans generated per day this month.</p>
             </div>
+            <span className="text-xs font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+              {challanData.reduce((acc, curr) => acc + curr.count, 0)} Challans
+            </span>
           </div>
-          <div className="bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col h-[600px]">
-            <h2 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 px-2">This Month's Bills</h2>
-            <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
-               {todayBills.map(tb => (
-                 <div key={tb.id} onClick={() => handleViewDetails(tb, 'bill')} className="bg-slate-50 p-4 rounded-2xl border hover:bg-green-50 cursor-pointer transition-all">
-                    <div className="flex justify-between items-start">
-                      <div><p className="font-black text-slate-800 text-sm">#{tb.bill_no || 'N/A'}</p><p className="text-[10px] font-bold text-slate-400 mt-1">{tb.customer_name || tb.customers?.name || 'Walk-in'}</p></div>
-                      <span className="text-[8px] font-black bg-green-600 text-white px-2 py-0.5 rounded-full uppercase">{tb.payment_method}</span>
-                    </div>
-                 </div>
-               ))}
-            </div>
-          </div>
-          <div className="bg-red-50/40 p-6 rounded-[2.5rem] border border-red-100 flex flex-col h-[600px]">
-            <h2 className="text-xs font-black text-red-500 uppercase tracking-widest mb-6 px-2">Critical Stock</h2>
-            <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar">
-              {lowStockProducts.map(p => (
-                <div key={p.id} onClick={() => handleViewDetails(p, 'product')} className="bg-white p-4 rounded-2xl border border-red-50 flex items-center justify-between hover:shadow-md cursor-pointer transition-all">
-                  <div>
-                    <p className="font-black text-slate-800 text-sm">{p.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-[10px] font-bold text-slate-400 uppercase">{p.model}</p>
-                      {/* 🔴 আপডেট: হাউজের নাম দেখানোর জন্য ব্যাজ যুক্ত করা হয়েছে */}
-                      <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                        {p.house === 'Showroom' ? 'Showroom' : 'HO'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className={`px-3 py-1 rounded-lg font-black text-xs ${p.stock_quantity < 10 ? 'bg-red-500 text-white' : 'bg-orange-100 text-orange-600'}`}>{p.stock_quantity}</div>
-                </div>
-              ))}
-            </div>
+
+          <div className="flex-1 min-h-0 w-full relative">
+            <svg viewBox={`0 0 ${chChartWidth} ${chChartHeight}`} className="w-full h-full">
+              {/* Horizontal grid lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                const y = chPaddingY + ratio * (chChartHeight - chPaddingY * 2);
+                return (
+                  <line 
+                    key={idx} 
+                    x1={chPaddingX} 
+                    y1={y} 
+                    x2={chChartWidth - chPaddingX} 
+                    y2={y} 
+                    stroke="#e2e8f0" 
+                    strokeWidth="1" 
+                    strokeDasharray="4 4" 
+                  />
+                );
+              })}
+
+              {/* Render bars */}
+              {challanData.map((d, idx) => {
+                const x = chPaddingX + idx * (totalBarWidth / daysInMonth);
+                const barHeight = (d.count / maxChallans) * (chChartHeight - chPaddingY * 2);
+                const y = (chChartHeight - chPaddingY) - barHeight;
+
+                return (
+                  <g key={idx} className="group/bar cursor-pointer">
+                    <rect 
+                      x={x + barGap/2} 
+                      y={y} 
+                      width={singleBarWidth} 
+                      height={Math.max(barHeight, 1.5)} 
+                      rx="2"
+                      fill={d.count > 0 ? "#3b82f6" : "#e2e8f0"} 
+                      className="transition-all hover:fill-blue-600"
+                    />
+                    <title>{`Day ${d.day}: ${d.count} Challans`}</title>
+                  </g>
+                );
+              })}
+
+              {/* Y Axis labels */}
+              <text x={chPaddingX - 5} y={chPaddingY + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">{maxChallans}</text>
+              <text x={chPaddingX - 5} y={chChartHeight / 2 + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">{Math.round(maxChallans / 2)}</text>
+              <text x={chPaddingX - 5} y={chChartHeight - chPaddingY + 4} textAnchor="end" className="text-[8px] fill-slate-400 font-bold">0</text>
+
+              {/* X Axis labels */}
+              <text x={chPaddingX} y={chChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day 1</text>
+              <text x={chChartWidth / 2} y={chChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day {Math.floor(daysInMonth / 2)}</text>
+              <text x={chChartWidth - chPaddingX} y={chChartHeight - 4} textAnchor="middle" className="text-[8px] fill-slate-400 font-bold">Day {daysInMonth}</text>
+            </svg>
           </div>
         </div>
       </div>
 
+      {/* Lists Section - Restructured for sleek look */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        
+        {/* Left Column: Pending actions list (critical business flow) */}
+        <div className="xl:col-span-4 space-y-4">
+          <div className="flex justify-between items-center px-1">
+            <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Pending Verification</h3>
+            <span className="text-[10px] font-black bg-violet-100 text-violet-750 px-2 py-0.5 rounded-full uppercase">
+              {holdChalans.length} Action Needed
+            </span>
+          </div>
 
+          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
+            {holdChalans.map(c => (
+              <div 
+                key={c.id} 
+                onClick={() => handleViewDetails(c, 'chalan')} 
+                className="bg-white p-5 rounded-2xl border border-slate-200/70 hover-scale hover:shadow-md hover:border-violet-200 transition-all cursor-pointer group"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${checkIsTransfer(c.is_in_house) ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-violet-50 text-violet-650 border border-violet-100'}`}>
+                    {checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}
+                  </span>
+                  <span className="text-[10px] font-bold text-slate-400">
+                    {new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </span>
+                </div>
+                <h4 className="font-black text-slate-800 text-base">{c.chalan_no}</h4>
+                <p className="text-xs font-semibold text-slate-500 mt-1 truncate">
+                  {c.customer_name || c.customers?.name || (checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}
+                </p>
+                <div className="mt-4 flex justify-between items-center pt-2 border-t border-slate-50">
+                  <span className="text-base font-black text-slate-800">{c.total_amount.toLocaleString()} ৳</span>
+                  <div className="w-7 h-7 rounded-full bg-slate-50 group-hover:bg-violet-50 group-hover:text-violet-600 flex items-center justify-center transition-colors text-slate-400 text-xs font-bold">
+                    →
+                  </div>
+                </div>
+              </div>
+            ))}
+            {holdChalans.length === 0 && (
+              <div className="bg-white border border-dashed border-slate-200 p-8 rounded-2xl text-center text-slate-400 font-semibold italic text-xs">
+                No pending challans or actions.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right Column: Tabbed Logs (Recent Chalans, Recent Bills) & Critical Stock */}
+        <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-12 gap-8">
+          
+          {/* Tabbed transaction logs */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px] md:col-span-7">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 mb-4 gap-3">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Transaction Log</h3>
+              
+              {/* Tab Selector */}
+              <div className="flex bg-slate-100 p-1 rounded-xl">
+                <button 
+                  onClick={() => setRecentLogTab('chalans')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all ${recentLogTab === 'chalans' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Chalans ({todayChalans.length})
+                </button>
+                <button 
+                  onClick={() => setRecentLogTab('bills')}
+                  className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all ${recentLogTab === 'bills' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                >
+                  Bills ({todayBills.length})
+                </button>
+              </div>
+            </div>
+
+            {/* List for Chalans */}
+            {recentLogTab === 'chalans' && (
+              <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                {todayChalans.map(tc => (
+                  <div 
+                    key={tc.id} 
+                    onClick={() => handleViewDetails(tc, 'chalan')} 
+                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-violet-50/20 hover:border-violet-100 cursor-pointer transition-all flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[200px]">
+                        {tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-black text-slate-800">{tc.total_amount.toLocaleString()} ৳</span>
+                      <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${
+                        tc.status === 'paid' ? 'bg-green-50 text-green-600 border border-green-100' : 
+                        tc.status === 'cancelled' ? 'bg-red-50 text-red-600 border border-red-100' : 
+                        'bg-amber-50 text-amber-600 border border-amber-100'
+                      }`}>
+                        {tc.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {todayChalans.length === 0 && (
+                  <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                    No challans created this month.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* List for Bills */}
+            {recentLogTab === 'bills' && (
+              <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+                {todayBills.map(tb => (
+                  <div 
+                    key={tb.id} 
+                    onClick={() => handleViewDetails(tb, 'bill')} 
+                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-green-50/20 hover:border-green-150 cursor-pointer transition-all flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-black text-slate-850 text-xs">#{tb.bill_no || 'N/A'}</p>
+                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[200px]">
+                        {tb.customer_name || tb.customers?.name || 'Walk-in'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] font-black text-slate-800">{tb.total_amount.toLocaleString()} ৳</span>
+                      <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                        {tb.payment_method}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {todayBills.length === 0 && (
+                  <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                    No bills issued this month.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Critical stock card */}
+          <div className="bg-rose-50/45 p-6 rounded-2xl border border-rose-100 flex flex-col h-[540px] md:col-span-5">
+            <div className="flex justify-between items-center border-b border-rose-100/50 pb-4 mb-4">
+              <h3 className="text-xs font-black text-rose-600 uppercase tracking-widest">Critical Stock Alert</h3>
+              <span className="text-[9px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full">
+                {lowStockProducts.length} Items
+              </span>
+            </div>
+            
+            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+              {lowStockProducts.map(p => (
+                <div 
+                  key={p.id} 
+                  onClick={() => handleViewDetails(p, 'product')} 
+                  className="bg-white p-3.5 rounded-xl border border-rose-50 hover:border-rose-200 flex items-center justify-between hover:shadow-sm cursor-pointer transition-all"
+                >
+                  <div className="max-w-[70%]">
+                    <p className="font-black text-slate-800 text-xs truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-[9px] font-bold text-slate-400 uppercase truncate">{p.model}</p>
+                      <span className={`text-[8px] font-black px-1.5 py-0.25 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-50 text-purple-650' : 'bg-blue-50 text-blue-650'}`}>
+                        {p.house === 'Showroom' ? 'Showroom' : 'HO'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className={`px-2.5 py-1 rounded-lg font-black text-xs ${p.stock_quantity < 10 ? 'bg-red-500 text-white' : 'bg-orange-100 text-orange-655'}`}>
+                    {p.stock_quantity}
+                  </div>
+                </div>
+              ))}
+              {lowStockProducts.length === 0 && (
+                <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                  All products are well stocked.
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      {/* Action and details modal - styled in violet MatDash theme */}
       {selectedItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/90 backdrop-blur-md p-4">
-          <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95">
-            <div className="p-8 bg-slate-50 border-b flex justify-between items-start">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 border border-slate-100">
+            <div className="p-6 bg-slate-50/65 border-b border-slate-100 flex justify-between items-start">
               <div>
-                <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{modalType} DETAILS</span>
-                <h3 className="text-3xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
-                <p className="text-sm font-bold text-slate-400 mt-2">
+                <span className="text-[10px] font-black text-violet-650 uppercase tracking-widest">{modalType} DETAILS</span>
+                <h3 className="text-2xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
+                <p className="text-xs font-bold text-slate-400 mt-1.5">
                   {modalType === 'product' ? `Model: ${selectedItem.model}` : (checkIsTransfer(selectedItem.is_in_house) ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
                 </p>
               </div>
               <div className="flex gap-2">
                 {modalType !== 'product' && (
                   <>
-                    <button onClick={handlePrint} className="w-10 h-10 bg-white border rounded-full hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center">🖨️</button>
-                    <button onClick={handleDownload} className="w-10 h-10 bg-white border rounded-full hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center justify-center">📥</button>
+                    <button onClick={handlePrint} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center" title="Print">🖨️</button>
+                    <button onClick={handleDownload} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-violet-600 hover:text-white transition-all shadow-sm flex items-center justify-center" title="Download PDF">📥</button>
                   </>
                 )}
-                <button onClick={() => setSelectedItem(null)} className="w-10 h-10 bg-white border rounded-full hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
+                <button onClick={() => setSelectedItem(null)} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
               </div>
             </div>
-            <div className="p-8 max-h-[45vh] overflow-y-auto custom-scrollbar">
+
+            <div className="p-6 max-h-[45vh] overflow-y-auto custom-scrollbar">
               {modalType === 'product' ? (
                 <div className="grid grid-cols-2 gap-6 text-center">
-                  <div className="bg-slate-50 p-6 rounded-3xl"><p className="text-xs font-bold text-slate-400 uppercase mb-2">In Stock</p><p className="text-4xl font-black text-slate-800">{selectedItem.stock_quantity}</p></div>
-                  <div className="bg-slate-50 p-6 rounded-3xl"><p className="text-xs font-bold text-slate-400 uppercase mb-2">Price</p><p className="text-4xl font-black text-slate-800">{selectedItem.unit_price}৳</p></div>
+                  <div className="bg-slate-50/60 p-6 rounded-xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">In Stock</p>
+                    <p className="text-3xl font-black text-slate-800">{selectedItem.stock_quantity}</p>
+                  </div>
+                  <div className="bg-slate-50/60 p-6 rounded-xl border border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Price</p>
+                    <p className="text-3xl font-black text-slate-800">{selectedItem.unit_price} ৳</p>
+                  </div>
                 </div>
               ) : (
                 <table className="w-full text-left">
-                  <thead><tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2"><th className="pb-4">Product</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Total</th></tr></thead>
+                  <thead>
+                    <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
+                      <th className="pb-3">Product Name</th>
+                      <th className="pb-3 text-center">Quantity</th>
+                      <th className="pb-3 text-right">Total Amount</th>
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
                     {modalItems.map((itm, i) => (
-                      <tr key={i} className="group"><td className="py-4 font-bold text-slate-700">{itm.products?.name} <span className="text-xs text-slate-400 block">{itm.products?.model}</span></td><td className="py-4 text-center font-black">{itm.quantity}</td><td className="py-4 text-right font-black text-slate-900">{itm.total_price} ৳</td></tr>
+                      <tr key={i} className="group">
+                        <td className="py-3 font-semibold text-slate-700 text-xs">
+                          {itm.products?.name} 
+                          <span className="text-[10px] text-slate-400 block mt-0.5 font-bold uppercase">{itm.products?.model}</span>
+                        </td>
+                        <td className="py-3 text-center font-black text-xs">{itm.quantity}</td>
+                        <td className="py-3 text-right font-black text-slate-800 text-xs">{itm.total_price.toLocaleString()} ৳</td>
+                      </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
-            <div className="p-8 bg-slate-50 border-t">
+
+            <div className="p-6 bg-slate-50/65 border-t border-slate-100">
                {selectedItem.status === 'hold' ? (
                  <div className="space-y-4">
                     {checkIsTransfer(selectedItem.is_in_house) ? (
-                      <button onClick={() => handleAction('transfer')} disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 uppercase tracking-widest">{processing ? 'Processing...' : 'Confirm Transfer'}</button>
+                      <button 
+                        onClick={() => handleAction('transfer')} 
+                        disabled={processing} 
+                        className="w-full bg-violet-600 hover:bg-violet-750 text-white py-4 rounded-xl font-black text-sm shadow-md active:scale-95 uppercase tracking-wider transition-colors"
+                      >
+                        {processing ? 'Processing Transfer...' : 'Confirm Stock Transfer'}
+                      </button>
                     ) : (
                       <div className="space-y-3">
-                        <input type="text" placeholder="ম্যানুয়াল বিল নাম্বার (খালি রাখলে অটোমেটিক হবে)" value={billNo} onChange={(e) => setBillNo(e.target.value)} className="w-full p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm" />
-                        <div className="flex flex-col md:flex-row gap-3">
-                          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="flex-1 p-4 bg-white border-2 border-slate-200 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm">
-                            <option value="">Method...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
+                        <input 
+                          type="text" 
+                          placeholder="ম্যানুয়াল বিল নাম্বার (ফাঁকা রাখলে অটো-জেনারেটেড হবে)" 
+                          value={billNo} 
+                          onChange={(e) => setBillNo(e.target.value)} 
+                          className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 shadow-sm" 
+                        />
+                        <div className="flex flex-col sm:flex-row gap-3">
+                          <select 
+                            value={paymentMethod} 
+                            onChange={(e) => setPaymentMethod(e.target.value)} 
+                            className="flex-1 p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 shadow-sm"
+                          >
+                            <option value="">Select Payment Method...</option>
+                            <option value="Cash">Cash (💵)</option>
+                            <option value="bKash">bKash (📱)</option>
+                            <option value="Bank">Bank (🏦)</option>
                           </select>
-                          <button onClick={() => handleAction('payment')} disabled={processing || !paymentMethod} className="bg-green-600 hover:bg-green-700 text-white px-10 py-4 rounded-2xl font-black text-lg shadow-md whitespace-nowrap">{processing ? '...' : 'Receive Payment'}</button>
+                          <button 
+                            onClick={() => handleAction('payment')} 
+                            disabled={processing || !paymentMethod} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-xl font-black text-xs shadow-md whitespace-nowrap active:scale-95 transition-colors disabled:bg-slate-200 disabled:text-slate-400"
+                          >
+                            {processing ? 'Processing...' : 'Receive Payment & Issue Bill'}
+                          </button>
                         </div>
                       </div>
                     )}
                  </div>
                ) : (
-                 <div className="mt-4 flex justify-between items-center bg-white p-6 rounded-3xl border shadow-sm">
-                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Transaction Status</p><p className="text-xl font-black text-slate-800 mt-1 uppercase">{selectedItem.status} via {selectedItem.payment_method || 'System'}</p></div>
-                    <p className="text-3xl font-black text-green-600">{selectedItem.total_amount} ৳</p>
+                 <div className="flex justify-between items-center bg-white p-5 rounded-xl border border-slate-200/70 shadow-sm">
+                    <div>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Transaction Status</p>
+                      <p className="text-sm font-black text-slate-750 mt-0.5 uppercase">
+                        {selectedItem.status} via {selectedItem.payment_method || 'System'}
+                      </p>
+                    </div>
+                    <p className="text-2xl font-black text-emerald-600">{selectedItem.total_amount.toLocaleString()} ৳</p>
                  </div>
                )}
             </div>
@@ -339,4 +739,5 @@ const Dashboard = ({ setView }) => {
     </div>
   );
 };
+
 export default Dashboard;
