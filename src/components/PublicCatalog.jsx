@@ -192,12 +192,54 @@ const PublicCatalog = ({ onAdminClick }) => {
   
   const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
 
-  // Filter individual models with stock quantity >= 10
-  const getFilteredProductsList = (cat) => {
-    return products.filter(p => {
-      if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return false;
+  // De-duplicate products by category + name + model, summing their stock quantity
+  const getDeDuplicatedProductsList = (rawProducts) => {
+    const map = {};
+
+    rawProducts.forEach(p => {
+      if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return;
       
-      // Stock quantity check: Must have at least 10 pcs in stock
+      const cat = p.category ? p.category.trim() : '';
+      const name = p.name ? p.name.trim() : '';
+      const model = p.model ? p.model.trim() : '';
+      const key = `${cat}|${name}|${model}`;
+
+      if (!map[key]) {
+        map[key] = {
+          ...p,
+          stock_quantity: 0,
+          availabilities: new Set()
+        };
+      }
+
+      map[key].stock_quantity += Number(p.stock_quantity) || 0;
+      if (p.availability) {
+        map[key].availabilities.add(p.availability.trim().toLowerCase());
+      }
+    });
+
+    return Object.values(map).map(p => {
+      // Combined availability evaluation
+      let finalAvailability = 'out of stock';
+      if (p.availabilities.has('in stock')) {
+        finalAvailability = 'in stock';
+      } else if (p.availabilities.has('upcoming')) {
+        finalAvailability = 'upcoming';
+      }
+      
+      return {
+        ...p,
+        availability: finalAvailability
+      };
+    });
+  };
+
+  // Filter individual models with stock quantity >= 10 and no duplicates
+  const getFilteredProductsList = (cat) => {
+    const deDuplicated = getDeDuplicatedProductsList(products);
+
+    return deDuplicated.filter(p => {
+      // Stock quantity check: Must have at least 10 pcs in stock across all houses
       if (Number(p.stock_quantity) < 10) return false;
 
       const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
@@ -293,8 +335,10 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   const activeShowcaseProduct = getShowcaseProduct(categories[activeCollectionIdx]);
 
-  // Find SolarOn 3600 & 6200 products dynamically for the featured hero section
-  const solarOn3600 = products.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
+  // Extract de-duplicated list once for featured SolarOn items lookup
+  const deDuplicatedProducts = getDeDuplicatedProductsList(products);
+
+  const solarOn3600 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
     name: 'SolarOn',
     model: '3600VA',
     image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
@@ -304,7 +348,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     description: 'High efficiency SolarOn 3600VA hybrid inverter.'
   };
 
-  const solarOn6200 = products.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('6200')) || {
+  const solarOn6200 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('6200')) || {
     name: 'SolarOn',
     model: '6200VA',
     image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
@@ -353,14 +397,14 @@ const PublicCatalog = ({ onAdminClick }) => {
         <div className="absolute inset-0 rounded-full border-4 border-slate-200"></div>
         <div className="absolute inset-0 rounded-full border-4 border-t-[#ea3838] animate-spin"></div>
       </div>
-      <p className="text-slate-500 font-bold tracking-widest text-xs uppercase animate-pulse" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <p className="text-slate-550 font-bold tracking-widest text-xs uppercase animate-pulse" style={{ fontFamily: "'Outfit', sans-serif" }}>
         Loading LAMS Power...
       </p>
     </div>
   );
 
-  const uniqueBrands = [...new Set(products.map(p => p.name ? p.name.trim() : '').filter(Boolean))];
-  const uniqueModels = [...new Set(products.map(p => `${p.name?.trim() || ''}|${p.model?.trim() || ''}`).filter(b => b && b !== '|'))];
+  const uniqueBrands = [...new Set(deDuplicatedProducts.map(p => p.name ? p.name.trim() : '').filter(Boolean))];
+  const uniqueModels = [...new Set(deDuplicatedProducts.map(p => `${p.name?.trim() || ''}|${p.model?.trim() || ''}`).filter(b => b && b !== '|'))];
   const totalBrands = uniqueBrands.length || 4;
   const totalModels = uniqueModels.length || 18;
 
@@ -652,13 +696,13 @@ const PublicCatalog = ({ onAdminClick }) => {
                 {/* Arrow Nav */}
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev - 1 + landingConfig.slider_images.length) % landingConfig.slider_images.length)}
-                  className="absolute left-2 md:left-6 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
+                  className="absolute left-2 md:left-6 w-11 h-11 rounded-full bg-white/95 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
                 >
                   &larr;
                 </button>
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length)}
-                  className="absolute right-2 md:right-6 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
+                  className="absolute right-2 md:right-6 w-11 h-11 rounded-full bg-white/95 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
                 >
                   &rarr;
                 </button>
@@ -1023,7 +1067,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {/* ⚡ COMMUNITY NEWSLETTER FORM */}
           <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
-            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-350/40 relative overflow-hidden">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-355/40 relative overflow-hidden">
               <div className="max-w-2xl mx-auto space-y-6 relative z-10">
                 <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Newsletter</span>
                 <h3 className="text-2xl md:text-4xl font-black text-[#0f172a] leading-tight font-['Outfit']">
@@ -1436,7 +1480,7 @@ const PublicCatalog = ({ onAdminClick }) => {
               />
               <h5 className="text-lg font-black text-white tracking-tighter uppercase font-['Outfit']">Lams<span className="text-[#ea3838]">Power</span></h5>
             </div>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            <p className="text-[10px] text-slate-555 font-bold uppercase tracking-widest">
               © {new Date().getFullYear()} Lams Power. All Rights Reserved.
             </p>
           </div>
