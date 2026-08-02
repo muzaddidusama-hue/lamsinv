@@ -67,6 +67,20 @@ const ProductEntry = () => {
     }
   };
 
+  // Get unique products by brand name + category + model for edit selector dropdown
+  const getUniqueProductsForEdit = () => {
+    const seen = new Set();
+    const unique = [];
+    productsList.forEach(p => {
+      const key = `${p.category}-${p.name}-${p.model}`.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(p);
+      }
+    });
+    return unique;
+  };
+
   // Solar panel watt price auto calculator
   useEffect(() => {
     if (category === 'Solar Panel') {
@@ -198,7 +212,7 @@ const ProductEntry = () => {
     try {
       const url = await uploadFileToStorage(file, 'product_catalog_pdf');
       setPdfUrl(url);
-      alert('✅ PDF ক্যাটালগ আপলোড সফল হয়েছে!');
+      alert('✅ ক্যাটালগ PDF আপলোড সফল হয়েছে!');
     } catch (err) {
       console.error(err);
       alert('PDF আপলোড করতে সমস্যা হয়েছে: ' + err.message);
@@ -283,11 +297,11 @@ const ProductEntry = () => {
         fetchBrands();
         fetchProductsList();
       } else {
-        // Perform Edit/Update
+        // Perform Edit/Update on BOTH warehouses simultaneously
         if (!selectedProductToEdit) return alert('দয়া করে এডিট করার জন্য একটি প্রোডাক্ট সিলেক্ট করুন');
 
-        // 1. Update specific row (ID based)
-        const { error: rowUpdateError } = await supabase
+        // Update all products in products table matching category, original brand name, and original model
+        const { error: updateError } = await supabase
           .from('products')
           .update({
             name: nameToSave,
@@ -296,36 +310,20 @@ const ProductEntry = () => {
             unit_price: parsedPrice,
             availability: availability,
             image_url: imageUrl || null,
-            house: house,
             volt: volt.trim() || null,
             watt: watt.trim() || null,
             description: descriptionJson
           })
-          .eq('id', selectedProductToEdit.id);
+          .eq('category', selectedProductToEdit.category)
+          .eq('name', selectedProductToEdit.name)
+          .eq('model', selectedProductToEdit.model);
 
-        if (rowUpdateError) throw rowUpdateError;
+        if (updateError) throw updateError;
 
-        // 2. Propagate technical specs & description details to all houses/locations having the same model
-        // matching by edited product's category, brand name, and model. This ensures operations remain identical
-        // to FrontEndCustom.jsx which updated volt, watt, description for all matching items in all houses.
-        const { error: syncError } = await supabase
-          .from('products')
-          .update({
-            volt: volt.trim() || null,
-            watt: watt.trim() || null,
-            description: descriptionJson
-          })
-          .eq('category', category)
-          .eq('name', nameToSave)
-          .eq('model', model.trim());
-
-        if (syncError) {
-          console.warn("Specification propagation notice:", syncError.message);
-        }
-
-        alert('✅ প্রোডাক্টের বিবরণ ও তথ্য সফলভাবে আপডেট হয়েছে!');
+        alert('✅ প্রোডাক্টের বিবরণ ও তথ্য সফলভাবে আপডেট হয়েছে (উভয় হাউজে আপডেট হয়েছে)!');
         fetchProductsList();
         fetchBrands();
+        resetForm();
       }
     } catch (err) {
       console.error(err);
@@ -377,7 +375,7 @@ const ProductEntry = () => {
         {/* Left Column: Form Details (General / Advanced) */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* Search Dropdown - visible only in Edit Mode */}
+          {/* Search Dropdown - visible only in Edit Mode (Unique products by model, no houses shown) */}
           {pageMode === 'edit' && (
             <div className="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm space-y-2">
               <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest block">১. এডিট করার জন্য প্রোডাক্ট সিলেক্ট করুন</label>
@@ -387,9 +385,9 @@ const ProductEntry = () => {
                 className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#ea3838]/20"
               >
                 <option value="">প্রোডাক্ট বেছে নিন...</option>
-                {productsList.map(p => (
+                {getUniqueProductsForEdit().map(p => (
                   <option key={p.id} value={p.id}>
-                    [{p.category}] — {p.name} — {p.model} ({p.house})
+                    [{p.category}] — {p.name} — {p.model}
                   </option>
                 ))}
               </select>
@@ -398,63 +396,57 @@ const ProductEntry = () => {
 
           {/* Form Tabs (General specs vs Advanced details) */}
           <div className="bg-white rounded-2xl border border-slate-200/70 shadow-sm overflow-hidden">
-            
-            {/* Tab switch bar */}
-            <div className="flex border-b border-slate-100 bg-slate-50/50 px-4">
-              <button 
+            <div className="flex border-b border-slate-100 bg-slate-50/50">
+              <button
                 type="button"
                 onClick={() => setFormTab('general')}
                 className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'general' ? 'border-[#ea3838] text-[#ea3838]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
               >
-                📦 General Settings
+                📋 General Info
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setFormTab('advanced')}
                 className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'advanced' ? 'border-[#ea3838] text-[#ea3838]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
               >
-                📝 Advanced details (Catalog & Specs)
+                ⚙️ Technical & Catalog Details
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="p-6">
               
               {/* Tab 1: General Info */}
               {formTab === 'general' && (
-                <div className="space-y-5 animate-in fade-in duration-200">
+                <div className="space-y-6 animate-in fade-in duration-200">
                   
-                  {/* Brand & Mode selection */}
-                  <div>
-                    <div className="flex justify-between items-center mb-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Brand / Company (ব্র্যান্ড)</label>
-                      
-                      {/* Brand Type Toggler (Only in Create Mode) */}
-                      {pageMode === 'create' && (
-                        <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50">
-                          <button 
-                            type="button"
-                            onClick={() => { setBrandMode('new'); setBrandName(''); }}
-                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'new' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
-                          >
-                            নতুন
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={() => { setBrandMode('existing'); setBrandName(''); }}
-                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'existing' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
-                          >
-                            পুরাতন
-                          </button>
-                        </div>
-                      )}
+                  {/* Brand Selector */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Brand Name (ব্র্যান্ড বা প্রস্তুতকারক)</label>
+                      <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/40">
+                        <button
+                          type="button"
+                          onClick={() => { setBrandMode('new'); setBrandName(''); }}
+                          className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'new' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
+                        >
+                          New Brand
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setBrandMode('existing'); setBrandName(brands[0] || ''); }}
+                          className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'existing' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
+                        >
+                          Select Existing
+                        </button>
+                      </div>
                     </div>
 
-                    {pageMode === 'create' && brandMode === 'new' ? (
+                    {brandMode === 'new' ? (
                       <input 
                         type="text" 
                         value={brandName} 
-                        onChange={(e) => setBrandName(e.target.value)} 
-                        placeholder="ব্র্যান্ডের নাম লিখুন (উদা: SolarOn)" 
+                        onChange={(e) => setBrandName(e.target.value)}
+                        placeholder="উদা: Powerland, LONGi, Jinko, Growatt" 
                         className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     ) : (
@@ -464,15 +456,14 @@ const ProductEntry = () => {
                         className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800"
                         disabled={pageMode === 'edit'} // Disable brand edit to keep identifiers intact
                       >
-                        <option value="">ব্র্যান্ড সিলেক্ট করুন...</option>
-                        {brands.map((b, i) => <option key={i} value={b}>{b}</option>)}
+                        {brands.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     )}
                   </div>
 
-                  {/* Category & House locations */}
+                  {/* Category & House locations (House hidden in edit mode) */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <div>
+                    <div className={pageMode === 'edit' ? 'col-span-full' : ''}>
                       <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Category (প্রোডাক্ট ক্যাটাগরি)</label>
                       <select 
                         value={category} 
@@ -484,18 +475,19 @@ const ProductEntry = () => {
                       </select>
                     </div>
 
-                    <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Location / House (অবস্থান)</label>
-                      <select 
-                        value={house} 
-                        onChange={(e) => setHouse(e.target.value)}
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-700"
-                        disabled={pageMode === 'edit'} // Disable location edit to keep records consistent
-                      >
-                        <option value="Head Office">Head Office (HO)</option>
-                        <option value="Showroom">Showroom</option>
-                      </select>
-                    </div>
+                    {pageMode === 'create' && (
+                      <div>
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Location / House (অবস্থান)</label>
+                        <select 
+                          value={house} 
+                          onChange={(e) => setHouse(e.target.value)}
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-700"
+                        >
+                          <option value="Head Office">Head Office (HO)</option>
+                          <option value="Showroom">Showroom</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {/* Model specifications */}
@@ -504,35 +496,34 @@ const ProductEntry = () => {
                     <input 
                       type="text" 
                       value={model} 
-                      onChange={(e) => setModel(e.target.value)} 
-                      placeholder="যেমন: 3.6 kW / 550W Mono" 
+                      onChange={(e) => setModel(e.target.value)}
+                      placeholder="উদা: 550W, 10KW hybrid, 50W, 12V 200AH" 
                       className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
-                      disabled={pageMode === 'edit'} // Model is identifier, do not edit
                     />
                   </div>
 
-                  {/* Pricing segment */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
+                  {/* Unit price and stock parameters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {category === 'Solar Panel' ? (
                       <div className="col-span-full grid grid-cols-2 gap-4 bg-[#ea3838]/5 p-4 rounded-xl border border-[#ea3838]/10">
                         <div>
                           <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest mb-2 block">Panel Watt (প্যানেল ওয়াট)</label>
                           <input 
                             type="number" 
-                            value={panelWatt} 
-                            onChange={(e) => setPanelWatt(e.target.value)} 
-                            placeholder="550" 
-                            className="w-full p-3.5 bg-white border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-850" 
+                            placeholder="Watt (e.g. 550)" 
+                            value={panelWatt}
+                            onChange={(e) => setPanelWatt(e.target.value)}
+                            className="w-full p-3 bg-white border border-slate-250 rounded-lg text-xs font-bold outline-none text-slate-800" 
                           />
                         </div>
                         <div>
                           <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest mb-2 block">Per Watt (প্রতি ওয়াট দর)</label>
                           <input 
                             type="number" 
-                            value={perWattPrice} 
-                            onChange={(e) => setPerWattPrice(e.target.value)} 
-                            placeholder="65" 
-                            className="w-full p-3.5 bg-white border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-850" 
+                            placeholder="Price (e.g. 35)" 
+                            value={perWattPrice}
+                            onChange={(e) => setPerWattPrice(e.target.value)}
+                            className="w-full p-3 bg-white border border-slate-250 rounded-lg text-xs font-bold outline-none text-slate-800" 
                           />
                         </div>
                         <div className="col-span-full flex justify-between items-center mt-2 pt-2 border-t border-[#ea3838]/10">
@@ -580,97 +571,86 @@ const ProductEntry = () => {
                       <input 
                         type="text" 
                         value={volt} 
-                        onChange={(e) => setVolt(e.target.value)} 
-                        placeholder="যেমন: 12V / 24V / 230V" 
+                        onChange={(e) => setVolt(e.target.value)}
+                        placeholder="উদা: 12V / 24V / 48V / 220V" 
                         className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     </div>
-                    
                     <div>
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Watt / Capacity rating (লোড ওয়াট)</label>
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Load Capacity Watt (ওয়াট/ক্যাপাসিটি)</label>
                       <input 
                         type="text" 
                         value={watt} 
-                        onChange={(e) => setWatt(e.target.value)} 
-                        placeholder="যেমন: 50W / 200W / 3KW" 
+                        onChange={(e) => setWatt(e.target.value)}
+                        placeholder="উদা: 3KW / 5KW / 200W / 100AH" 
                         className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     </div>
                   </div>
 
-                  {/* Technical Text description */}
+                  {/* Public Description Text Box */}
                   <div>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block font-semibold">Technical Specs & Details (বিস্তারিত বিবরণ)</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Product Public Description (বিস্তারিত বিবরণী)</label>
                     <textarea 
                       value={descriptionText} 
-                      onChange={(e) => setDescriptionText(e.target.value)} 
+                      onChange={(e) => setDescriptionText(e.target.value)}
+                      placeholder="পাবলিক ক্যাটালগ পেজে প্যানেল বা ইনভার্টারের বিবরণী হিসেবে দেখানোর জন্য তথ্য..." 
                       rows="4"
-                      placeholder="পাবলিক পেজে দেখানোর জন্য প্রোডাক্টের বিস্তারিত বিবরণ এবং টেকনিক্যাল ডেটা এখানে লিখুন..."
                       className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-800 leading-relaxed"
                     />
                   </div>
 
-                  {/* PDF Catalog file uploader */}
+                  {/* Catalog PDF Link / Upload option */}
                   <div className="border-t border-slate-100 pt-5 space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-bold">Catalog PDF File</label>
+                    <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest block">১. ক্যাটালগ PDF ফাইল</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Direct PDF URL Link</label>
                         <input 
                           type="text" 
                           value={pdfUrl} 
                           onChange={(e) => setPdfUrl(e.target.value)}
-                          placeholder="https://example.com/catalog.pdf" 
-                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-650" 
+                          placeholder="সরাসরি PDF লিঙ্ক দিন (যেমন: https://...)" 
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-800" 
                         />
                       </div>
                       <div className="flex flex-col justify-end">
-                        <label className="cursor-pointer flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors p-3 text-center min-h-[48px] relative">
-                          {uploadingPdf ? (
-                            <span className="text-slate-400 font-bold text-xs">⏳ uploading...</span>
-                          ) : (
-                            <span className="text-slate-600 font-bold text-xs">📤 PDF আপলোড করুন</span>
-                          )}
+                        <label className="cursor-pointer border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 transition-colors p-3.5 rounded-xl text-center text-xs font-bold text-slate-500 relative min-h-[50px] flex items-center justify-center">
+                          {uploadingPdf ? '⏳ PDF আপলোড হচ্ছে...' : '📤 PDF ফাইল আপলোড করুন'}
                           <input type="file" accept="application/pdf" onChange={handlePdfUpload} className="hidden" disabled={uploadingPdf} />
                         </label>
                       </div>
                     </div>
                     {pdfUrl && (
                       <div className="p-3 bg-[#ea3838]/5 border border-[#ea3838]/10 rounded-xl flex items-center justify-between text-[11px] font-bold text-[#ea3838]">
-                        <span className="truncate max-w-[80%]">📄 PDF: {pdfUrl}</span>
+                        <span className="truncate max-w-[80%]">📄 সংযুক্ত PDF: {pdfUrl}</span>
                         <button type="button" onClick={() => setPdfUrl('')} className="text-red-500 hover:text-red-700">✕ মুছে ফেলুন</button>
                       </div>
                     )}
                   </div>
 
-                  {/* Catalog image file uploader */}
+                  {/* Catalog Poster Image Link / Upload option */}
                   <div className="border-t border-slate-100 pt-5 space-y-3">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-bold">Catalog Poster Image</label>
+                    <label className="text-[10px] font-black text-slate-450 uppercase tracking-widest block">২. ক্যাটালগ পোস্টার ইমেজ</label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Direct Catalog Image URL</label>
                         <input 
                           type="text" 
                           value={catalogImageUrl} 
                           onChange={(e) => setCatalogImageUrl(e.target.value)}
-                          placeholder="https://example.com/poster.jpg" 
-                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-650" 
+                          placeholder="ইমেজের সরাসরি লিঙ্ক দিন (যেমন: https://...)" 
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-800" 
                         />
                       </div>
                       <div className="flex flex-col justify-end">
-                        <label className="cursor-pointer flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors p-3 text-center min-h-[48px] relative">
-                          {uploadingCatalogImg ? (
-                            <span className="text-slate-400 font-bold text-xs">⏳ uploading...</span>
-                          ) : (
-                            <span className="text-slate-600 font-bold text-xs">📤 ক্যাটালগ ইমেজ আপলোড করুন</span>
-                          )}
+                        <label className="cursor-pointer border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-100/50 transition-colors p-3.5 rounded-xl text-center text-xs font-bold text-slate-500 relative min-h-[50px] flex items-center justify-center">
+                          {uploadingCatalogImg ? '⏳ আপলোড হচ্ছে...' : '📤 ইমেজ ফাইল আপলোড করুন'}
                           <input type="file" accept="image/*" onChange={handleCatalogImageUpload} className="hidden" disabled={uploadingCatalogImg} />
                         </label>
                       </div>
                     </div>
                     {catalogImageUrl && (
                       <div className="p-3 bg-[#ea3838]/5 border border-[#ea3838]/10 rounded-xl flex items-center justify-between text-[11px] font-bold text-[#ea3838]">
-                        <span className="truncate max-w-[80%]">🖼️ ক্যাটালগ ছবি: {catalogImageUrl}</span>
+                        <span className="truncate max-w-[80%]">🖼️ সংযুক্ত ইমেজ: {catalogImageUrl}</span>
                         <button type="button" onClick={() => setCatalogImageUrl('')} className="text-red-500 hover:text-red-700">✕ মুছে ফেলুন</button>
                       </div>
                     )}
@@ -681,37 +661,38 @@ const ProductEntry = () => {
 
             </div>
           </div>
+
         </div>
 
-        {/* Right Column: Thumbnail image and submit action button */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        {/* Right Column: Image Preview and Publish Action */}
+        <div className="lg:col-span-4 space-y-6">
           
-          {/* Card 1: Image Thumbnail upload preview */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm flex flex-col items-center">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 block w-full text-center">Product Image (প্রোডাক্ট ইমেজ)</label>
+          {/* Main Thumbnail Uploader Card */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm space-y-5">
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider border-b pb-3 border-slate-100">প্রোডাক্ট থাম্বনেইল</h3>
             
-            <div className="w-full border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/60 flex flex-col items-center justify-center p-6 min-h-[260px] relative overflow-hidden group aspect-square">
+            <div className="border-2 border-dashed border-slate-200 rounded-[2.5rem] bg-slate-50/50 flex flex-col items-center justify-center p-6 min-h-[220px] relative overflow-hidden group">
               {imageUrl ? (
                 <>
-                  <img src={imageUrl} alt="Thumbnail Preview" className="h-full w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
+                  <img src={imageUrl} alt="Thumbnail Preview" className="h-44 w-full object-contain mix-blend-multiply transition-transform group-hover:scale-105" />
                   <button 
                     type="button" 
                     onClick={() => setImageUrl('')} 
-                    className="absolute top-3 right-3 bg-red-500 text-white w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                    className="absolute top-4 right-4 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-red-650 transition-colors"
                   >
                     ✕
                   </button>
                 </>
               ) : (
-                <label className="cursor-pointer text-center w-full h-full flex flex-col items-center justify-center hover:bg-slate-100/50 transition-colors py-8">
-                  <div className="text-4xl mb-3 opacity-25">{uploadingImage ? '⏳' : '📤'}</div>
-                  <span className="text-slate-500 font-black text-xs uppercase tracking-widest block px-4">
-                    {uploadingImage ? 'আপলোড হচ্ছে...' : 'ক্লিক করে ইমেজ আপলোড দিন'}
+                <label className="cursor-pointer text-center w-full h-full flex flex-col items-center justify-center py-6 hover:bg-slate-100/50 transition-colors rounded-[2.5rem]">
+                  <div className="text-4xl mb-2 opacity-25">{uploadingImage ? '⏳' : '📤'}</div>
+                  <span className="text-slate-500 font-black text-[10px] uppercase tracking-widest">
+                    {uploadingImage ? 'আপলোড হচ্ছে...' : 'ক্লিক করে আপলোড দিন'}
                   </span>
-                  <p className="text-[9px] text-slate-400 font-bold mt-1 px-4">Set the product thumbnail image. *.png, *.jpg accepted.</p>
                   <input type="file" accept="image/*" onChange={handleMainImageUpload} className="hidden" disabled={uploadingImage} />
                 </label>
               )}
+
               {uploadingImage && (
                 <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ea3838]"></div>
@@ -719,37 +700,31 @@ const ProductEntry = () => {
               )}
             </div>
 
-            <div className="w-full mt-4">
-              <label className="text-[9px] font-bold text-slate-400 uppercase mb-1 block">Image URL Link</label>
-              <input 
-                type="text" 
-                value={imageUrl} 
-                readOnly 
-                placeholder="আপলোড করা ইমেজের লিঙ্ক এখানে আসবে" 
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-[9px] font-bold text-slate-500" 
-              />
-            </div>
+            <input 
+              type="text" 
+              value={imageUrl} 
+              readOnly 
+              placeholder=" থাম্বনেইল ছবির সরাসরি লিঙ্ক" 
+              className="w-full p-3 bg-red-50/30 border border-[#ea3838]/10 rounded-2xl outline-none text-[10px] font-medium text-slate-500" 
+            />
           </div>
 
-          {/* Card 2: Publish / Update Button actions */}
-          <div className="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm flex flex-col gap-3">
+          {/* Trigger Publish Submit Button */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/70 shadow-sm">
             <button 
               type="submit" 
-              disabled={loading || uploadingImage || uploadingPdf || uploadingCatalogImg} 
+              disabled={loading} 
               className="w-full bg-[#ea3838] hover:bg-red-600 text-white py-4 rounded-xl font-black text-sm transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400"
             >
-              {loading 
-                ? (pageMode === 'create' ? 'পাবলিশ হচ্ছে...' : 'আপডেট হচ্ছে...') 
-                : (pageMode === 'create' ? '🚀 প্রোডাক্ট পাবলিশ করুন' : '💾 প্রোডাক্ট আপডেট করুন')}
+              {loading ? 'প্রসেসিং হচ্ছে...' : (pageMode === 'create' ? '🚀 প্রোডাক্ট পাবলিশ করুন' : '💾 আপডেট সেভ করুন')}
             </button>
-            
             {pageMode === 'edit' && (
               <button 
                 type="button" 
                 onClick={resetForm}
-                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-650 py-3 rounded-xl font-bold text-xs transition-all"
+                className="w-full bg-slate-100 hover:bg-slate-250 text-slate-700 py-3 rounded-xl font-black text-xs transition-all mt-3 active:scale-95"
               >
-                Reset Fields (বাতিল করুন)
+                ✕ বাতিল করুন
               </button>
             )}
           </div>
