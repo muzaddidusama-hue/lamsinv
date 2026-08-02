@@ -190,7 +190,7 @@ const Dashboard = ({ setView }) => {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] gap-3">
-        <div className="w-10 h-10 rounded-full border-4 border-slate-100 border-t-violet-650 animate-spin"></div>
+        <div className="w-10 h-10 rounded-full border-4 border-slate-100 border-t-[#ea3838] animate-spin"></div>
         <span className="text-xs text-slate-400 font-bold uppercase tracking-widest animate-pulse">Loading Dashboard...</span>
       </div>
     );
@@ -234,7 +234,7 @@ const Dashboard = ({ setView }) => {
 
   // Icons used inside top cards
   const pendingIcon = (
-    <svg className="w-6 h-6 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+    <svg className="w-6 h-6 text-[#ea3838]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
@@ -276,8 +276,8 @@ const Dashboard = ({ setView }) => {
       {/* Top statistical cards - modern, sleek design with lavender highlights */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
         {[
-          { label: 'Pending Action', val: holdChalans.length, bg: 'bg-violet-50/80 border-violet-100/50', icon: pendingIcon, colorText: 'text-violet-650' },
-          { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-blue-50/80 border-blue-100/50', icon: chalansIcon, colorText: 'text-blue-600' },
+          { label: 'Pending Action', val: holdChalans.length, bg: 'bg-[#ea3838]/5 border-[#ea3838]/10', icon: pendingIcon, colorText: 'text-[#ea3838]' },
+          { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-slate-100/80 border-blue-100/50', icon: chalansIcon, colorText: 'text-slate-700' },
           { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: salesIcon, colorText: 'text-emerald-600' },
           { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-rose-50/80 border-rose-100/50', icon: stockIcon, colorText: 'text-rose-600' }
         ].map((s, i) => (
@@ -314,8 +314,8 @@ const Dashboard = ({ setView }) => {
               {/* Definitions for glowing gradient overlays */}
               <defs>
                 <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.25" />
-                  <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.00" />
+                  <stop offset="0%" stopColor="#ea3838" stopOpacity="0.25" />
+                  <stop offset="100%" stopColor="#ea3838" stopOpacity="0.00" />
                 </linearGradient>
               </defs>
               
@@ -343,7 +343,7 @@ const Dashboard = ({ setView }) => {
 
               {/* Line graph */}
               {salesPointsStr && (
-                <path d={salesPointsStr} fill="none" stroke="#7c3aed" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={salesPointsStr} fill="none" stroke="#ea3838" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
               )}
 
               {/* Dots on points */}
@@ -353,7 +353,7 @@ const Dashboard = ({ setView }) => {
                 const y = (salesChartHeight - salesPaddingY * 2) - (d.total / maxSales) * (salesChartHeight - salesPaddingY * 2) + salesPaddingY;
                 return (
                   <g key={idx} className="group/dot cursor-pointer">
-                    <circle cx={x} cy={y} r="4.5" fill="#7c3aed" stroke="#ffffff" strokeWidth="2" />
+                    <circle cx={x} cy={y} r="4.5" fill="#ea3838" stroke="#ffffff" strokeWidth="2" />
                     <title>{`Day ${d.day}: ${d.total} ৳`}</title>
                   </g>
                 );
@@ -379,7 +379,7 @@ const Dashboard = ({ setView }) => {
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider">Challan Volume (Daily Count)</h3>
               <p className="text-[10px] font-bold text-slate-400 mt-0.5">Total number of challans generated per day this month.</p>
             </div>
-            <span className="text-xs font-black text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
+            <span className="text-xs font-black text-slate-700 bg-slate-100 px-2.5 py-1 rounded-full">
               {challanData.reduce((acc, curr) => acc + curr.count, 0)} Challans
             </span>
           </div>
@@ -417,8 +417,8 @@ const Dashboard = ({ setView }) => {
                       width={singleBarWidth} 
                       height={Math.max(barHeight, 1.5)} 
                       rx="2"
-                      fill={d.count > 0 ? "#3b82f6" : "#e2e8f0"} 
-                      className="transition-all hover:fill-blue-600"
+                      fill={d.count > 0 ? "#475569" : "#e2e8f0"} 
+                      className="transition-all hover:fill-slate-800"
                     />
                     <title>{`Day ${d.day}: ${d.count} Challans`}</title>
                   </g>
@@ -446,7 +446,7 @@ const Dashboard = ({ setView }) => {
         <div className="xl:col-span-4 space-y-4">
           <div className="flex justify-between items-center px-1">
             <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Pending Verification</h3>
-            <span className="text-[10px] font-black bg-violet-100 text-violet-750 px-2 py-0.5 rounded-full uppercase">
+            <span className="text-[10px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded-full uppercase">
               {holdChalans.length} Action Needed
             </span>
           </div>
@@ -456,10 +456,10 @@ const Dashboard = ({ setView }) => {
               <div 
                 key={c.id} 
                 onClick={() => handleViewDetails(c, 'chalan')} 
-                className="bg-white p-5 rounded-2xl border border-slate-200/70 hover-scale hover:shadow-md hover:border-violet-200 transition-all cursor-pointer group"
+                className="bg-white p-5 rounded-2xl border border-slate-200/70 hover-scale hover:shadow-md hover:border-[#ea3838]/20 transition-all cursor-pointer group"
               >
                 <div className="flex justify-between items-start mb-3">
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${checkIsTransfer(c.is_in_house) ? 'bg-blue-50 text-blue-600 border border-blue-100' : 'bg-violet-50 text-violet-650 border border-violet-100'}`}>
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${checkIsTransfer(c.is_in_house) ? 'bg-slate-100 text-slate-700 border border-blue-100' : 'bg-[#ea3838]/5 text-[#ea3838] border border-[#ea3838]/10'}`}>
                     {checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}
                   </span>
                   <span className="text-[10px] font-bold text-slate-400">
@@ -472,7 +472,7 @@ const Dashboard = ({ setView }) => {
                 </p>
                 <div className="mt-4 flex justify-between items-center pt-2 border-t border-slate-50">
                   <span className="text-base font-black text-slate-800">{c.total_amount.toLocaleString()} ৳</span>
-                  <div className="w-7 h-7 rounded-full bg-slate-50 group-hover:bg-violet-50 group-hover:text-violet-600 flex items-center justify-center transition-colors text-slate-400 text-xs font-bold">
+                  <div className="w-7 h-7 rounded-full bg-slate-50 group-hover:bg-[#ea3838]/5 group-hover:text-[#ea3838] flex items-center justify-center transition-colors text-slate-400 text-xs font-bold">
                     →
                   </div>
                 </div>
@@ -518,7 +518,7 @@ const Dashboard = ({ setView }) => {
                   <div 
                     key={tc.id} 
                     onClick={() => handleViewDetails(tc, 'chalan')} 
-                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-violet-50/20 hover:border-violet-100 cursor-pointer transition-all flex items-center justify-between"
+                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-[#ea3838]/5/20 hover:border-[#ea3838]/10 cursor-pointer transition-all flex items-center justify-between"
                   >
                     <div>
                       <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
@@ -598,7 +598,7 @@ const Dashboard = ({ setView }) => {
                     <p className="font-black text-slate-800 text-xs truncate">{p.name}</p>
                     <div className="flex items-center gap-2 mt-1">
                       <p className="text-[9px] font-bold text-slate-400 uppercase truncate">{p.model}</p>
-                      <span className={`text-[8px] font-black px-1.5 py-0.25 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-50 text-purple-650' : 'bg-blue-50 text-blue-650'}`}>
+                      <span className={`text-[8px] font-black px-1.5 py-0.25 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-50 text-purple-650' : 'bg-slate-100 text-blue-650'}`}>
                         {p.house === 'Showroom' ? 'Showroom' : 'HO'}
                       </span>
                     </div>
@@ -625,7 +625,7 @@ const Dashboard = ({ setView }) => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 border border-slate-100">
             <div className="p-6 bg-slate-50/65 border-b border-slate-100 flex justify-between items-start">
               <div>
-                <span className="text-[10px] font-black text-violet-650 uppercase tracking-widest">{modalType} DETAILS</span>
+                <span className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest">{modalType} DETAILS</span>
                 <h3 className="text-2xl font-black text-slate-900 mt-1">{selectedItem.bill_no || selectedItem.chalan_no || selectedItem.name}</h3>
                 <p className="text-xs font-bold text-slate-400 mt-1.5">
                   {modalType === 'product' ? `Model: ${selectedItem.model}` : (checkIsTransfer(selectedItem.is_in_house) ? `Transfer: ${selectedItem.house} ➔ ${selectedItem.transfer_to}` : `Customer: ${selectedItem.customer_name || selectedItem.customers?.name || 'Walk-in'}`)}
@@ -635,7 +635,7 @@ const Dashboard = ({ setView }) => {
                 {modalType !== 'product' && (
                   <>
                     <button onClick={handlePrint} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-slate-900 hover:text-white transition-all shadow-sm flex items-center justify-center" title="Print">🖨️</button>
-                    <button onClick={handleDownload} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-violet-600 hover:text-white transition-all shadow-sm flex items-center justify-center" title="Download PDF">📥</button>
+                    <button onClick={handleDownload} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-[#ea3838] hover:text-white transition-all shadow-sm flex items-center justify-center" title="Download PDF">📥</button>
                   </>
                 )}
                 <button onClick={() => setSelectedItem(null)} className="w-9 h-9 bg-white border border-slate-200 rounded-xl hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center">✕</button>
@@ -686,7 +686,7 @@ const Dashboard = ({ setView }) => {
                       <button 
                         onClick={() => handleAction('transfer')} 
                         disabled={processing} 
-                        className="w-full bg-violet-600 hover:bg-violet-750 text-white py-4 rounded-xl font-black text-sm shadow-md active:scale-95 uppercase tracking-wider transition-colors"
+                        className="w-full bg-[#ea3838] hover:bg-red-600 text-white py-4 rounded-xl font-black text-sm shadow-md active:scale-95 uppercase tracking-wider transition-colors"
                       >
                         {processing ? 'Processing Transfer...' : 'Confirm Stock Transfer'}
                       </button>
@@ -697,13 +697,13 @@ const Dashboard = ({ setView }) => {
                           placeholder="ম্যানুয়াল বিল নাম্বার (ফাঁকা রাখলে অটো-জেনারেটেড হবে)" 
                           value={billNo} 
                           onChange={(e) => setBillNo(e.target.value)} 
-                          className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 shadow-sm" 
+                          className="w-full p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-[#ea3838] focus:ring-2 focus:ring-[#ea3838]/10 shadow-sm" 
                         />
                         <div className="flex flex-col sm:flex-row gap-3">
                           <select 
                             value={paymentMethod} 
                             onChange={(e) => setPaymentMethod(e.target.value)} 
-                            className="flex-1 p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-100 shadow-sm"
+                            className="flex-1 p-3.5 bg-white border border-slate-200 rounded-xl font-bold text-xs outline-none focus:border-[#ea3838] focus:ring-2 focus:ring-[#ea3838]/10 shadow-sm"
                           >
                             <option value="">Select Payment Method...</option>
                             <option value="Cash">Cash (💵)</option>

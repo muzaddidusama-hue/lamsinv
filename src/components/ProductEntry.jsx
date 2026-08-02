@@ -347,7 +347,7 @@ const ProductEntry = () => {
           <div className="flex items-center gap-2 mt-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
             <span>Inventory</span>
             <span>/</span>
-            <span className="text-violet-600">
+            <span className="text-[#ea3838]">
               {pageMode === 'create' ? 'Add Product' : 'Edit Product'}
             </span>
           </div>
@@ -358,14 +358,14 @@ const ProductEntry = () => {
           <button 
             type="button"
             onClick={() => { setPageMode('create'); resetForm(); }}
-            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${pageMode === 'create' ? 'bg-white text-violet-650 shadow-sm border border-slate-200/20' : 'text-slate-500 hover:text-slate-850'}`}
+            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${pageMode === 'create' ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/20' : 'text-slate-500 hover:text-slate-850'}`}
           >
             ➕ নতুন প্রোডাক্ট যোগ করুন
           </button>
           <button 
             type="button"
             onClick={() => { setPageMode('edit'); resetForm(); }}
-            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${pageMode === 'edit' ? 'bg-white text-violet-650 shadow-sm border border-slate-200/20' : 'text-slate-500 hover:text-slate-855'}`}
+            className={`px-5 py-2 rounded-lg font-bold text-xs transition-all ${pageMode === 'edit' ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/20' : 'text-slate-500 hover:text-slate-855'}`}
           >
             ✏️ প্রোডাক্ট এডিট / আপডেট
           </button>
@@ -380,11 +380,11 @@ const ProductEntry = () => {
           {/* Search Dropdown - visible only in Edit Mode */}
           {pageMode === 'edit' && (
             <div className="bg-white p-5 rounded-2xl border border-slate-200/70 shadow-sm space-y-2">
-              <label className="text-[10px] font-black text-violet-650 uppercase tracking-widest block">১. এডিট করার জন্য প্রোডাক্ট সিলেক্ট করুন</label>
+              <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest block">১. এডিট করার জন্য প্রোডাক্ট সিলেক্ট করুন</label>
               <select 
                 onChange={(e) => handleSelectProductToEdit(e.target.value)}
                 value={selectedProductToEdit ? selectedProductToEdit.id : ''}
-                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-2 focus:ring-violet-200"
+                className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-xs text-slate-800 outline-none focus:ring-2 focus:ring-[#ea3838]/20"
               >
                 <option value="">প্রোডাক্ট বেছে নিন...</option>
                 {productsList.map(p => (
@@ -404,14 +404,14 @@ const ProductEntry = () => {
               <button 
                 type="button"
                 onClick={() => setFormTab('general')}
-                className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'general' ? 'border-violet-600 text-violet-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'general' ? 'border-[#ea3838] text-[#ea3838]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
               >
                 📦 General Settings
               </button>
               <button 
                 type="button"
                 onClick={() => setFormTab('advanced')}
-                className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'advanced' ? 'border-violet-600 text-violet-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                className={`py-3.5 px-4 font-bold text-xs transition-all border-b-2 -mb-px flex items-center gap-2 ${formTab === 'advanced' ? 'border-[#ea3838] text-[#ea3838]' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
               >
                 📝 Advanced details (Catalog & Specs)
               </button>
@@ -434,14 +434,14 @@ const ProductEntry = () => {
                           <button 
                             type="button"
                             onClick={() => { setBrandMode('new'); setBrandName(''); }}
-                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'new' ? 'bg-white text-violet-650 shadow-sm' : 'text-slate-400'}`}
+                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'new' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
                           >
                             নতুন
                           </button>
                           <button 
                             type="button"
                             onClick={() => { setBrandMode('existing'); setBrandName(''); }}
-                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'existing' ? 'bg-white text-violet-650 shadow-sm' : 'text-slate-400'}`}
+                            className={`px-2.5 py-1 rounded font-bold text-[9px] transition-all ${brandMode === 'existing' ? 'bg-white text-[#ea3838] shadow-sm' : 'text-slate-400'}`}
                           >
                             পুরাতন
                           </button>
@@ -455,13 +455,13 @@ const ProductEntry = () => {
                         value={brandName} 
                         onChange={(e) => setBrandName(e.target.value)} 
                         placeholder="ব্র্যান্ডের নাম লিখুন (উদা: SolarOn)" 
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800" 
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     ) : (
                       <select 
                         value={brandName} 
                         onChange={(e) => setBrandName(e.target.value)}
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800"
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800"
                         disabled={pageMode === 'edit'} // Disable brand edit to keep identifiers intact
                       >
                         <option value="">ব্র্যান্ড সিলেক্ট করুন...</option>
@@ -477,7 +477,7 @@ const ProductEntry = () => {
                       <select 
                         value={category} 
                         onChange={(e) => setCategory(e.target.value)}
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-700"
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-700"
                         disabled={pageMode === 'edit'} // Disable category change in edit mode
                       >
                         {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -489,7 +489,7 @@ const ProductEntry = () => {
                       <select 
                         value={house} 
                         onChange={(e) => setHouse(e.target.value)}
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-700"
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-700"
                         disabled={pageMode === 'edit'} // Disable location edit to keep records consistent
                       >
                         <option value="Head Office">Head Office (HO)</option>
@@ -506,7 +506,7 @@ const ProductEntry = () => {
                       value={model} 
                       onChange={(e) => setModel(e.target.value)} 
                       placeholder="যেমন: 3.6 kW / 550W Mono" 
-                      className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800" 
+                      className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       disabled={pageMode === 'edit'} // Model is identifier, do not edit
                     />
                   </div>
@@ -514,9 +514,9 @@ const ProductEntry = () => {
                   {/* Pricing segment */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
                     {category === 'Solar Panel' ? (
-                      <div className="col-span-full grid grid-cols-2 gap-4 bg-violet-55/5 p-4 rounded-xl border border-violet-100/50">
+                      <div className="col-span-full grid grid-cols-2 gap-4 bg-[#ea3838]/5 p-4 rounded-xl border border-[#ea3838]/10">
                         <div>
-                          <label className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-2 block">Panel Watt (প্যানেল ওয়াট)</label>
+                          <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest mb-2 block">Panel Watt (প্যানেল ওয়াট)</label>
                           <input 
                             type="number" 
                             value={panelWatt} 
@@ -526,7 +526,7 @@ const ProductEntry = () => {
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-black text-violet-600 uppercase tracking-widest mb-2 block">Per Watt (প্রতি ওয়াট দর)</label>
+                          <label className="text-[10px] font-black text-[#ea3838] uppercase tracking-widest mb-2 block">Per Watt (প্রতি ওয়াট দর)</label>
                           <input 
                             type="number" 
                             value={perWattPrice} 
@@ -535,9 +535,9 @@ const ProductEntry = () => {
                             className="w-full p-3.5 bg-white border border-slate-200 rounded-xl outline-none font-bold text-xs text-slate-850" 
                           />
                         </div>
-                        <div className="col-span-full flex justify-between items-center mt-2 pt-2 border-t border-violet-100/30">
-                          <span className="text-[11px] font-black text-violet-750 uppercase tracking-wider">Calculated Total Price:</span>
-                          <span className="text-base font-black text-violet-800">{unitPrice || '0'} ৳</span>
+                        <div className="col-span-full flex justify-between items-center mt-2 pt-2 border-t border-[#ea3838]/10">
+                          <span className="text-[11px] font-black text-[#ea3838] uppercase tracking-wider">Calculated Total Price:</span>
+                          <span className="text-base font-black text-[#ea3838]">{unitPrice || '0'} ৳</span>
                         </div>
                       </div>
                     ) : (
@@ -548,7 +548,7 @@ const ProductEntry = () => {
                           value={unitPrice} 
                           onChange={(e) => setUnitPrice(e.target.value)} 
                           placeholder="0.00" 
-                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800" 
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                         />
                       </div>
                     )}
@@ -558,7 +558,7 @@ const ProductEntry = () => {
                       <select 
                         value={availability} 
                         onChange={(e) => setAvailability(e.target.value)}
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-700"
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-700"
                       >
                         <option value="in stock">In Stock</option>
                         <option value="upcoming">Upcoming</option>
@@ -582,7 +582,7 @@ const ProductEntry = () => {
                         value={volt} 
                         onChange={(e) => setVolt(e.target.value)} 
                         placeholder="যেমন: 12V / 24V / 230V" 
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800" 
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     </div>
                     
@@ -593,7 +593,7 @@ const ProductEntry = () => {
                         value={watt} 
                         onChange={(e) => setWatt(e.target.value)} 
                         placeholder="যেমন: 50W / 200W / 3KW" 
-                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-bold text-xs text-slate-800" 
+                        className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                       />
                     </div>
                   </div>
@@ -606,7 +606,7 @@ const ProductEntry = () => {
                       onChange={(e) => setDescriptionText(e.target.value)} 
                       rows="4"
                       placeholder="পাবলিক পেজে দেখানোর জন্য প্রোডাক্টের বিস্তারিত বিবরণ এবং টেকনিক্যাল ডেটা এখানে লিখুন..."
-                      className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-semibold text-xs text-slate-800 leading-relaxed"
+                      className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-800 leading-relaxed"
                     />
                   </div>
 
@@ -621,7 +621,7 @@ const ProductEntry = () => {
                           value={pdfUrl} 
                           onChange={(e) => setPdfUrl(e.target.value)}
                           placeholder="https://example.com/catalog.pdf" 
-                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-semibold text-xs text-slate-650" 
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-650" 
                         />
                       </div>
                       <div className="flex flex-col justify-end">
@@ -636,7 +636,7 @@ const ProductEntry = () => {
                       </div>
                     </div>
                     {pdfUrl && (
-                      <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl flex items-center justify-between text-[11px] font-bold text-violet-750">
+                      <div className="p-3 bg-[#ea3838]/5 border border-[#ea3838]/10 rounded-xl flex items-center justify-between text-[11px] font-bold text-[#ea3838]">
                         <span className="truncate max-w-[80%]">📄 PDF: {pdfUrl}</span>
                         <button type="button" onClick={() => setPdfUrl('')} className="text-red-500 hover:text-red-700">✕ মুছে ফেলুন</button>
                       </div>
@@ -654,7 +654,7 @@ const ProductEntry = () => {
                           value={catalogImageUrl} 
                           onChange={(e) => setCatalogImageUrl(e.target.value)}
                           placeholder="https://example.com/poster.jpg" 
-                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-100 font-semibold text-xs text-slate-650" 
+                          className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-semibold text-xs text-slate-650" 
                         />
                       </div>
                       <div className="flex flex-col justify-end">
@@ -669,7 +669,7 @@ const ProductEntry = () => {
                       </div>
                     </div>
                     {catalogImageUrl && (
-                      <div className="p-3 bg-violet-50/50 border border-violet-100 rounded-xl flex items-center justify-between text-[11px] font-bold text-violet-755">
+                      <div className="p-3 bg-[#ea3838]/5 border border-[#ea3838]/10 rounded-xl flex items-center justify-between text-[11px] font-bold text-[#ea3838]">
                         <span className="truncate max-w-[80%]">🖼️ ক্যাটালগ ছবি: {catalogImageUrl}</span>
                         <button type="button" onClick={() => setCatalogImageUrl('')} className="text-red-500 hover:text-red-700">✕ মুছে ফেলুন</button>
                       </div>
@@ -714,7 +714,7 @@ const ProductEntry = () => {
               )}
               {uploadingImage && (
                 <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ea3838]"></div>
                 </div>
               )}
             </div>
@@ -736,7 +736,7 @@ const ProductEntry = () => {
             <button 
               type="submit" 
               disabled={loading || uploadingImage || uploadingPdf || uploadingCatalogImg} 
-              className="w-full bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-xl font-black text-sm transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400"
+              className="w-full bg-[#ea3838] hover:bg-red-600 text-white py-4 rounded-xl font-black text-sm transition-all shadow-md active:scale-95 disabled:bg-slate-200 disabled:text-slate-400"
             >
               {loading 
                 ? (pageMode === 'create' ? 'পাবলিশ হচ্ছে...' : 'আপডেট হচ্ছে...') 

@@ -1,60 +1,47 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
 
-// Modern Minimal SVG Icons for Sidebar - styled to match MatDash (lavender/indigo color schemes)
+// Modern Minimal SVG Icons for Sidebar - styled to match Landing Page colors (#ea3838 and slate)
 const DashboardIcon = () => (
   <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v4a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
   </svg>
 );
 
-const ScanIcon = () => (
-  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
-const ProductIcon = () => (
-  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-  </svg>
-);
-
-const BillingIcon = () => (
+const ChalanIcon = () => (
   <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 );
 
-const ServiceIcon = () => (
+const ScanIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5.077 19.923l.006.007a1.002 1.002 0 001.41 0l.007-.006a1.002 1.002 0 000-1.41l-.007-.007a1.002 1.002 0 00-1.41 0l-.006.007a1.002 1.002 0 000 1.41z" />
+  </svg>
+);
+
+const ReportsIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z" />
+  </svg>
+);
+
+const SettingsIcon = () => (
   <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
 
-const ReportIcon = () => (
-  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-  </svg>
-);
-
-const CustomIcon = () => (
-  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-  </svg>
-);
-
-const UsersIcon = () => (
+const UserIcon = () => (
   <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
   </svg>
 );
 
 const LogoutIcon = () => (
-  <svg className="w-5 h-5 text-red-500 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" />
   </svg>
 );
 
@@ -63,48 +50,93 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   const location = useLocation();
   const currentPath = location.pathname;
 
+  // States
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [openSubMenu, setOpenSubMenu] = useState('');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
-  // Filter menu items by role and set paths
+  // Functional features states
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
+  });
+  
+  const [searchText, setSearchText] = useState('');
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: "নতুন চালান তৈরি হয়েছে: CHN-998822", time: "৫ মিনিট আগে", read: false },
+    { id: 2, text: "স্টক ফুরিয়ে যাচ্ছে: SolarOn 3600VA (বাকি আছে ৪ পিস)", time: "২ ঘণ্টা আগে", read: false },
+    { id: 3, text: "সার্ভিসিং কমপ্লিট: Nawabpur Inverter 5KVA", time: "১ দিন আগে", read: true }
+  ]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Sync theme to root class
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
+  // Sidebar navigation menus config
   const menuItems = [
-    { id: 'dashboard', path: '/dashboard', icon: <DashboardIcon />, label: 'ড্যাশবোর্ড (Dashboard)' },
-    { id: 'smart_scan', path: '/scan', icon: <ScanIcon />, label: 'স্মার্ট স্ক্যানার (AI)' },
+    { id: 'dashboard', label: 'ড্যাশবোর্ড', path: '/dashboard', icon: <DashboardIcon />, isDropdown: false },
+    { id: 'smart_scan', label: 'স্মার্ট বারকোড স্ক্যান', path: '/scan', icon: <ScanIcon />, isDropdown: false },
     {
-      id: 'product_section', 
-      icon: <ProductIcon />, 
-      label: 'প্রোডাক্ট',
+      id: 'product_section',
+      label: 'প্রোডাক্ট ডিরেক্টরি',
       isDropdown: true,
+      icon: <SettingsIcon />,
       subItems: [
-        { id: 'product_entry', path: '/product-entry', label: 'প্রোডাক্ট এন্ট্রি ও বিবরণ' },
-        { id: 'stock_management', path: '/stock', label: 'স্টক ম্যানেজমেন্ট' },
-        { id: 'broken', path: '/broken', label: 'ব্রোকেন প্রোডাক্ট (Broken)' },
-        { id: 'label_print', path: '/label-print', label: 'লেবেল প্রিন্ট' },
+        { id: 'product_entry', label: 'প্রোডাক্ট এন্ট্রি ও এডিট', path: '/products' },
+        { id: 'stock_management', label: 'ইনভেন্টরি ও স্টক লেভেল', path: '/stock' },
       ]
     },
     {
-      id: 'bill_section', 
-      icon: <BillingIcon />, 
-      label: 'বিল সেকশন',
+      id: 'bill_section',
+      label: 'বিলিং ও চালান ইস্যু',
       isDropdown: true,
+      icon: <ChalanIcon />,
       subItems: [
-        { id: 'billing', path: '/billing', label: 'চালান ও বিলিং (হেড অফিস)' },
-        { id: 'nawabpur_billing', path: '/challan/nawabpur', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)' },
-        { id: 'chalans', path: '/challans', label: 'পেমেন্ট ও চালান' },
-        { id: 'bills', path: '/bills', label: 'বিল ও চালানের তালিকা' },
-        { id: 'false_billing', path: '/false-billing', label: 'ফলস বিল/চালান' },
-        { id: 'return_manager', path: '/return-manager', label: 'প্রোডাক্ট রিটার্ন (Return)' },
+        { id: 'billing_head', label: 'চালান ও বিলিং (হেড অফিস)', path: '/billing' },
+        { id: 'billing_nawab', label: 'ডিরেক্ট বিলিং (নওয়াবপুর)', path: '/challan/nawabpur' },
+        { id: 'bill_list', label: 'বিল ও চালানের তালিকা', path: '/bills' },
+        { id: 'false_billing', label: 'ফলস বিল/চালান', path: '/false-billing' },
+        { id: 'broken_manager', label: 'broken প্রোডাক্ট ম্যানেজার', path: '/broken' },
+        { id: 'service_manager', label: 'সার্ভিসিং ও ওয়ারেন্টি', path: '/service' },
+        { id: 'return_manager', label: 'প্রোডাক্ট রিটার্ন লগ', path: '/returns' },
       ]
     },
-    { id: 'service_manager', path: '/service', icon: <ServiceIcon />, label: 'ইনভার্টার সার্ভিস (Service)' }, 
-    { id: 'reports', path: '/reports', icon: <ReportIcon />, label: 'রিপোর্ট (Reports)' },
-    
-    ...((currentUserRole === 'Admin' || currentUserRole === 'CEO') ? [
-      { id: 'frontend_custom', path: '/frontend-custom', icon: <CustomIcon />, label: 'পাবলিক পেজ এডিট' },
-      { id: 'user_management', path: '/user-management', icon: <UsersIcon />, label: 'এমপ্লয়ী এক্সেস কন্ট্রোল' }
-    ] : [])
+    { id: 'reports', label: 'রিপোর্ট ও খতিয়ান', path: '/reports', icon: <ReportsIcon />, isDropdown: false },
+    { id: 'frontend_custom', label: 'পাবলিক পেজ এডিট', path: '/customizer', icon: <SettingsIcon />, isDropdown: false },
+    { id: 'user_management', label: 'ইউজার ম্যানেজমেন্ট', path: '/users', icon: <UserIcon />, isDropdown: false },
   ];
+
+  // Flattened items list for quick search navigation
+  const getSearchItems = () => {
+    const items = [];
+    menuItems.forEach(item => {
+      if (item.isDropdown) {
+        item.subItems.forEach(sub => {
+          items.push({ label: `${item.label} ➔ ${sub.label}`, path: sub.path, rawName: sub.label });
+        });
+      } else {
+        items.push({ label: item.label, path: item.path, rawName: item.label });
+      }
+    });
+    return items;
+  };
+
+  const searchItems = getSearchItems();
+  const filteredSearchItems = searchText.trim() === '' ? [] : searchItems.filter(item => 
+    item.label.toLowerCase().includes(searchText.toLowerCase()) || 
+    item.rawName.toLowerCase().includes(searchText.toLowerCase())
+  );
 
   const handleMenuClick = (item) => {
     if (item.isDropdown) {
@@ -121,23 +153,41 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     setIsMobileMenuOpen(false);
   };
 
-  // Check if current page is inside a dropdown menu to keep it highlighted
   const isDropdownActive = (item) => {
     if (!item.isDropdown) return false;
     return item.subItems.some(sub => sub.path === currentPath);
   };
 
+  const handleSearchResultClick = (path) => {
+    navigate(path);
+    setSearchText('');
+    setShowSearchResults(false);
+  };
+
+  const handleMarkAllRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, read: true })));
+  };
+
+  const handleNotificationClick = (id) => {
+    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+  };
+
+  const clearNotification = (e, id) => {
+    e.stopPropagation();
+    setNotifications(notifications.filter(n => n.id !== id));
+  };
+
   return (
-    <div className="flex h-screen bg-[#f4f6fa] font-sans antialiased">
+    <div className={`flex h-screen ${isDarkMode ? 'bg-[#0f172a] text-slate-100' : 'bg-[#f4f6fa] text-slate-700'} font-sans antialiased`}>
       
-      {/* desktop sidebar - light styled premium MatDash layout */}
-      <aside className="hidden md:flex flex-col w-72 bg-white h-full border-r border-slate-200/80 z-20 transition-all duration-300">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3 sticky top-0 bg-white z-10">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center text-white font-black text-xl shadow-md shadow-indigo-500/20">
+      {/* Desktop Sidebar - Poppy Red themed layout */}
+      <aside className={`hidden md:flex flex-col w-72 h-full border-r z-20 transition-all duration-350 ${isDarkMode ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-200/80'}`}>
+        <div className={`p-6 border-b flex items-center gap-3 sticky top-0 z-10 ${isDarkMode ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-100'}`}>
+          <div className="w-10 h-10 rounded-xl bg-[#ea3838] flex items-center justify-center text-white font-black text-xl shadow-md shadow-[#ea3838]/20">
             L
           </div>
           <div>
-            <h1 className="text-xl font-black bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent tracking-tight">LAMS POWER</h1>
+            <h1 className="text-xl font-black bg-gradient-to-r from-[#ea3838] to-red-600 bg-clip-text text-transparent tracking-tight">LAMS POWER</h1>
             <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">ERP SYSTEM</p>
           </div>
         </div>
@@ -156,23 +206,23 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                     onClick={() => handleMenuClick(item)} 
                     className={`w-full text-left px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-between group ${
                       isActive
-                        ? 'bg-violet-50 text-violet-600 shadow-sm shadow-violet-100' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                        ? 'bg-[#ea3838]/10 text-[#ea3838] shadow-sm shadow-[#ea3838]/5' 
+                        : 'text-slate-650 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`text-xl transition-colors ${isActive ? 'text-violet-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                      <span className={`text-xl transition-colors ${isActive ? 'text-[#ea3838]' : 'text-slate-400 group-hover:text-[#ea3838]'}`}>
                         {item.icon}
                       </span>
                       <span className="text-sm font-semibold">{item.label}</span>
                     </div>
                     {item.isDropdown && (
-                      <span className={`text-[9px] transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-violet-600' : 'text-slate-400'}`}>▼</span>
+                      <span className={`text-[9px] transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-[#ea3838]' : 'text-slate-400'}`}>▼</span>
                     )}
                   </button>
 
                   {item.isDropdown && isSubOpen && (
-                    <div className="ml-5 mt-1 flex flex-col gap-1 border-l border-slate-100 pl-4 animate-in slide-in-from-top-2 duration-300">
+                    <div className={`ml-5 mt-1 flex flex-col gap-1 border-l pl-4 animate-in slide-in-from-top-2 duration-300 ${isDarkMode ? 'border-slate-800' : 'border-slate-100'}`}>
                       {item.subItems.map((subItem) => {
                         const isSubActive = currentPath === subItem.path;
                         return (
@@ -181,11 +231,11 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                             onClick={() => handleSubMenuClick(subItem.path)}
                             className={`text-left px-4 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 group/sub ${
                               isSubActive 
-                                ? 'text-violet-600 bg-violet-50/50' 
-                                : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
+                                ? 'text-[#ea3838] bg-[#ea3838]/5' 
+                                : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800'
                             }`}
                           >
-                            <span className={`w-1.5 h-1.5 rounded-full transition-all ${isSubActive ? 'bg-violet-600 scale-125' : 'bg-slate-300 group-hover/sub:bg-slate-400'}`}></span>
+                            <span className={`w-1.5 h-1.5 rounded-full transition-all ${isSubActive ? 'bg-[#ea3838] scale-125' : 'bg-slate-300 group-hover/sub:bg-[#ea3838]'}`}></span>
                             {subItem.label}
                           </button>
                         );
@@ -199,20 +249,20 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         </div>
 
         {/* Sidebar Footer Account info */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+        <div className={`p-4 border-t flex items-center justify-between ${isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-slate-100 bg-slate-50/50'}`}>
           <div className="flex items-center gap-2 truncate">
-            <div className="w-9 h-9 rounded-full bg-violet-100 text-violet-750 flex items-center justify-center font-bold text-sm shadow-inner uppercase">
-              {currentUserName.charAt(0)}
+            <div className="w-9 h-9 rounded-full bg-[#ea3838]/10 text-[#ea3838] flex items-center justify-center font-bold text-sm shadow-inner uppercase">
+              {(currentUserName || 'U').charAt(0)}
             </div>
             <div className="truncate">
-              <p className="text-xs font-black text-slate-800 truncate">{currentUserName}</p>
-              <p className="text-[9px] font-bold text-violet-600 uppercase tracking-widest">{currentUserRole}</p>
+              <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate">{currentUserName}</p>
+              <p className="text-[9px] font-bold text-[#ea3838] uppercase tracking-widest">{currentUserRole}</p>
             </div>
           </div>
           <button 
             onClick={onLogout} 
             title="Log Out"
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 transition-colors"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
           >
             <LogoutIcon />
           </button>
@@ -222,10 +272,10 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       {/* Main Container */}
       <main className="flex-1 overflow-y-auto h-full relative flex flex-col">
         
-        {/* Top Header Bar - Premium visual elements from reference picture */}
-        <header className="bg-white border-b border-slate-200/80 p-4 px-6 md:px-8 flex justify-between items-center z-10 sticky top-0 shadow-sm shadow-slate-100/50">
-          {/* Search bar & quick links */}
-          <div className="flex items-center gap-4 flex-1 max-w-md">
+        {/* Top Header Bar - Premium search/night-mode/notifications */}
+        <header className={`border-b p-4 px-6 md:px-8 flex justify-between items-center z-10 sticky top-0 shadow-sm transition-all ${isDarkMode ? 'bg-[#1e293b] border-slate-800 shadow-slate-950/25' : 'bg-white border-slate-200/80 shadow-slate-100/50'}`}>
+          {/* Search bar with quick links & functional navigation search */}
+          <div className="flex items-center gap-4 flex-1 max-w-md relative">
             <div className="relative w-full hidden sm:block">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
                 <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -234,60 +284,167 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
               </span>
               <input 
                 type="text" 
-                placeholder="Search resources, bills, chalans..." 
-                className="w-full bg-[#f4f6fa] border-0 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-violet-200 outline-none transition-all"
+                value={searchText}
+                onChange={e => {
+                  setSearchText(e.target.value);
+                  setShowSearchResults(true);
+                }}
+                onFocus={() => setShowSearchResults(true)}
+                placeholder="মডেল, ক্যাটাগরি, চালান বা রিপোর্ট সার্চ করুন..." 
+                className={`w-full border-0 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#ea3838]/20 transition-all ${isDarkMode ? 'bg-slate-900 text-slate-100 focus:bg-slate-800' : 'bg-[#f4f6fa] text-slate-700 focus:bg-white'}`}
               />
+              {searchText && (
+                <button 
+                  onClick={() => setSearchText('')} 
+                  className="absolute inset-y-0 right-8 flex items-center px-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                >
+                  ✕
+                </button>
+              )}
               <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[10px] font-bold text-slate-400 uppercase">
                 ⌘K
               </span>
             </div>
+
+            {/* Search Dropdown Panel */}
+            {showSearchResults && filteredSearchItems.length > 0 && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowSearchResults(false)}></div>
+                <div className={`absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-xl z-30 max-h-60 overflow-y-auto divide-y animate-in fade-in slide-in-from-top-2 duration-155 ${isDarkMode ? 'bg-[#1e293b] border-slate-800 divide-slate-800' : 'bg-white border-slate-100 divide-slate-55'}`}>
+                  {filteredSearchItems.map((item, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSearchResultClick(item.path)}
+                      className={`w-full text-left px-4 py-3 text-xs font-bold transition-colors flex items-center justify-between ${isDarkMode ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-50 text-slate-700'}`}
+                    >
+                      <span>{item.label}</span>
+                      <span className="text-[9px] text-[#ea3838] uppercase tracking-wider font-extrabold">যাব ➔</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Action elements on right side of header */}
           <div className="flex items-center gap-4">
             
-            {/* Command palette icon button */}
-            <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="Command Palette">
+            {/* Search toggler for mobile */}
+            <button 
+              onClick={() => {
+                const target = prompt('মডেল বা ফিচার পেজ সার্চ করুন (যেমন: চালান, ইনভেন্টরি, রিপোর্ট):');
+                if (target) {
+                  const match = searchItems.find(item => item.label.toLowerCase().includes(target.toLowerCase()));
+                  if (match) navigate(match.path);
+                  else alert('কোনো পেজ পাওয়া যায়নি!');
+                }
+              }}
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors sm:hidden" 
+              title="Search menu"
+            >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16m-7 6h7" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </button>
 
-            {/* Dark mode switch toggle (visual only) */}
-            <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="Dark Mode">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
+            {/* Dark mode switch toggle (Functional) */}
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)} 
+              className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-50'}`}
+              title={isDarkMode ? "Light Mode" : "Dark Mode"}
+            >
+              {isDarkMode ? (
+                // Sun Icon for Light Mode conversion
+                <svg className="w-5 h-5 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                </svg>
+              ) : (
+                // Moon Icon for Dark Mode conversion
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              )}
             </button>
 
-            {/* Notifications Bell with dot indicator */}
+            {/* Notifications Bell (Functional Dropdown) */}
             <div className="relative">
-              <button className="p-2 rounded-lg text-slate-500 hover:bg-slate-50 transition-colors" title="Notifications">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`p-2 rounded-lg transition-colors relative ${isDarkMode ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-50'}`} 
+                title="Notifications"
+              >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-[#ea3838] rounded-full ring-2 ring-white dark:ring-[#1e293b] animate-bounce"></span>
+                )}
               </button>
+
+              {/* Notification Dropdown UI */}
+              {showNotifications && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowNotifications(false)}></div>
+                  <div className={`absolute right-0 mt-2 w-80 rounded-2xl border shadow-xl z-30 py-2 animate-in zoom-in-95 duration-150 ${isDarkMode ? 'bg-[#1e293b] border-slate-800' : 'bg-white border-slate-100'}`}>
+                    <div className="px-4 py-2 border-b flex justify-between items-center border-slate-100 dark:border-slate-800">
+                      <h3 className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">নোটিফিকেশনসমূহ ({unreadCount})</h3>
+                      {unreadCount > 0 && (
+                        <button onClick={handleMarkAllRead} className="text-[10px] font-extrabold text-[#ea3838] hover:underline">সব পঠিত করুন</button>
+                      )}
+                    </div>
+                    <div className="max-h-60 overflow-y-auto divide-y dark:divide-slate-800">
+                      {notifications.length > 0 ? (
+                        notifications.map(n => (
+                          <div 
+                            key={n.id} 
+                            onClick={() => handleNotificationClick(n.id)}
+                            className={`p-3.5 flex flex-col gap-1 cursor-pointer transition-colors text-left relative ${n.read ? 'opacity-60' : 'bg-[#ea3838]/5'} ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
+                          >
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-snug">{n.text}</span>
+                            <span className="text-[9px] text-slate-400 font-semibold">{n.time}</span>
+                            {!n.read && (
+                              <span className="absolute top-4 right-8 w-1.5 h-1.5 bg-[#ea3838] rounded-full"></span>
+                            )}
+                            <button 
+                              onClick={(e) => clearNotification(e, n.id)} 
+                              className="absolute top-3 right-3 text-slate-400 hover:text-red-500 font-extrabold text-xs px-1"
+                              title="Delete"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-6 text-center text-slate-400 text-xs italic">কোনো নতুন নোটিফিকেশন নেই</div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            {/* Language dropdown (visual flag 🇬🇧) */}
-            <button className="p-2 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors" title="Language">
+            {/* Language dropdown (🇬🇧) */}
+            <button 
+              onClick={() => alert('Bengali and English both active by default.')}
+              className="p-2 rounded-lg flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors" 
+              title="Language"
+            >
               <span className="text-base leading-none">🇬🇧</span>
             </button>
 
-            <span className="h-6 w-px bg-slate-200 hidden sm:inline-block"></span>
+            <span className={`h-6 w-px hidden sm:inline-block ${isDarkMode ? 'bg-slate-800' : 'bg-slate-200'}`}></span>
 
-            {/* User Dropdown matching top right of MatDash image */}
+            {/* User Dropdown */}
             <div className="relative">
               <button 
                 onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-                className="flex items-center gap-2 hover:bg-slate-50 p-1.5 rounded-xl transition-all"
+                className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${isDarkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
               >
-                <div className="w-8 h-8 rounded-full bg-indigo-650 text-white flex items-center justify-center font-bold text-xs uppercase shadow-md shadow-indigo-605/10">
-                  {currentUserName.charAt(0)}
+                <div className="w-8 h-8 rounded-full bg-[#ea3838] text-white flex items-center justify-center font-bold text-xs uppercase shadow-md shadow-[#ea3838]/10">
+                  {(currentUserName || 'U').charAt(0)}
                 </div>
                 <div className="text-left hidden md:block">
-                  <p className="text-xs font-black text-slate-700 leading-none">{currentUserName}</p>
+                  <p className="text-xs font-black text-slate-700 dark:text-slate-350 leading-none">{currentUserName}</p>
                   <p className="text-[9px] text-slate-400 font-bold tracking-wider mt-0.5">{currentUserRole}</p>
                 </div>
                 <span className="text-[8px] text-slate-400 hidden md:block">▼</span>
@@ -296,14 +453,14 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
               {showProfileDropdown && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setShowProfileDropdown(false)}></div>
-                  <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-100 rounded-xl shadow-xl z-30 py-2 animate-in zoom-in-95 duration-150">
-                    <div className="px-4 py-2 border-b border-slate-100">
-                      <p className="text-xs font-black text-slate-800">{currentUserName}</p>
+                  <div className={`absolute right-0 mt-2 w-48 rounded-xl border shadow-xl z-30 py-2 animate-in zoom-in-95 duration-150 ${isDarkMode ? 'bg-[#1e293b] border-slate-800 shadow-slate-950/50' : 'bg-white border-slate-100'}`}>
+                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+                      <p className="text-xs font-black text-slate-800 dark:text-slate-100">{currentUserName}</p>
                       <p className="text-[10px] font-bold text-slate-400 uppercase">{currentUserRole}</p>
                     </div>
                     <button 
                       onClick={() => { setShowProfileDropdown(false); onLogout(); }} 
-                      className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors flex items-center gap-2"
+                      className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center gap-2"
                     >
                       🚪 লগআউট (Log Out)
                     </button>
@@ -319,7 +476,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
         <div className="p-4 md:p-8 pb-28 md:pb-8 flex-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <Suspense fallback={
             <div className="flex flex-col items-center justify-center p-12 gap-3 min-h-[300px]">
-              <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-violet-600 animate-spin"></div>
+              <div className="w-8 h-8 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
               <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">লোডিং হচ্ছে...</span>
             </div>
           }>
@@ -334,8 +491,8 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 animate-in fade-in duration-200" onClick={() => setIsMobileMenuOpen(false)}></div>
         )}
         {isMobileMenuOpen && (
-          <div className="fixed bottom-24 right-6 bg-white p-2 rounded-2xl shadow-2xl z-50 flex flex-col gap-1 min-w-[260px] animate-in slide-in-from-bottom-4 duration-300 border border-slate-100 max-h-[70vh] overflow-y-auto">
-            <div className="p-3 border-b border-slate-100 mb-1 sticky top-0 bg-white">
+          <div className={`fixed bottom-24 right-6 p-2 rounded-2xl shadow-2xl z-50 flex flex-col gap-1 min-w-[260px] animate-in slide-in-from-bottom-4 duration-300 border max-h-[70vh] overflow-y-auto ${isDarkMode ? 'bg-[#1e293b] border-slate-800 text-slate-200' : 'bg-white border-slate-100 text-slate-700'}`}>
+            <div className="p-3 border-b border-slate-100 dark:border-slate-800 mb-1 sticky top-0 bg-white dark:bg-[#1e293b]">
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest text-center">Menu Options</p>
             </div>
             {menuItems.map((item) => {
@@ -347,7 +504,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                   <button 
                     onClick={() => handleMenuClick(item)}
                     className={`flex items-center justify-between w-full text-left px-4 py-3 rounded-xl font-bold transition-all ${
-                      isActive ? 'bg-violet-50 text-violet-600' : 'text-slate-600 hover:bg-slate-50'
+                      isActive ? 'bg-[#ea3838]/10 text-[#ea3838]' : 'hover:bg-slate-50 dark:hover:bg-slate-850'
                     }`}
                   >
                     <div className="flex items-center gap-3">
@@ -355,17 +512,17 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                       <span className="text-sm">{item.label}</span>
                     </div>
                     {item.isDropdown && (
-                      <span className={`text-xs text-slate-400 transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-violet-600' : ''}`}>▼</span>
+                      <span className={`text-xs text-slate-400 transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-[#ea3838]' : ''}`}>▼</span>
                     )}
                   </button>
                   {item.isDropdown && isSubOpen && (
-                    <div className="ml-10 mt-1 flex flex-col gap-1 border-l-2 border-slate-100 pl-2 mb-2 animate-in slide-in-from-top-2 duration-200">
+                    <div className="ml-10 mt-1 flex flex-col gap-1 border-l-2 border-slate-100 dark:border-slate-800 pl-2 mb-2 animate-in slide-in-from-top-2 duration-200">
                       {item.subItems.map((subItem) => (
                         <button
                           key={subItem.id}
                           onClick={() => handleSubMenuClick(subItem.path)}
                           className={`text-left px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
-                            currentPath === subItem.path ? 'bg-slate-100 text-slate-800' : 'text-slate-550 hover:bg-slate-50'
+                            currentPath === subItem.path ? 'bg-[#ea3838]/10 text-[#ea3838]' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
                           }`}
                         >
                           {subItem.label}
@@ -378,7 +535,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
             })}
           </div>
         )}
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className={`fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-[0_10px_25px_rgba(124,58,237,0.3)] z-50 transition-all duration-300 active:scale-90 ${isMobileMenuOpen ? 'bg-slate-900 text-white rotate-90' : 'bg-violet-600 text-white hover:bg-violet-750'}`}>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className={`fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center text-2xl z-50 transition-all duration-300 active:scale-90 ${isMobileMenuOpen ? 'bg-slate-900 text-white rotate-90' : 'bg-[#ea3838] text-white hover:bg-red-650 shadow-[0_10px_25px_rgba(234,56,56,0.3)]'}`}>
           {isMobileMenuOpen ? '✕' : '⋮'}
         </button>
       </div>
