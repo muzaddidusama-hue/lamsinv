@@ -359,11 +359,11 @@ const PublicCatalog = ({ onAdminClick }) => {
 
     const fallbacks = {
       'inhenergy': { category: "On-grid Inverter", name: "Inhenergy", model: "10 kW", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png", volt: "230V", watt: "10000W", availability: "in stock", description: "Inhenergy 10kW On-grid inverter." },
-      'jfy': { category: "On-grid Inverter", name: "JFY", model: "Suntrio Plus 10K", image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png", volt: "230V", watt: "10000W", availability: "in stock", description: "JFY Suntrio Plus On-grid inverter." },
+      'jfy': { category: "On-grid Inverter", name: "JFY", model: "3000TL", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777535747499_4rv9mr.png", volt: "550VDC", watt: "4500W", availability: "in stock", description: "JFY 3000TL On-grid inverter." },
       'solaron': { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png", volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
       'ae solar': { category: "Solar Panel - 24 Volt", name: "AE Solar", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "AE Solar 24V Premium Panel." },
       'lefn': { category: "Solar Panel - 24 Volt", name: "LEFN", model: "380W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "380W", availability: "in stock", description: "LEFN 24V High Performance Panel." },
-      'powerland': { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png", volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
+      'powerland': { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1780746071370_caq4d.png", volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
       'sunland': { category: "Solar Panel - 12 Volt", name: "Sunland", model: "200W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png", volt: "12V", watt: "200W", availability: "in stock", description: "Sunland 12V Solar Panel." },
       'sunland extreme': { category: "Solar Panel - 24 Volt", name: "Sunland Extreme", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "Sunland Extreme 24V Solar Panel." }
     };
@@ -371,7 +371,14 @@ const PublicCatalog = ({ onAdminClick }) => {
     const finalModels = [];
 
     targetBrands.forEach(brand => {
-      const brandProds = inStock.filter(p => p.name?.toLowerCase().trim() === brand.toLowerCase());
+      // 1. Try to find in-stock models (stock >= 10)
+      let brandProds = inStock.filter(p => p.name?.toLowerCase().trim() === brand.toLowerCase());
+      
+      // 2. If none, search the entire database deduplicated list (even if stock < 10)
+      if (brandProds.length === 0) {
+        brandProds = deDuplicatedProducts.filter(p => p.name?.toLowerCase().trim() === brand.toLowerCase());
+      }
+      
       if (brandProds.length > 0) {
         const randomIdx = Math.floor(Math.random() * brandProds.length);
         finalModels.push(brandProds[randomIdx]);
