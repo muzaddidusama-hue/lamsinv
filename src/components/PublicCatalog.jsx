@@ -1318,8 +1318,8 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           {landingConfig.actual_footer_image && (
-            <div className="max-w-[180px] w-full opacity-65 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
-              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-12 w-auto object-contain filter invert opacity-80" />
+            <div className="max-w-[540px] w-full opacity-80 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
+              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain filter invert opacity-95" />
             </div>
           )}
         </div>
