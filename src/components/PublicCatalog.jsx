@@ -406,20 +406,20 @@ const PublicCatalog = ({ onAdminClick }) => {
   useEffect(() => {
     if (products.length === 0) return;
     const pool = getShowcaseModelsList();
-    if (pool.length >= 4) {
-      setShowcaseQueue(pool.slice(0, 4));
+    if (pool.length >= 5) {
+      setShowcaseQueue(pool.slice(0, 5));
     } else {
       setShowcaseQueue(pool);
     }
   }, [products]);
 
-  // Autoplay conveyor-belt effect (Shifts out top model, appends a new brand model at the 4th position)
+  // Autoplay conveyor-belt effect (Shifts out top model, appends a new brand model at the 5th position)
   useEffect(() => {
     if (showcaseQueue.length === 0 || isShowcaseHovered) return;
 
     const interval = setInterval(() => {
       setShowcaseQueue(prevQueue => {
-        if (prevQueue.length < 4) return prevQueue;
+        if (prevQueue.length < 5) return prevQueue;
 
         const pool = getShowcaseModelsList();
         const nextQueue = prevQueue.slice(1);
