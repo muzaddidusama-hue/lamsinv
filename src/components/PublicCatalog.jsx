@@ -208,6 +208,16 @@ const PublicCatalog = ({ onAdminClick }) => {
           stock_quantity: 0,
           availabilities: new Set()
         };
+      } else {
+        if (p.image_url) {
+          const currentImg = map[key].image_url || '';
+          const newImg = p.image_url || '';
+          if (newImg.includes('supabase.co') && !currentImg.includes('supabase.co')) {
+            map[key].image_url = newImg;
+          } else if (!currentImg && newImg) {
+            map[key].image_url = newImg;
+          }
+        }
       }
 
       map[key].stock_quantity += Number(p.stock_quantity) || 0;
@@ -337,7 +347,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   const solarOn3600 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
     name: 'SolarOn',
     model: '3600VA',
-    image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
+    image_url: 'https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/SolarOn-3600.png',
     volt: '24V',
     watt: '3600W',
     availability: 'in stock',
@@ -362,7 +372,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     const fallbacks = {
       'inhenergy': { category: "On-grid Inverter", name: "Inhenergy", model: "10 kW", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png", volt: "230V", watt: "10000W", availability: "in stock", description: "Inhenergy 10kW On-grid inverter." },
       'jfy': { category: "On-grid Inverter", name: "JFY", model: "3000TL", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777535747499_4rv9mr.png", volt: "550VDC", watt: "4500W", availability: "in stock", description: "JFY 3000TL On-grid inverter." },
-      'solaron': { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png", volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
+      'solaron': { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/SolarOn-3600.png", volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
       'ae solar': { category: "Solar Panel - 24 Volt", name: "AE Solar", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "AE Solar 24V Premium Panel." },
       'lefn': { category: "Solar Panel - 24 Volt", name: "LEFN", model: "380W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "380W", availability: "in stock", description: "LEFN 24V High Performance Panel." },
       'powerland': { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1780746071370_caq4d.png", volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
@@ -495,7 +505,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-2.5 sm:gap-8 md:gap-12 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:ml-0 mr-0 sm:mr-auto">
+          <nav className="flex items-center gap-2.5 sm:gap-8 md:gap-12 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
             <button 
               onClick={() => setActiveTab('home')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
