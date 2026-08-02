@@ -88,11 +88,8 @@ const PublicCatalog = ({ onAdminClick }) => {
   // Catalog Live Search state
   const [productSearch, setProductSearch] = useState('');
   
-  // Interactive specs card active category index
-  const [activeCollectionIdx, setActiveCollectionIdx] = useState(0);
-
-  // Testimonials Slider state
-  const [testimonialIdx, setTestimonialIdx] = useState(0);
+  // Interactive specs card active showcase model index
+  const [activeShowcaseIdx, setActiveShowcaseIdx] = useState(0);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -219,7 +216,6 @@ const PublicCatalog = ({ onAdminClick }) => {
     });
 
     return Object.values(map).map(p => {
-      // Combined availability evaluation
       let finalAvailability = 'out of stock';
       if (p.availabilities.has('in stock')) {
         finalAvailability = 'in stock';
@@ -333,8 +329,6 @@ const PublicCatalog = ({ onAdminClick }) => {
     };
   };
 
-  const activeShowcaseProduct = getShowcaseProduct(categories[activeCollectionIdx]);
-
   // Extract de-duplicated list once for featured SolarOn items lookup
   const deDuplicatedProducts = getDeDuplicatedProductsList(products);
 
@@ -348,15 +342,43 @@ const PublicCatalog = ({ onAdminClick }) => {
     description: 'High efficiency SolarOn 3600VA hybrid inverter.'
   };
 
-  const solarOn6200 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('6200')) || {
-    name: 'SolarOn',
-    model: '6200VA',
-    image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
-    volt: '48V',
-    watt: '6200W',
-    availability: 'in stock',
-    description: 'High efficiency SolarOn 6200VA hybrid inverter.'
+  // Generate 8-10 models list from database for the autoplay switcher
+  const getShowcaseModelsList = () => {
+    const list = deDuplicatedProducts.filter(p => Number(p.stock_quantity) >= 10);
+    
+    const fallbacks = [
+      { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png", volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
+      { category: "Hybrid Inverter", name: "SolarOn", model: "6200VA", image_url: "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png", volt: "48V", watt: "6200W", availability: "in stock", description: "High efficiency SolarOn 6200VA hybrid inverter." },
+      { category: "On-grid Inverter", name: "Inhenergy", model: "10 kW", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png", volt: "230V", watt: "10000W", availability: "in stock", description: "Inhenergy 10kW On-grid inverter." },
+      { category: "On-grid Inverter", name: "Inhenergy", model: "5 kW", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png", volt: "230V", watt: "5000W", availability: "in stock", description: "Inhenergy 5kW On-grid inverter." },
+      { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png", volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
+      { category: "Solar Panel - 12 Volt", name: "Sunland", model: "200W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png", volt: "12V", watt: "200W", availability: "in stock", description: "Sunland 12V Solar Panel." },
+      { category: "Solar Panel - 24 Volt", name: "Sunland Extreme", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "Sunland Extreme 24V Solar Panel." },
+      { category: "Solar Panel - 24 Volt", name: "Jarrett", model: "300W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "300W", availability: "in stock", description: "Jarrett 24V Solar Panel." }
+    ];
+    
+    const combined = [...list];
+    for (let item of fallbacks) {
+      if (combined.length >= 10) break;
+      const isDuplicate = combined.some(p => p.name?.toLowerCase() === item.name.toLowerCase() && p.model?.toLowerCase() === item.model.toLowerCase());
+      if (!isDuplicate) {
+        combined.push(item);
+      }
+    }
+    return combined.slice(0, 10);
   };
+
+  const showcaseModels = getShowcaseModelsList();
+  const activeShowcaseProduct = showcaseModels[activeShowcaseIdx] || showcaseModels[0];
+
+  // Autoplay effect for switcher (Cycles through the 8-10 models list every 4 seconds)
+  useEffect(() => {
+    if (showcaseModels.length === 0) return;
+    const interval = setInterval(() => {
+      setActiveShowcaseIdx((prev) => (prev + 1) % showcaseModels.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [showcaseModels.length]);
 
   // Dynamic clean display mapping
   const getDisplayCategoryName = (c) => {
@@ -366,38 +388,13 @@ const PublicCatalog = ({ onAdminClick }) => {
     return c;
   };
 
-  // Testimonial list
-  const testimonials = [
-    {
-      name: "Engr. M. A. Karim",
-      role: "Lead Engineer, Green Grid BD",
-      stars: 5,
-      text: "LAMS Power has been our trusted supplier for hybrid and on-grid solar solutions since 2014. Their product quality, especially the SolarOn and Inhenergy lines, has been stellar.",
-      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
-    },
-    {
-      name: "Dr. Farzana Rahman",
-      role: "Director, Sustainable Labs Bangladesh",
-      stars: 5,
-      text: "We installed the 10kW On-Grid inverter system. The energy output has exceeded our projections and their customer support is highly professional and technical.",
-      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
-    },
-    {
-      name: "Imtiaz Ahmed",
-      role: "CEO, Ahmed Solar Solutions",
-      stars: 4.5,
-      text: "Their 12V and 24V premium panels (Powerland & Sunland) consistently offer higher efficiency and degradation tolerance. An absolute driving force in solar imports.",
-      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
-    }
-  ];
-
   if (loading) return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col items-center justify-center gap-4">
       <div className="relative w-16 h-16">
         <div className="absolute inset-0 rounded-full border-4 border-slate-200"></div>
         <div className="absolute inset-0 rounded-full border-4 border-t-[#ea3838] animate-spin"></div>
       </div>
-      <p className="text-slate-550 font-bold tracking-widest text-xs uppercase animate-pulse" style={{ fontFamily: "'Outfit', sans-serif" }}>
+      <p className="text-slate-500 font-bold tracking-widest text-xs uppercase animate-pulse" style={{ fontFamily: "'Outfit', sans-serif" }}>
         Loading LAMS Power...
       </p>
     </div>
@@ -411,7 +408,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
+      {/* 🏛| PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
       <header className="bg-[#f3f4f6]/70 backdrop-blur-xl py-4.5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/50">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
@@ -464,21 +461,32 @@ const PublicCatalog = ({ onAdminClick }) => {
       {activeTab === 'home' && (
         <div className="animate-in fade-in duration-300 flex-1 flex flex-col gap-16 pb-16">
           
-          {/* ⚡ BANNER HERO SECTION - SOLARON 3600 & 6200 DUAL SHOWCASE WITH CHECKMARK SPECS */}
+          {/* ⚡ BANNER HERO SECTION - SINGLE FLOATING SOLARON 3600VA IMAGE WITH SPECIFICATIONS */}
           <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full pt-8">
-            <div className="bg-[#eaecf0] rounded-[3rem] p-8 md:p-16 relative overflow-hidden flex flex-col lg:flex-row items-stretch justify-between gap-12 min-h-[600px] shadow-sm">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-8 md:p-16 relative overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[580px] shadow-sm">
               {/* Back panels */}
               <div className="absolute top-0 right-0 w-[45%] h-full bg-slate-300/20 rounded-[3rem] -skew-x-12 origin-top pointer-events-none" />
               
-              {/* Left Content Column */}
-              <div className="max-w-xl space-y-6 z-10 text-left flex flex-col justify-center">
+              {/* Image Showcase Column - Placed first (on top) in mobile, second in desktop */}
+              <div className="relative z-10 flex items-center justify-center w-full lg:w-1/2 min-h-[300px] order-1 lg:order-2">
+                <div className="w-80 h-80 md:w-96 md:h-96 rounded-full bg-slate-300/40 absolute blur-2xl opacity-60 z-0 animate-pulse" />
+                <img 
+                  src={solarOn3600.image_url} 
+                  alt="SolarOn 3600VA Inverter" 
+                  className="max-h-[340px] md:max-h-[440px] w-auto object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700 cursor-pointer" 
+                  onClick={() => setSelectedModalProduct(solarOn3600)}
+                />
+              </div>
+
+              {/* Left Content Column - Placed second (below) in mobile, first in desktop */}
+              <div className="max-w-xl space-y-6 z-10 text-left flex flex-col justify-center order-2 lg:order-1">
                 <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-1.5 rounded-full border border-slate-200/50 shadow-sm self-start">
                   <span className="flex h-2 w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ea3838] opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ea3838]"></span>
                   </span>
                   <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">
-                    Featured Hybrid Showcase
+                    Premium Hybrid Showcase
                   </span>
                 </div>
 
@@ -540,71 +548,6 @@ const PublicCatalog = ({ onAdminClick }) => {
                   </button>
                   <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Explore Hybrid Series</span>
                 </div>
-              </div>
-
-              {/* Right Side Column: Side-by-Side Dual Product Display Cards */}
-              <div className="z-10 flex flex-col sm:flex-row items-center justify-center gap-6 lg:w-1/2 w-full self-center">
-                
-                {/* SolarOn 3600 Card */}
-                <div 
-                  onClick={() => setSelectedModalProduct(solarOn3600)}
-                  className="bg-white/80 p-5 rounded-[2.5rem] shadow-md border border-slate-200/50 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 w-full sm:w-1/2 flex flex-col justify-between aspect-[3/4] cursor-pointer group text-left animate-float"
-                >
-                  <div>
-                    <div className="w-full bg-[#f3f4f6]/60 rounded-3xl aspect-square flex items-center justify-center p-4 overflow-hidden mb-4">
-                      <img 
-                        src={solarOn3600.image_url} 
-                        alt="SolarOn 3600" 
-                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                    <span className="text-[8px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded uppercase tracking-wider">
-                      Hybrid Inverter
-                    </span>
-                    <h3 className="text-lg font-black text-[#0f172a] mt-2 font-['Outfit'] truncate">
-                      {solarOn3600.name}
-                    </h3>
-                    <p className="text-slate-400 text-xs font-extrabold">Model: {solarOn3600.model}</p>
-                  </div>
-                  
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-3">
-                    <span className="text-[9px] text-slate-500 font-extrabold uppercase">Specs: {solarOn3600.volt} / {solarOn3600.watt}</span>
-                    <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] group-hover:bg-[#ea3838] transition-colors">
-                      →
-                    </div>
-                  </div>
-                </div>
-
-                {/* SolarOn 6200 Card */}
-                <div 
-                  onClick={() => setSelectedModalProduct(solarOn6200)}
-                  className="bg-white/80 p-5 rounded-[2.5rem] shadow-md border border-slate-200/50 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 w-full sm:w-1/2 flex flex-col justify-between aspect-[3/4] cursor-pointer group text-left animate-float-delayed"
-                >
-                  <div>
-                    <div className="w-full bg-[#f3f4f6]/60 rounded-3xl aspect-square flex items-center justify-center p-4 overflow-hidden mb-4">
-                      <img 
-                        src={solarOn6200.image_url} 
-                        alt="SolarOn 6200" 
-                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500"
-                      />
-                    </div>
-                    <span className="text-[8px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded uppercase tracking-wider">
-                      Hybrid Inverter
-                    </span>
-                    <h3 className="text-lg font-black text-[#0f172a] mt-2 font-['Outfit'] truncate">
-                      {solarOn6200.name}
-                    </h3>
-                    <p className="text-slate-400 text-xs font-extrabold">Model: {solarOn6200.model}</p>
-                  </div>
-                  
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-3">
-                    <span className="text-[9px] text-slate-500 font-extrabold uppercase">Specs: {solarOn6200.volt} / {solarOn6200.watt}</span>
-                    <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] group-hover:bg-[#ea3838] transition-colors">
-                      →
-                    </div>
-                  </div>
-                </div>
-
               </div>
 
             </div>
@@ -777,17 +720,17 @@ const PublicCatalog = ({ onAdminClick }) => {
             </div>
           </section>
 
-          {/* 🌟 INTERACTIVE PORTFOLIO SPECS CARD SECTION (Top 4 collections selector) */}
+          {/* 🌟 INTERACTIVE PORTFOLIO SPECS CARD SECTION (Autoplay switcher cycling 8-10 models) */}
           <section className="py-12 px-6 md:px-12 bg-[#eaecf0] rounded-[3.5rem] max-w-[1400px] mx-auto w-full border border-slate-300/40">
             <div className="text-center mb-10">
               <span className="text-[10px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Portfolio Grid</span>
-              <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Our top four collections</h3>
+              <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Our top collections</h3>
               <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
               
-              {/* Left Side: Dynamic Specs Card */}
+              {/* Left Side: Active Model Dynamic Specs Card */}
               <div className="lg:col-span-7 bg-white rounded-[2.5rem] p-6 md:p-8 shadow-md border border-slate-200/50 flex flex-col justify-between hover:scale-[1.005] transition-all duration-300 group">
                 
                 <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -798,7 +741,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                         {getDisplayCategoryName(activeShowcaseProduct.category)}
                       </span>
                       <h4 className="text-3xl font-black text-[#0f172a] mt-3 font-['Outfit']">
-                        {activeShowcaseProduct.name} Solar
+                        {activeShowcaseProduct.name}
                       </h4>
                       <p className="text-slate-400 text-xs font-bold uppercase mt-0.5 tracking-wider">Model: {activeShowcaseProduct.model}</p>
                     </div>
@@ -848,19 +791,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                   </div>
                   
                   <button 
-                    onClick={() => {
-                      if (activeShowcaseProduct.id) {
-                        setSelectedModalProduct(activeShowcaseProduct);
-                      } else {
-                        // fallback modal trigger
-                        const list = getSortedProductsList(categories[activeCollectionIdx]);
-                        if (list.length > 0) {
-                          setSelectedModalProduct(list[0]);
-                        } else {
-                          setSelectedModalProduct(activeShowcaseProduct);
-                        }
-                      }
-                    }}
+                    onClick={() => setSelectedModalProduct(activeShowcaseProduct)}
                     className="px-6 py-3 bg-[#ea3838] hover:bg-[#d62828] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-[#ea3838]/10 active:scale-95 transition-all duration-200"
                   >
                     View Specs Details
@@ -869,52 +800,43 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               </div>
 
-              {/* Right Side: Navigation Rows Table */}
-              <div className="lg:col-span-5 flex flex-col justify-between gap-4">
-                {categories.map((c, idx) => {
-                  const displayCat = getDisplayCategoryName(c);
-                  const isActive = activeCollectionIdx === idx;
-                  const catProds = getSortedProductsList(c);
-                  
-                  // Image resolution fallbacks
-                  let categoryThumbnail = landingConfig.category_images?.[displayCat];
-                  if (!categoryThumbnail || categoryThumbnail.includes("Lams-Logo") || categoryThumbnail.trim() === '') {
-                    if (displayCat === 'Hybrid Inverter') categoryThumbnail = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
-                    else if (displayCat === 'On Grid Inverter') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
-                    else if (displayCat === 'Solar Panel 12V') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
-                    else if (displayCat === 'Solar Panel 24V') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
-                  }
+              {/* Right Side: Autoplay scrollable list of 8-10 product models */}
+              <div className="lg:col-span-5 flex flex-col gap-3 max-h-[500px] overflow-y-auto pr-1.5 custom-scrollbar text-left">
+                {showcaseModels.map((p, idx) => {
+                  const isActive = activeShowcaseIdx === idx;
+                  const displayCat = getDisplayCategoryName(p.category);
 
                   return (
                     <div 
-                      key={c}
-                      onClick={() => setActiveCollectionIdx(idx)}
-                      className={`bg-white p-4.5 rounded-[2rem] border transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 group ${
+                      key={idx}
+                      onClick={() => setActiveShowcaseIdx(idx)}
+                      className={`bg-white p-4 rounded-[2rem] border transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 group ${
                         isActive 
                           ? 'border-[#ea3838] ring-2 ring-[#ea3838]/10 shadow-md' 
-                          : 'border-slate-200/60 shadow-sm hover:border-slate-300'
+                          : 'border-slate-200/60 shadow-sm hover:border-slate-350'
                       }`}
                     >
-                      <div className="flex items-center gap-4 text-left">
-                        {/* Circle Indicator on active / row */}
+                      <div className="flex items-center gap-3.5">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-colors ${
                           isActive ? 'bg-[#ea3838] text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-[#ea3838] group-hover:text-white'
                         }`}>
                           {isActive ? '✓' : idx + 1}
                         </div>
                         <div>
-                          <h4 className="font-extrabold text-[#0f172a] text-sm md:text-base font-['Outfit'] uppercase tracking-tight">{displayCat}</h4>
-                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-                            {catProds.length || 3} Models Available
+                          <h4 className="font-extrabold text-[#0f172a] text-sm md:text-base font-['Outfit'] leading-tight">
+                            {p.name} {p.model}
+                          </h4>
+                          <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block mt-0.5">
+                            {displayCat}
                           </span>
                         </div>
                       </div>
 
                       {/* Row Thumbnail */}
-                      <div className="w-14 h-14 bg-[#f3f4f6] rounded-2xl flex items-center justify-center p-2.5 overflow-hidden shrink-0 border border-slate-100 group-hover:scale-105 transition-transform duration-500">
+                      <div className="w-12 h-12 bg-[#f3f4f6] rounded-xl flex items-center justify-center p-2 overflow-hidden shrink-0 border border-slate-100 group-hover:scale-105 transition-transform duration-500">
                         <img 
-                          src={categoryThumbnail} 
-                          alt={displayCat} 
+                          src={p.image_url} 
+                          alt={p.name} 
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>
@@ -998,103 +920,6 @@ const PublicCatalog = ({ onAdminClick }) => {
                 Distributing <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of High-Efficiency green equipment.
               </h3>
               <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
-            </div>
-          </section>
-
-          {/* 👥 CLIENT TESTIMONIAL SLIDER */}
-          <section className="py-12 px-6 md:px-12 max-w-[1400px] mx-auto w-full text-center relative">
-            <div className="text-center mb-10">
-              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Reviews</span>
-              <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">What our customers say about us</h3>
-              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
-            </div>
-
-            {/* Testimonial slider layouts with layered background silhouettes */}
-            <div className="relative max-w-2xl mx-auto min-h-[260px] flex items-center justify-center">
-              
-              {/* Silhouette background shapes */}
-              <div className="absolute inset-0 opacity-[0.03] flex items-center justify-center pointer-events-none select-none z-0">
-                <svg viewBox="0 0 100 100" className="w-80 h-80">
-                  <path fill="currentColor" d="M10,20 h80 v60 h-80 z M30,40 h15 v20 h-15 z M55,40 h15 v20 h-15 z" />
-                </svg>
-              </div>
-
-              {/* Slider content */}
-              <div className="bg-white rounded-[2.5rem] border border-slate-200/50 p-8 shadow-md relative z-10 text-center w-full animate-in fade-in duration-300">
-                <div className="flex justify-center gap-1 mb-4">
-                  {[...Array(5)].map((_, i) => (
-                    <span 
-                      key={i} 
-                      className={`text-lg ${i < Math.floor(testimonials[testimonialIdx].stars) ? 'text-amber-500' : 'text-slate-200'}`}
-                    >
-                      ★
-                    </span>
-                  ))}
-                </div>
-
-                <p className="text-slate-600 font-medium text-sm md:text-base leading-relaxed italic mb-6">
-                  "{testimonials[testimonialIdx].text}"
-                </p>
-
-                <div className="flex items-center justify-center gap-3">
-                  <img 
-                    src={testimonials[testimonialIdx].avatar} 
-                    alt={testimonials[testimonialIdx].name} 
-                    className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-sm"
-                  />
-                  <div className="text-left">
-                    <h5 className="font-extrabold text-[#0f172a] text-sm font-['Outfit']">{testimonials[testimonialIdx].name}</h5>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{testimonials[testimonialIdx].role}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Slide Buttons (One red, one grey) */}
-              <button 
-                onClick={() => setTestimonialIdx((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
-                className="absolute left-[-20px] md:left-[-50px] w-12 h-12 rounded-full bg-white hover:bg-slate-50 text-slate-600 shadow-md flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20 border border-slate-200/50"
-              >
-                &larr;
-              </button>
-              <button 
-                onClick={() => setTestimonialIdx((prev) => (prev + 1) % testimonials.length)}
-                className="absolute right-[-20px] md:right-[-50px] w-12 h-12 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white shadow-lg shadow-[#ea3838]/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20"
-              >
-                &rarr;
-              </button>
-            </div>
-          </section>
-
-          {/* ⚡ COMMUNITY NEWSLETTER FORM */}
-          <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
-            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-355/40 relative overflow-hidden">
-              <div className="max-w-2xl mx-auto space-y-6 relative z-10">
-                <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Newsletter</span>
-                <h3 className="text-2xl md:text-4xl font-black text-[#0f172a] leading-tight font-['Outfit']">
-                  Join our exclusive ⚡☀️ community <br className="hidden sm:inline" />
-                  and stay updated!
-                </h3>
-
-                {/* Pill Shape Input Form */}
-                <form 
-                  onSubmit={(e) => { e.preventDefault(); alert("ধন্যবাদ! সফলভাবে সাবস্ক্রাইব করা হয়েছে।"); e.target.reset(); }}
-                  className="bg-white rounded-full p-2 border border-slate-200/80 shadow-sm flex items-center max-w-md mx-auto mt-4"
-                >
-                  <input 
-                    type="email" 
-                    placeholder="Enter your email address..."
-                    required
-                    className="w-full px-5 py-3.5 bg-transparent border-none text-slate-700 outline-none text-sm font-semibold focus:ring-0 focus:border-transparent" 
-                    style={{ border: 'none', background: 'transparent' }}
-                  />
-                  <button 
-                    type="submit"
-                    className="bg-[#ea3838] hover:bg-[#d62828] text-white w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-md shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95"
-                  >
-                    →
-                  </button>
-                </form>
-              </div>
             </div>
           </section>
 
@@ -1294,7 +1119,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                     🏢
                   </div>
                   <h4 className="text-lg font-black text-[#0f172a] font-['Outfit']">Corporate Office</h4>
-                  <p className="text-slate-500 text-sm font-semibold leading-relaxed">
+                  <p className="text-slate-555 text-sm font-semibold leading-relaxed">
                     {siteSettings.contact_address}
                   </p>
                 </div>
@@ -1307,7 +1132,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                     🏪
                   </div>
                   <h4 className="text-lg font-black text-[#0f172a] font-['Outfit']">Showroom Address</h4>
-                  <p className="text-slate-500 text-sm font-semibold leading-relaxed">
+                  <p className="text-slate-555 text-sm font-semibold leading-relaxed">
                     {siteSettings.contact_showroom}
                   </p>
                 </div>
@@ -1383,7 +1208,7 @@ const PublicCatalog = ({ onAdminClick }) => {
               
               <button 
                 onClick={() => setSelectedModalProduct(null)}
-                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-black hover:bg-slate-200 transition-all flex items-center justify-center text-lg z-50 shadow-inner"
+                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-505 font-black hover:bg-slate-200 transition-all flex items-center justify-center text-lg z-50 shadow-inner"
               >
                 ✕
               </button>
@@ -1426,7 +1251,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img 
                             src={catalogImageUrl} 
                             alt="Product Catalog" 
-                            className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
+                            className="w-full h-auto max-h-60 object-contain bg-slate-55 mx-auto"
                           />
                         </div>
                         <a 
@@ -1485,7 +1310,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             </p>
           </div>
 
-          <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-500">
+          <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-555">
             <button onClick={() => setActiveTab('home')} className="hover:text-white transition-colors">Home</button>
             <button onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} className="hover:text-white transition-colors">Store</button>
             <button onClick={() => setActiveTab('contact')} className="hover:text-white transition-colors">Contact</button>
