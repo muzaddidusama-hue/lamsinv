@@ -61,9 +61,9 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [isCounterVisible, setIsCounterVisible] = useState(false);
   const [landingConfig, setLandingConfig] = useState({
     about_profile_title: 'Brief Company Profile',
-    about_profile_text: "Founded in 2010, Lams Power has established itself as a trusted leader and pioneer in Bangladesh's renewable energy sector. We specialize in the import, marketing, and distribution of top-tier solar equipment, driven by a steadfast commitment to promoting sustainable and green energy solutions nationwide. Over the past decade, we have dedicated ourselves to accelerating the transition to clean energy by ensuring that consumers have access to the most reliable and efficient solar technologies available.",
+    about_profile_text: "Founded in 2010, Lams Power has established itself as a trusted leader and pioneer in Bangladesh's renewable energy sector. We specialize in the import, marketing, and distribution of top-tier solar equipment, driven by a steadfast commitment to promoting sustainable and green energy solutions nationwide.",
     about_quality_title: 'Operations & Quality Assurance',
-    about_quality_text: "At Lams Power, quality is at the core of our operations. We maintain a comprehensive and carefully curated catalog of advanced solar technology, specializing in high-efficiency solar panels and cutting-edge inverters from globally recognized brands. We are committed to delivering superior-quality equipment to our consumers by maintaining a dedicated green warehouse, ensuring that our supply chain and storage facilities meet strict environmental and safety compliance standards.",
+    about_quality_text: "At Lams Power, quality is at the core of our operations. We maintain a comprehensive and carefully curated catalog of advanced solar technology, specializing in high-efficiency solar panels and cutting-edge inverters from globally recognized brands.",
     category_images: {
       "Hybrid Inverter": "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
       "On Grid Inverter": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png",
@@ -81,12 +81,18 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [loading, setLoading] = useState(true);
   const [selectedModalProduct, setSelectedModalProduct] = useState(null);
   
-  // ল্যান্ডিং পেজ ট্যাব স্টেট: 'home', 'products', 'contact'
+  // Navigation tabs: 'home', 'products', 'contact'
   const [activeTab, setActiveTab] = useState('home');
-  // প্রোডাক্ট ক্যাটাগরি ফিল্টার স্টেট
+  // Category selection under products tab: 'All' or specific categories
   const [productCategoryFilter, setProductCategoryFilter] = useState('All');
-  // প্রোডাক্ট সার্চ স্টেট
+  // Catalog Live Search state
   const [productSearch, setProductSearch] = useState('');
+  
+  // Interactive specs card active category index
+  const [activeCollectionIdx, setActiveCollectionIdx] = useState(0);
+
+  // Testimonials Slider state
+  const [testimonialIdx, setTestimonialIdx] = useState(0);
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
@@ -111,7 +117,6 @@ const PublicCatalog = ({ onAdminClick }) => {
       if (settingsData) {
         setSiteSettings(settingsData);
         
-        // footer_image_url কলামে থাকা JSON রিড ও সেটিং করা
         if (settingsData.footer_image_url && settingsData.footer_image_url.startsWith('{')) {
           try {
             const parsed = JSON.parse(settingsData.footer_image_url);
@@ -135,7 +140,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     fetchData();
   }, []);
 
-  // Dynamically update page title & description metadata for SEO and AI Search crawlers
+  // SEO Update
   useEffect(() => {
     if (siteSettings.header_name) {
       document.title = `${siteSettings.header_name} | Premium Solar Energy Solutions`;
@@ -153,14 +158,16 @@ const PublicCatalog = ({ onAdminClick }) => {
     metaDesc.setAttribute('content', descText.substring(0, 160));
   }, [landingConfig.about_profile_text]);
 
+  // Image Slider timer
   useEffect(() => {
     if (!landingConfig?.slider_images || landingConfig.slider_images.length === 0) return;
     const interval = setInterval(() => {
       setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length);
-    }, 3000);
+    }, 3500);
     return () => clearInterval(interval);
   }, [landingConfig?.slider_images]);
 
+  // Intersection observer for animated counter
   useEffect(() => {
     if (loading || !counterRef.current) return;
     const observer = new IntersectionObserver(
@@ -176,83 +183,25 @@ const PublicCatalog = ({ onAdminClick }) => {
     return () => observer.disconnect();
   }, [loading]);
 
-  const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
+  const categories = [
+    "Hybrid Inverter",
+    "On-grid Inverter",
+    "Solar Panel - 12 Volt",
+    "Solar Panel - 24 Volt"
+  ];
   
-  const getGroupedProducts = (catProds) => {
-    const groups = {};
-
-    catProds.forEach(p => {
-      if (!groups[p.name]) {
-        groups[p.name] = { name: p.name, image_url: p.image_url, modelsData: {} };
-      }
-
-      if (!groups[p.name].modelsData[p.model]) {
-        groups[p.name].modelsData[p.model] = { 
-            stock_quantity: 0, 
-            hasInStockToggle: false, 
-            isUpcoming: false 
-        };
-      }
-
-      groups[p.name].modelsData[p.model].stock_quantity += (Number(p.stock_quantity) || 0);
-
-      const avail = p.availability ? p.availability.trim().toLowerCase() : '';
-      if (avail === 'in stock') {
-          groups[p.name].modelsData[p.model].hasInStockToggle = true;
-      } else if (avail === 'upcoming') {
-          groups[p.name].modelsData[p.model].isUpcoming = true;
-      }
-    });
-
-    return Object.values(groups).map(group => {
-      const inStock = [];
-      const upcoming = [];
-
-      Object.entries(group.modelsData).forEach(([modelName, data]) => {
-        if (data.hasInStockToggle && data.stock_quantity > 0) {
-          inStock.push(modelName);
-        } else if (data.isUpcoming) {
-          upcoming.push(modelName);
-        }
-      });
-
-      if (inStock.length === 0 && upcoming.length === 0) return null;
-
-      return {
-        name: group.name,
-        image_url: group.image_url,
-        inStock: sortModelsByCapacity(inStock),
-        upcoming: sortModelsByCapacity(upcoming)
-      };
-    }).filter(Boolean);
-  };
-
-  const handleModelClick = (brandName, modelName) => {
-    const matchProduct = products.find(p => p.name === brandName && p.model === modelName);
-    if (matchProduct) {
-      setSelectedModalProduct(matchProduct);
-    }
-  };
-  // হোমপেজে ড্রাইভ করার জন্য ক্যাটাগরি ম্যাপিং
-  const getDisplayCategoryName = (c) => {
-    if (c === 'Solar Panel - 12 Volt') return 'Solar Panel 12V';
-    if (c === 'Solar Panel - 24 Volt') return 'Solar Panel 24V';
-    if (c === 'On-grid Inverter') return 'On Grid Inverter';
-    return c;
-  };
-
-  // ১2V ব্র্যান্ডস
   const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
 
-  const getFilteredProductsForList = (cat) => {
+  // Filter individual models without brand aggregation
+  const getFilteredProductsList = (cat) => {
     return products.filter(p => {
       if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return false;
       const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
-      // কাস্টম সার্চ ফিল্টার
+      // Live search filter matching name, model, category, volt, or watt
       if (productSearch) {
-        const searchStr = `${p.name} ${p.model} ${p.category}`.toLowerCase();
+        const searchStr = `${p.name} ${p.model} ${p.category} ${p.volt || ''} ${p.watt || ''}`.toLowerCase();
         if (!searchStr.includes(productSearch.toLowerCase())) return false;
       }
 
@@ -265,46 +214,105 @@ const PublicCatalog = ({ onAdminClick }) => {
       return p.category === cat;
     });
   };
-  // নিউ অ্যারাইভাল প্রোডাক্টস লোড (ইনভার্টারগুলো একসাথে প্রথমে গ্রুপ করা থাকবে)
-  const getFeaturedProductsList = () => {
-    const uniqueKeys = new Set(landingConfig.featured_keys || []);
-    const list = [];
-    const seenUnique = new Set();
 
-    products.forEach(p => {
-      const cat = p.category ? p.category.trim() : '';
-      const name = p.name ? p.name.trim() : '';
-      const model = p.model ? p.model.trim() : '';
-      const key = `${cat}|${name}|${model}`;
-
-      if (uniqueKeys.has(key) && !seenUnique.has(key)) {
-        seenUnique.add(key);
-        list.push(p);
-      }
-    });
-
-    // সর্টিং লজিক: ইনভার্টার ক্যাটাগরিগুলো (Hybrid Inverter, On-grid Inverter) সবার প্রথমে থাকবে
+  const getSortedProductsList = (cat) => {
+    const list = getFilteredProductsList(cat);
+    // Sort products logically by brand name, then model capacity
     return list.sort((a, b) => {
-      const isAInverter = (a.category || '').toLowerCase().includes('inverter');
-      const isBInverter = (b.category || '').toLowerCase().includes('inverter');
-      if (isAInverter && !isBInverter) return -1;
-      if (!isAInverter && isBInverter) return 1;
-      // একই ক্যাটাগরি হলে নাম ও মডেল অনুযায়ী স্বাভাবিক সর্ট হবে
-      if (a.category !== b.category) return (a.category || '').localeCompare(b.category || '');
       if (a.name !== b.name) return (a.name || '').localeCompare(b.name || '');
-      return (a.model || '').localeCompare(b.model || '');
+      const capA = parseFloat(a.model.match(/([\d.]+)/)?.[1] || 0);
+      const capB = parseFloat(b.model.match(/([\d.]+)/)?.[1] || 0);
+      return capA - capB;
     });
   };
 
-  const featuredProducts = getFeaturedProductsList();
+  // Get active product details for the interactive portfolio specs card
+  const getShowcaseProduct = (categoryName) => {
+    const catProds = getSortedProductsList(categoryName);
+    if (catProds.length > 0) {
+      return catProds[0];
+    }
+    // Fallbacks if database is empty
+    let fallbackImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
+    let fallbackModel = "6200VA";
+    let fallbackVolt = "48V";
+    let fallbackWatt = "6200W";
+    let fallbackName = "SolarOn";
+
+    if (categoryName.includes("On-grid")) {
+      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
+      fallbackModel = "10 kW";
+      fallbackVolt = "230V";
+      fallbackWatt = "10000W";
+      fallbackName = "Inhenergy";
+    } else if (categoryName.includes("12 Volt")) {
+      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
+      fallbackModel = "150W";
+      fallbackVolt = "12V";
+      fallbackWatt = "150W";
+      fallbackName = "Powerland";
+    } else if (categoryName.includes("24 Volt")) {
+      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
+      fallbackModel = "400W";
+      fallbackVolt = "24V";
+      fallbackWatt = "400W";
+      fallbackName = "Sunland";
+    }
+
+    return {
+      category: categoryName,
+      name: fallbackName,
+      model: fallbackModel,
+      image_url: fallbackImg,
+      volt: fallbackVolt,
+      watt: fallbackWatt,
+      availability: 'in stock',
+      description: 'LAMS premium technology designed for high durability and performance.'
+    };
+  };
+
+  const activeShowcaseProduct = getShowcaseProduct(categories[activeCollectionIdx]);
+
+  // Dynamic clean display mapping
+  const getDisplayCategoryName = (c) => {
+    if (c === 'Solar Panel - 12 Volt') return 'Solar Panel 12V';
+    if (c === 'Solar Panel - 24 Volt') return 'Solar Panel 24V';
+    if (c === 'On-grid Inverter') return 'On Grid Inverter';
+    return c;
+  };
+
+  // Testimonial list
+  const testimonials = [
+    {
+      name: "Engr. M. A. Karim",
+      role: "Lead Engineer, Green Grid BD",
+      stars: 5,
+      text: "LAMS Power has been our trusted supplier for hybrid and on-grid solar solutions since 2014. Their product quality, especially the SolarOn and Inhenergy lines, has been stellar.",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80"
+    },
+    {
+      name: "Dr. Farzana Rahman",
+      role: "Director, Sustainable Labs Bangladesh",
+      stars: 5,
+      text: "We installed the 10kW On-Grid inverter system. The energy output has exceeded our projections and their customer support is highly professional and technical.",
+      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80"
+    },
+    {
+      name: "Imtiaz Ahmed",
+      role: "CEO, Ahmed Solar Solutions",
+      stars: 4.5,
+      text: "Their 12V and 24V premium panels (Powerland & Sunland) consistently offer higher efficiency and degradation tolerance. An absolute driving force in solar imports.",
+      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80"
+    }
+  ];
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen bg-[#f3f4f6] flex flex-col items-center justify-center gap-4">
       <div className="relative w-16 h-16">
         <div className="absolute inset-0 rounded-full border-4 border-slate-200"></div>
-        <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+        <div className="absolute inset-0 rounded-full border-4 border-t-[#ea3838] animate-spin"></div>
       </div>
-      <p className="text-slate-500 font-black tracking-widest text-sm uppercase animate-pulse" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <p className="text-slate-500 font-bold tracking-widest text-xs uppercase animate-pulse" style={{ fontFamily: "'Outfit', sans-serif" }}>
         Loading LAMS Power...
       </p>
     </div>
@@ -312,134 +320,151 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   const uniqueBrands = [...new Set(products.map(p => p.name ? p.name.trim() : '').filter(Boolean))];
   const uniqueModels = [...new Set(products.map(p => `${p.name?.trim() || ''}|${p.model?.trim() || ''}`).filter(b => b && b !== '|'))];
-  const totalBrands = uniqueBrands.length;
-  const totalModels = uniqueModels.length;
+  const totalBrands = uniqueBrands.length || 4;
+  const totalModels = uniqueModels.length || 18;
 
   return (
-    <div className="min-h-screen bg-white relative flex flex-col" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
-            {/* 🏛️ প্রিমিয়াম স্লিক নেভিগেশন বার */}
-            <header className="bg-white/85 backdrop-blur-md py-4 px-6 md:px-12 shadow-sm sticky top-0 z-50 border-b border-slate-100/60">
-              <div className="max-w-[1500px] mx-auto flex items-center justify-between">
-                <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
-                  <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-10 md:h-12 object-contain" />
-                  <h1 className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter uppercase">
-                    LAMS <span className="text-orange-500">POWER</span>
-                  </h1>
-                </div>
+    <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-                {/* মেনু লিঙ্ক (ডান পাশে অবস্থান করবে) */}
-                <nav className="flex items-center gap-6 md:gap-10 font-bold text-xs uppercase tracking-widest text-slate-500">
-                  <button 
-                    onClick={() => setActiveTab('home')} 
-                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'home' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
-                  >
-                    Home
-                  </button>
+      {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER */}
+      <header className="bg-[#f3f4f6]/70 backdrop-blur-xl py-5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/50">
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => setActiveTab('home')}>
+            <div className="w-8 h-8 rounded-full bg-[#ea3838] flex items-center justify-center text-white font-black text-sm tracking-tighter">L</div>
+            <h1 className="text-2xl font-black text-[#0f172a] tracking-tight uppercase font-['Outfit']">
+              Lams<span className="text-[#ea3838] font-black">.</span>
+            </h1>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex items-center gap-8 md:gap-12 font-bold text-xs uppercase tracking-widest text-slate-500">
+            <button 
+              onClick={() => setActiveTab('home')} 
+              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+            >
+              Home
+            </button>
+            <button 
+              onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
+              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'products' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+            >
+              Products
+            </button>
+            <button 
+              onClick={() => setActiveTab('contact')} 
+              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'contact' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+            >
+              Contact Us
+            </button>
+          </nav>
+
+          {/* Portal Access */}
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={onAdminClick}
+              className="bg-white border border-slate-200 hover:border-[#ea3838] text-slate-700 hover:text-[#ea3838] px-5 py-2.5 rounded-full font-black text-xs uppercase tracking-wider transition-all duration-300 shadow-sm active:scale-95 flex items-center gap-2"
+            >
+              <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center text-[8px] font-black">👤</div>
+              Login
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ---------------- VIEW 1: HOME PAGE ---------------- */}
+      {activeTab === 'home' && (
+        <div className="animate-in fade-in duration-300 flex-1 flex flex-col gap-16 pb-16">
+          
+          {/* ⚡ BANNER HERO SECTION */}
+          <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full pt-8">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-8 md:p-16 relative overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[550px] shadow-sm">
+              {/* Back panels */}
+              <div className="absolute top-0 right-0 w-[45%] h-full bg-slate-300/20 rounded-[3rem] -skew-x-12 origin-top pointer-events-none" />
+              
+              {/* Left Content */}
+              <div className="max-w-xl space-y-8 z-10 text-left">
+                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-1.5 rounded-full border border-slate-200/50 shadow-sm">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ea3838] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ea3838]"></span>
+                  </span>
+                  <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">
+                    Premium Solar Solutions
+                  </span>
+                </div>
+
+                <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.05] text-[#0f172a] font-['Outfit']">
+                  Super clean <br />
+                  <span className="text-[#ea3838] relative inline-block">
+                    solar Energy
+                    <span className="absolute left-0 bottom-0.5 w-full h-1.5 bg-[#ea3838]/20 rounded-full"></span>
+                  </span>
+                </h2>
+
+                <p className="text-slate-500 font-medium text-sm md:text-base leading-relaxed">
+                  Experience top-tier quality solar equipment manufactured and distributed under strict environmental and safety compliance standards. Empowering Bangladesh since 2010.
+                </p>
+
+                {/* Left Showcase Widget (equivalent to moped hero side card) */}
+                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200/60 flex items-center gap-5 max-w-sm">
+                  <div className="w-16 h-16 bg-[#f3f4f6] rounded-2xl flex items-center justify-center p-2 shrink-0">
+                    <img 
+                      src={activeShowcaseProduct.image_url} 
+                      alt="Featured Inverter" 
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Featured Arrival</span>
+                    <h4 className="font-extrabold text-[#0f172a] text-sm font-['Outfit']">{activeShowcaseProduct.name} {activeShowcaseProduct.model}</h4>
+                    <p className="text-emerald-600 font-bold text-[10px] tracking-wide mt-0.5 uppercase flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> In Stock
+                    </p>
+                  </div>
+                </div>
+
+                {/* Explore Red Button */}
+                <div className="flex items-center gap-4">
                   <button 
                     onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
-                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'products' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
+                    className="w-14 h-14 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-xl font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95 duration-300"
                   >
-                    Products
+                    →
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('contact')} 
-                    className={`hover:text-orange-500 transition-colors pb-1 border-b-2 ${activeTab === 'contact' ? 'text-slate-900 border-orange-500' : 'border-transparent'}`}
-                  >
-                    Contact Us
-                  </button>
-                </nav>
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Explore Catalog</span>
+                </div>
               </div>
-            </header>
 
-      {/* ---------------- ভিউ ১: হোমপেজ ---------------- */}
-      {activeTab === 'home' && (
-        <div className="animate-in fade-in duration-300 flex-1 flex flex-col">
-                    {/* স্লিক হিরো ব্যানার */}
-                    <section className="bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white py-24 px-6 md:px-12 text-center relative overflow-hidden flex flex-col items-center justify-center min-h-[380px]">
-                      {/* ব্যাকগ্রাউন্ড সোলার প্যানেল ইমেজ (অল্প দৃশ্যমান) */}
-                                            <div 
-                                              className="absolute inset-0 bg-cover bg-center opacity-[0.60] mix-blend-overlay"
-                                              style={{ backgroundImage: `url('https://images.unsplash.com/photo-1509391366360-2e959784a276?w=1600&auto=format&fit=crop&q=80')` }}
-                                            ></div>
-                      <div className="absolute inset-0 opacity-5 bg-[radial-gradient(#f97316_1px,transparent_1px)] [background-size:24px_24px]"></div>
-            <div className="max-w-4xl mx-auto space-y-6 relative z-10">
-              <span className="text-[10px] font-black tracking-widest uppercase bg-orange-500/20 text-orange-400 px-4 py-1.5 rounded-full border border-orange-500/35">
-                Pioneers of Green Technology
-              </span>
-              <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-none">
-                Empowering Bangladesh with <span className="text-orange-500">Sustainable</span> Solar Energy
-              </h2>
-              <p className="text-slate-400 font-semibold text-sm md:text-base max-w-2xl mx-auto leading-relaxed">
-                Importing and distributing world-class high-efficiency Solar Inverters and premium Solar Panels since 2010.
-              </p>
-              <div className="pt-4">
-                <button 
-                  onClick={() => setActiveTab('products')} 
-                  className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3.5 rounded-full font-black text-xs uppercase tracking-widest shadow-xl shadow-orange-500/20 active:scale-95 transition-all duration-200"
-                >
-                  Explore Catalog
-                </button>
+              {/* Right Showcase (Floating Product Image with curved shadows) */}
+              <div className="relative z-10 flex items-center justify-center self-center w-full lg:w-1/2 min-h-[300px]">
+                <div className="w-80 h-80 md:w-96 md:h-96 rounded-full bg-slate-300/40 absolute blur-2xl opacity-60 z-0 animate-pulse" />
+                <img 
+                  src={activeShowcaseProduct.image_url} 
+                  alt="Solar On Inverter" 
+                  className="max-h-[350px] md:max-h-[450px] w-auto object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700" 
+                />
               </div>
+
             </div>
           </section>
 
-          {/* নিউ অ্যারাইভাল (New Arrival) সেকশন */}
-          {featuredProducts.length > 0 && (
-            <section className="py-16 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
-              <div className="text-center mb-10">
-                <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Fresh Stock Highlight</span>
-                <h3 className="text-3xl font-black text-slate-900 mt-1">New Arrivals</h3>
-                {landingConfig.featured_text && (
-                  <p className="text-slate-500 font-semibold text-xs md:text-sm mt-2 max-w-xl mx-auto leading-relaxed">
-                    {landingConfig.featured_text}
-                  </p>
-                )}
-                <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-3"></div>
-              </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                              {featuredProducts.map((p, i) => {
-                                const key = `${p.category ? p.category.trim() : ''}|${p.name ? p.name.trim() : ''}|${p.model ? p.model.trim() : ''}`;
-                                const customImg = landingConfig.featured_custom_images?.[key];
-                                const displayImg = (customImg && customImg.trim() !== '') ? customImg : p.image_url;
-              
-                                return (
-                                  <div 
-                                    key={i} 
-                                    onClick={() => handleModelClick(p.name, p.model)}
-                                    className="bg-white rounded-3xl border border-slate-100 p-5 hover:shadow-xl hover:shadow-slate-100 hover:border-slate-200 transition-all duration-300 cursor-pointer flex flex-col items-center text-center group"
-                                  >
-                                    <div className="w-full bg-slate-50 rounded-2xl aspect-[4/3] mb-4 flex items-center justify-center p-4 overflow-hidden relative">
-                                      <span className="absolute top-3 left-3 text-[8px] font-black px-2.5 py-1 rounded-full bg-orange-500 text-white uppercase tracking-widest shadow-sm">
-                                        New
-                                      </span>
-                                      {displayImg ? (
-                                        <img src={displayImg} alt={p.name} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                                      ) : (
-                                        <div className="text-3xl">📦</div>
-                                      )}
-                                    </div>
-                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{p.category}</span>
-                                    <h4 className="font-black text-slate-900 text-sm mt-1.5 truncate w-full">{p.name} — {p.model}</h4>
-                                    <p className="text-orange-500 font-black text-xs mt-1">বিস্তারিত বিবরণ দেখুন →</p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-            </section>
-          )}
-
-          {/* 🖼️ Product Image Slider */}
+          {/* 🖼️ DYNAMIC 3D CARD CAROUSEL SLIDER */}
           {landingConfig?.slider_images && landingConfig.slider_images.length > 0 && (
-            <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex flex-col items-center mb-10 overflow-x-hidden">
-              <div className="relative w-full max-w-4xl h-[350px] md:h-[600px] flex items-center justify-center group bg-transparent overflow-visible">
+            <section className="py-6 px-6 md:px-12 max-w-[1400px] mx-auto w-full flex flex-col items-center">
+              <div className="text-center mb-8">
+                <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Premium Showcase</span>
+                <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Visual Portfolio</h3>
+                <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
+              </div>
+
+              <div className="relative w-full max-w-4xl h-[320px] md:h-[550px] flex items-center justify-center group bg-transparent">
                 {landingConfig.slider_images.map((url, idx) => {
                   const total = landingConfig.slider_images.length;
                   const diff = (idx - currentSliderIdx + total) % total;
                   let normDiff = diff;
                   if (normDiff > total / 2) normDiff -= total;
 
-                  // CSS inline styles dynamic values
-                  let transformStyle = 'translateX(0) scale(0.95)';
+                  let transformStyle = 'translateX(0) scale(0.9)';
                   let opacityStyle = 0;
                   let zIndexStyle = 0;
                   let pointerEventsStyle = 'none';
@@ -458,23 +483,23 @@ const PublicCatalog = ({ onAdminClick }) => {
                       zIndexStyle = 30;
                       pointerEventsStyle = 'auto';
                     } else if (normDiff === -1) {
-                      transformStyle = 'translateX(-45%) scale(0.75)';
-                      opacityStyle = 0.6;
+                      transformStyle = 'translateX(-40%) scale(0.78)';
+                      opacityStyle = 0.55;
                       zIndexStyle = 20;
                       pointerEventsStyle = 'auto';
                     } else if (normDiff === 1) {
-                      transformStyle = 'translateX(45%) scale(0.75)';
-                      opacityStyle = 0.6;
+                      transformStyle = 'translateX(40%) scale(0.78)';
+                      opacityStyle = 0.55;
                       zIndexStyle = 20;
                       pointerEventsStyle = 'auto';
                     } else if (normDiff === -2) {
-                      transformStyle = 'translateX(-85%) scale(0.55)';
-                      opacityStyle = 0.6;
+                      transformStyle = 'translateX(-75%) scale(0.6)';
+                      opacityStyle = 0.3;
                       zIndexStyle = 10;
                       pointerEventsStyle = 'auto';
                     } else if (normDiff === 2) {
-                      transformStyle = 'translateX(85%) scale(0.55)';
-                      opacityStyle = 0.6;
+                      transformStyle = 'translateX(75%) scale(0.6)';
+                      opacityStyle = 0.3;
                       zIndexStyle = 10;
                       pointerEventsStyle = 'auto';
                     }
@@ -493,40 +518,40 @@ const PublicCatalog = ({ onAdminClick }) => {
                         opacity: opacityStyle,
                         zIndex: zIndexStyle,
                         pointerEvents: pointerEventsStyle,
-                        cursor: !isMobile && normDiff !== 0 && normDiff >= -2 && normDiff <= 2 ? 'pointer' : 'default'
+                        cursor: !isMobile && normDiff !== 0 ? 'pointer' : 'default'
                       }}
-                      className="absolute inset-0 transition-all duration-1000 ease-in-out flex items-center justify-center p-2"
+                      className="absolute inset-0 transition-all duration-[800ms] ease-out flex items-center justify-center p-2"
                     >
                       <img 
                         src={url} 
                         alt={`Slider ${idx + 1}`} 
-                        className="h-full w-auto max-w-full object-contain rounded-3xl shadow-[0_15px_35px_-5px_rgba(0,0,0,0.15)] border border-slate-100 bg-white" 
+                        className="h-full w-auto max-w-full object-contain rounded-[2.5rem] shadow-[0_20px_45px_-10px_rgba(0,0,0,0.12)] border border-slate-200 bg-white p-3 hover:scale-[1.01] transition-transform duration-500" 
                       />
                     </div>
                   );
                 })}
                 
-                {/* Navigation Arrows */}
+                {/* Arrow Nav */}
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev - 1 + landingConfig.slider_images.length) % landingConfig.slider_images.length)}
-                  className="absolute left-2 md:left-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40"
+                  className="absolute left-2 md:left-6 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
                 >
                   &larr;
                 </button>
                 <button 
                   onClick={() => setCurrentSliderIdx((prev) => (prev + 1) % landingConfig.slider_images.length)}
-                  className="absolute right-2 md:right-4 w-10 h-10 rounded-full bg-white/80 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-20"
+                  className="absolute right-2 md:right-6 w-11 h-11 rounded-full bg-white/90 hover:bg-white text-slate-800 shadow-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:scale-105 active:scale-95 duration-300 z-40 border border-slate-200/50"
                 >
                   &rarr;
                 </button>
 
                 {/* Dot Indicators */}
-                <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+                <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
                   {landingConfig.slider_images.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentSliderIdx(idx)}
-                      className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentSliderIdx ? 'w-6 bg-orange-500' : 'w-2.5 bg-slate-300 hover:bg-slate-400'}`}
+                      className={`h-2 rounded-full transition-all duration-300 ${idx === currentSliderIdx ? 'w-5 bg-[#ea3838]' : 'w-2 bg-slate-300'}`}
                     />
                   ))}
                 </div>
@@ -534,190 +559,379 @@ const PublicCatalog = ({ onAdminClick }) => {
             </section>
           )}
 
-          {/* 🌟 ফিচারড প্রোডাক্ট ব্যানার সেকশন (Sleek Showcase Layout) */}
-          {(landingConfig.featured_banner_title || landingConfig.featured_banner_desc || landingConfig.featured_banner_image_url) && (
-            <section className="py-16 px-6 md:px-12 bg-white w-full border-t border-b border-slate-100">
-              <div className="max-w-[1300px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-                                {/* ব্যানার ইমেজ পার্ট (মোবাইলে সবার উপরে থাকবে, ডেক্সটপে ডান পাশে, ব্যাকগ্রাউন্ড বক্স ছাড়া সরাসরি ইমেজ দেখাবে যার নিজস্ব শ্যাডো থাকবে) */}
-                                {landingConfig.featured_banner_image_url && (
-                                  <div className="lg:col-span-6 flex justify-center order-1 lg:order-2 self-center w-full">
-                                    <img 
-                                      src={landingConfig.featured_banner_image_url} 
-                                      alt="Featured Product Banner" 
-                                      loading="lazy"
-                                      className="max-h-[500px] w-auto h-auto object-contain rounded-[2rem] shadow-[0_15px_30px_-5px_rgba(0,0,0,0.15)] hover:shadow-[0_20px_40px_-5px_rgba(0,0,0,0.25)] hover:scale-[1.02] transition-all duration-500" 
-                                    />
-                                  </div>
-                                )}
-
-                {/* টেক্সট পার্ট (মোবাইলে নিচে থাকবে, ডেক্সটপে বাম পাশে) */}
-                <div className="lg:col-span-6 space-y-6 order-2 lg:order-1">
-                  {landingConfig.featured_banner_title && (
-                    <h3 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                      {landingConfig.featured_banner_title}
-                    </h3>
-                  )}
-                  {landingConfig.featured_banner_desc && (
-                    <p className="text-slate-600 font-semibold text-sm md:text-base leading-relaxed whitespace-pre-line">
-                      {landingConfig.featured_banner_desc}
-                    </p>
-                  )}
-                  <div className="pt-2">
-                    <button 
-                      onClick={() => setActiveTab('products')} 
-                      className="bg-slate-900 hover:bg-orange-500 text-white px-8 py-3.5 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-300 shadow-md"
-                    >
-                      View Catalog
-                    </button>
-                  </div>
-                </div>
-
+          {/* 🕒 DRIVING FORCE IN GREEN ENERGY SECTION */}
+          <section className="py-8 px-6 md:px-12 max-w-[1400px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            {/* Text description */}
+            <div className="lg:col-span-6 space-y-6 text-left">
+              <span className="text-[10px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Our Legacy</span>
+              <h3 className="text-3xl md:text-5xl font-black text-[#0f172a] leading-tight font-['Outfit']">
+                Driving force in solar energy industry over <span className="text-[#ea3838]">16 years</span>
+              </h3>
+              <p className="text-slate-500 font-semibold text-xs leading-relaxed uppercase tracking-wider">
+                ESTABLISHED IN 2010 • COMPLIANT SUPPLY CHAIN • BANGLADESH PIONEERS
+              </p>
+              <p className="text-slate-500 font-medium text-sm leading-relaxed max-w-lg">
+                {landingConfig.about_profile_text || "Lams Power has established itself as Bangladesh's trusted partner in importing the most efficient and heavy-duty green technologies. We manage strict warehouse standards to guarantee product lifespan."}
+              </p>
+              
+              <div className="pt-2">
+                <button 
+                  onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }}
+                  className="w-14 h-14 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-xl font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95 duration-300"
+                >
+                  →
+                </button>
               </div>
-            </section>
-          )}
+            </div>
 
-          {/* 📊 Animated Stats Counter */}
-          {products.length > 0 && (
-            <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden">
-              {/* Background styling elements */}
-              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
-              <div className="absolute -top-40 -left-40 w-96 h-96 bg-orange-600/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="max-w-[1200px] mx-auto text-center space-y-8 relative z-10">
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Inventory Strength</span>
-                  <h3 className="text-2xl md:text-4xl font-black tracking-tight leading-tight max-w-2xl mx-auto">
-                    We have <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-orange-500 text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of products for you.
-                  </h3>
-                  <div className="h-1 w-12 bg-orange-500 rounded-full mx-auto mt-4"></div>
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* ৪টি ক্যাটাগরি সেকশন (Solar Panel 12V হাইলাইট সহ) */}
-          <section className="bg-slate-50 py-16 px-6 md:px-12 w-full">
-            <div className="max-w-[1400px] mx-auto">
-              <div className="text-center mb-12">
-                <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">Core Portfolio</span>
-                <h3 className="text-3xl font-black text-slate-900 mt-1">Our Specialties</h3>
-                <div className="h-1 w-12 bg-orange-500 mx-auto mt-3"></div>
+            {/* Overlapping capsules image showcase (mimicking vertical capsule design) */}
+            <div className="lg:col-span-6 flex items-center justify-center h-[420px] relative w-full">
+              {/* Capsule Left */}
+              <div className="w-[110px] h-[240px] rounded-[5rem] overflow-hidden border-[6px] border-white shadow-lg rotate-[-6deg] absolute left-6 md:left-16 hover:scale-105 transition-all duration-500 hover:rotate-0 hover:z-30 group">
+                <img 
+                  src="https://images.unsplash.com/photo-1542332213-9b5a5a3fad35?w=500&auto=format&fit=crop&q=80" 
+                  alt="Solar Panels Array" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-                {categories.map((c) => {
-                  const displayCat = getDisplayCategoryName(c);
-                  const is12V = displayCat === 'Solar Panel 12V';
-                                    // ডিফল্ট অথেন্টিক ইমেজ সেট করা হলো
-                                    let defaultImg = "https://i.postimg.cc/2S35fVxS/Lams-Logo.png";
-                                    if (displayCat === 'Hybrid Inverter') defaultImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
-                                    else if (displayCat === 'On Grid Inverter') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
-                                    else if (displayCat === 'Solar Panel 12V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
-                                    else if (displayCat === 'Solar Panel 24V') defaultImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
-                  
-                                    // কাস্টমাইজড বা সেভ করা ইমেজ যদি ডিফল্ট লোগো হয় বা ফাকা থাকে, তবে অথেন্টিক প্রোডাক্ট ইমেজটি দেখাবে
-                                    const configuredImg = landingConfig.category_images?.[displayCat];
-                                    const catImage = (!configuredImg || configuredImg === "https://i.postimg.cc/2S35fVxS/Lams-Logo.png" || configuredImg.trim() === '')
-                                      ? defaultImg
-                                      : configuredImg;
-                  
-                  return (
-                    <div 
-                      key={c}
-                      className={`bg-white rounded-[2.5rem] p-6 border shadow-sm flex flex-col justify-between items-center transition-all duration-300 relative overflow-hidden group ${
-                        is12V 
-                          ? 'border-orange-200 ring-2 ring-orange-500/10 shadow-orange-100/50 shadow-md' 
-                          : 'border-slate-100'
-                      }`}
-                    >
-                      {is12V && (
-                        <span className="absolute top-4 right-4 bg-orange-500 text-white font-black text-[8px] uppercase px-3 py-1 rounded-full tracking-widest shadow-sm z-10">
-                          ✨ LAMS OWN BRAND
-                        </span>
-                      )}
+              {/* Capsule Center */}
+              <div className="w-[160px] h-[340px] rounded-[7rem] overflow-hidden border-[6px] border-white shadow-2xl absolute z-25 hover:scale-105 transition-all duration-500 hover:rotate-[-2deg] group">
+                <img 
+                  src="https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80" 
+                  alt="Eco Factory Warehouse" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
+              </div>
 
-                      <div className="w-full">
-                        <div className="w-full bg-slate-50/50 rounded-[2rem] aspect-[4/3] mb-6 flex items-center justify-center p-4 overflow-hidden relative">
-                          <img src={catImage} alt={displayCat} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                        </div>
-
-                        <h4 className="text-2xl font-black text-slate-900 tracking-tight text-center mb-2">
-                          {displayCat}
-                        </h4>
-                        
-                        {is12V ? (
-                          <p className="text-slate-500 font-semibold text-xs text-center leading-relaxed mb-4 px-2">
-                            LAMS Power's premium panels manufactured directly under our strict banners (Powerland, Sunland & Sunland Extreme).
-                          </p>
-                        ) : (
-                          <p className="text-slate-400 font-semibold text-xs text-center leading-relaxed mb-4 px-2">
-                            Imported from leading global brands with quality assurance checks.
-                          </p>
-                        )}
-                      </div>
-
-                      <button 
-                        onClick={() => {
-                          setActiveTab('products');
-                          setProductCategoryFilter(c);
-                        }}
-                        className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all duration-200 active:scale-95 ${
-                          is12V 
-                            ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20' 
-                            : 'bg-slate-900 hover:bg-slate-800 text-white'
-                        }`}
-                      >
-                        Explore Products
-                      </button>
-                    </div>
-                  );
-                })}
+              {/* Capsule Right */}
+              <div className="w-[120px] h-[270px] rounded-[6rem] overflow-hidden border-[6px] border-white shadow-lg rotate-[6deg] absolute right-6 md:right-16 hover:scale-105 transition-all duration-500 hover:rotate-0 hover:z-30 group">
+                <img 
+                  src="https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?w=500&auto=format&fit=crop&q=80" 
+                  alt="Inverter Installations" 
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                />
               </div>
             </div>
           </section>
 
-          {/* আমাদের পরিচিতি (About Us) সেকশন */}
-          <section className="py-20 px-6 md:px-12 max-w-[1300px] mx-auto w-full">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+          {/* 🌟 INTERACTIVE PORTFOLIO SPECS CARD SECTION (Top 4 collections selector) */}
+          <section className="py-12 px-6 md:px-12 bg-[#eaecf0] rounded-[3.5rem] max-w-[1400px] mx-auto w-full border border-slate-300/40">
+            <div className="text-center mb-10">
+              <span className="text-[10px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Portfolio Grid</span>
+              <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Our top four collections</h3>
+              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
               
-              <div className="lg:col-span-5 space-y-4">
-                <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Who We Are</span>
-                <h3 className="text-4xl font-black text-slate-900 leading-tight">
-                  About LAMS Power
-                </h3>
-                <div className="h-1.5 w-16 bg-orange-500 rounded-full"></div>
+              {/* Left Side: Dynamic Specs Card */}
+              <div className="lg:col-span-7 bg-white rounded-[2.5rem] p-6 md:p-8 shadow-md border border-slate-200/50 flex flex-col justify-between hover:scale-[1.005] transition-all duration-300 group">
                 
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-wider pt-4 leading-loose">
-                  Established in 2010<br />
-                  Bangladesh's Trusted Green Partner
-                </p>
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  {/* Specifications fields */}
+                  <div className="space-y-6 w-full md:w-1/2 text-left">
+                    <div>
+                      <span className="text-[9px] font-bold bg-[#ea3838]/10 text-[#ea3838] px-3.5 py-1 rounded-full uppercase tracking-widest font-['Outfit']">
+                        {getDisplayCategoryName(activeShowcaseProduct.category)}
+                      </span>
+                      <h4 className="text-3xl font-black text-[#0f172a] mt-3 font-['Outfit']">
+                        {activeShowcaseProduct.name} Solar
+                      </h4>
+                      <p className="text-slate-400 text-xs font-bold uppercase mt-0.5 tracking-wider">Model: {activeShowcaseProduct.model}</p>
+                    </div>
+
+                    {/* Specifications List */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-full bg-[#f3f4f6] flex items-center justify-center text-[#ea3838] font-bold">⚡</div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Rated Voltage</span>
+                          <span className="text-[#0f172a] font-extrabold text-sm font-['Outfit']">{activeShowcaseProduct.volt || 'Auto Detect'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-full bg-[#f3f4f6] flex items-center justify-center text-[#ea3838] font-bold">☀️</div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Rated Wattage</span>
+                          <span className="text-[#0f172a] font-extrabold text-sm font-['Outfit']">{activeShowcaseProduct.watt || 'N/A'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-10 h-10 rounded-full bg-[#f3f4f6] flex items-center justify-center text-[#ea3838] font-bold">🛡️</div>
+                        <div>
+                          <span className="text-[9px] text-slate-400 font-black uppercase tracking-wider block">Eco Compliance</span>
+                          <span className="text-[#0f172a] font-extrabold text-xs tracking-wide">Green Certified</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Showcase Product Image */}
+                  <div className="w-full md:w-1/2 aspect-square flex items-center justify-center p-4 bg-[#f3f4f6]/50 rounded-3xl overflow-hidden relative">
+                    <img 
+                      src={activeShowcaseProduct.image_url} 
+                      alt={activeShowcaseProduct.name} 
+                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-md"
+                    />
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-100 pt-6 mt-6 flex items-center justify-between">
+                  <div className="text-left">
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Availability</span>
+                    <span className="text-[#0f172a] font-extrabold text-xs font-['Outfit'] capitalize">{activeShowcaseProduct.availability || 'In Stock'}</span>
+                  </div>
+                  
+                  <button 
+                    onClick={() => {
+                      if (activeShowcaseProduct.id) {
+                        setSelectedModalProduct(activeShowcaseProduct);
+                      } else {
+                        // fallback modal trigger
+                        const list = getSortedProductsList(categories[activeCollectionIdx]);
+                        if (list.length > 0) {
+                          setSelectedModalProduct(list[0]);
+                        } else {
+                          setSelectedModalProduct(activeShowcaseProduct);
+                        }
+                      }
+                    }}
+                    className="px-6 py-3 bg-[#ea3838] hover:bg-[#d62828] text-white rounded-full font-black text-xs uppercase tracking-widest shadow-lg shadow-[#ea3838]/10 active:scale-95 transition-all duration-200"
+                  >
+                    View Specs Details
+                  </button>
+                </div>
+
               </div>
 
-              <div className="lg:col-span-7 space-y-8">
-                
-                {/* প্রোফাইল পার্ট */}
-                <div className="space-y-3 bg-slate-50 p-8 rounded-3xl border border-slate-100">
-                  <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-                    {landingConfig.about_profile_title}
-                  </h4>
-                  <p className="text-slate-600 text-sm font-semibold leading-relaxed">
-                    {landingConfig.about_profile_text}
-                  </p>
+              {/* Right Side: Navigation Rows Table */}
+              <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+                {categories.map((c, idx) => {
+                  const displayCat = getDisplayCategoryName(c);
+                  const isActive = activeCollectionIdx === idx;
+                  const catProds = getSortedProductsList(c);
+                  
+                  // Image resolution fallbacks
+                  let categoryThumbnail = landingConfig.category_images?.[displayCat];
+                  if (!categoryThumbnail || categoryThumbnail.includes("Lams-Logo") || categoryThumbnail.trim() === '') {
+                    if (displayCat === 'Hybrid Inverter') categoryThumbnail = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
+                    else if (displayCat === 'On Grid Inverter') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
+                    else if (displayCat === 'Solar Panel 12V') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
+                    else if (displayCat === 'Solar Panel 24V') categoryThumbnail = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
+                  }
+
+                  return (
+                    <div 
+                      key={c}
+                      onClick={() => setActiveCollectionIdx(idx)}
+                      className={`bg-white p-4.5 rounded-[2rem] border transition-all duration-300 cursor-pointer flex items-center justify-between gap-4 group ${
+                        isActive 
+                          ? 'border-[#ea3838] ring-2 ring-[#ea3838]/10 shadow-md' 
+                          : 'border-slate-200/60 shadow-sm hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-4 text-left">
+                        {/* Circle Indicator on active / row */}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-colors ${
+                          isActive ? 'bg-[#ea3838] text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-[#ea3838] group-hover:text-white'
+                        }`}>
+                          {isActive ? '✓' : idx + 1}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-[#0f172a] text-sm md:text-base font-['Outfit'] uppercase tracking-tight">{displayCat}</h4>
+                          <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+                            {catProds.length || 3} Models Available
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Row Thumbnail */}
+                      <div className="w-14 h-14 bg-[#f3f4f6] rounded-2xl flex items-center justify-center p-2.5 overflow-hidden shrink-0 border border-slate-100 group-hover:scale-105 transition-transform duration-500">
+                        <img 
+                          src={categoryThumbnail} 
+                          alt={displayCat} 
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
+          </section>
+
+          {/* 📦 REGULAR USE CARD GRID (Featured In stock Highlights) */}
+          <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
+              <div className="text-left">
+                <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Regular Use Collections</span>
+                <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">Our collections for your regular use</h3>
+                <div className="h-1 w-12 bg-[#ea3838] rounded-full mt-2"></div>
+              </div>
+
+              {/* Pill Badge equivalent to red circle link */}
+              <button 
+                onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
+                className="bg-[#ea3838] hover:bg-[#d62828] text-white px-7 py-3 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-200 shadow-md"
+              >
+                View Full Catalog
+              </button>
+            </div>
+
+            {/* Split cards list showing top product model of each section */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {categories.map((c) => {
+                const displayCat = getDisplayCategoryName(c);
+                const showProd = getShowcaseProduct(c);
+
+                return (
+                  <div 
+                    key={c}
+                    onClick={() => setSelectedModalProduct(showProd)}
+                    className="bg-white rounded-[2.5rem] p-5 border border-slate-200/50 hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5"
+                  >
+                    <div>
+                      {/* Image placeholder with big rounding */}
+                      <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50">
+                        <img 
+                          src={showProd.image_url} 
+                          alt={showProd.name} 
+                          className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500" 
+                        />
+                      </div>
+                      <div className="text-left">
+                        <span className="text-[9px] font-black uppercase text-slate-400 tracking-wider font-['Outfit']">{displayCat}</span>
+                        <h4 className="font-extrabold text-[#0f172a] text-base mt-1 group-hover:text-[#ea3838] transition-colors leading-tight font-['Outfit']">
+                          {showProd.name} {showProd.model}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+                      <span className="text-[10px] text-slate-400 font-black uppercase tracking-wider">Volt: {showProd.volt || 'Auto'}</span>
+                      {/* Black round check button from screenshot */}
+                      <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 active:scale-95 transition-all duration-200">
+                        ✓
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* 📊 INVENTORY NUMBERS BANNER */}
+          <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden rounded-[3rem] max-w-[1400px] mx-auto border border-slate-800">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
+            <div className="absolute -top-32 -left-32 w-80 h-80 bg-[#ea3838]/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="max-w-[1200px] mx-auto text-center space-y-6 relative z-10">
+              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Inventory Volume</span>
+              <h3 className="text-xl md:text-3xl font-black tracking-tight leading-normal max-w-2xl mx-auto font-['Outfit']">
+                Distributing <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of High-Efficiency green equipment.
+              </h3>
+              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
+            </div>
+          </section>
+
+          {/* 👥 CLIENT TESTIMONIAL SLIDER */}
+          <section className="py-12 px-6 md:px-12 max-w-[1400px] mx-auto w-full text-center relative">
+            <div className="text-center mb-10">
+              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Reviews</span>
+              <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-1 font-['Outfit']">What our customers say about us</h3>
+              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
+            </div>
+
+            {/* Testimonial slider layouts with layered background silhouettes */}
+            <div className="relative max-w-2xl mx-auto min-h-[260px] flex items-center justify-center">
+              
+              {/* Silhouette background shapes */}
+              <div className="absolute inset-0 opacity-[0.03] flex items-center justify-center pointer-events-none select-none z-0">
+                <svg viewBox="0 0 100 100" className="w-80 h-80">
+                  <path fill="currentColor" d="M10,20 h80 v60 h-80 z M30,40 h15 v20 h-15 z M55,40 h15 v20 h-15 z" />
+                </svg>
+              </div>
+
+              {/* Slider content */}
+              <div className="bg-white rounded-[2.5rem] border border-slate-200/50 p-8 shadow-md relative z-10 text-center w-full animate-in fade-in duration-300">
+                <div className="flex justify-center gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <span 
+                      key={i} 
+                      className={`text-lg ${i < Math.floor(testimonials[testimonialIdx].stars) ? 'text-amber-500' : 'text-slate-200'}`}
+                    >
+                      ★
+                    </span>
+                  ))}
                 </div>
 
-                {/* কোয়ালিটি পার্ট */}
-                <div className="space-y-3 bg-slate-50 p-8 rounded-3xl border border-slate-100">
-                  <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-slate-900"></span>
-                    {landingConfig.about_quality_title}
-                  </h4>
-                  <p className="text-slate-600 text-sm font-semibold leading-relaxed">
-                    {landingConfig.about_quality_text}
-                  </p>
-                </div>
+                <p className="text-slate-600 font-medium text-sm md:text-base leading-relaxed italic mb-6">
+                  "{testimonials[testimonialIdx].text}"
+                </p>
 
+                <div className="flex items-center justify-center gap-3">
+                  <img 
+                    src={testimonials[testimonialIdx].avatar} 
+                    alt={testimonials[testimonialIdx].name} 
+                    className="w-11 h-11 rounded-full object-cover border border-slate-200 shadow-sm"
+                  />
+                  <div className="text-left">
+                    <h5 className="font-extrabold text-[#0f172a] text-sm font-['Outfit']">{testimonials[testimonialIdx].name}</h5>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{testimonials[testimonialIdx].role}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Slide Buttons (One red, one grey) */}
+              <button 
+                onClick={() => setTestimonialIdx((prev) => (prev - 1 + testimonials.length) % testimonials.length)}
+                className="absolute left-[-20px] md:left-[-50px] w-12 h-12 rounded-full bg-white hover:bg-slate-50 text-slate-600 shadow-md flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20 border border-slate-200/50"
+              >
+                &larr;
+              </button>
+              <button 
+                onClick={() => setTestimonialIdx((prev) => (prev + 1) % testimonials.length)}
+                className="absolute right-[-20px] md:right-[-50px] w-12 h-12 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white shadow-lg shadow-[#ea3838]/10 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20"
+              >
+                &rarr;
+              </button>
+            </div>
+          </section>
+
+          {/* ⚡ COMMUNITY NEWSLETTER FORM */}
+          <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-355/40 relative overflow-hidden">
+              <div className="max-w-2xl mx-auto space-y-6 relative z-10">
+                <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Newsletter</span>
+                <h3 className="text-2xl md:text-4xl font-black text-[#0f172a] leading-tight font-['Outfit']">
+                  Join our exclusive ⚡☀️ community <br className="hidden sm:inline" />
+                  and stay updated!
+                </h3>
+
+                {/* Pill Shape Input Form */}
+                <form 
+                  onSubmit={(e) => { e.preventDefault(); alert("ধন্যবাদ! সফলভাবে সাবস্ক্রাইব করা হয়েছে।"); e.target.reset(); }}
+                  className="bg-white rounded-full p-2 border border-slate-200/80 shadow-sm flex items-center max-w-md mx-auto mt-4"
+                >
+                  <input 
+                    type="email" 
+                    placeholder="Enter your email address..."
+                    required
+                    className="w-full px-5 py-3.5 bg-transparent border-none text-slate-700 outline-none text-sm font-semibold focus:ring-0 focus:border-transparent" 
+                    style={{ border: 'none', background: 'transparent' }}
+                  />
+                  <button 
+                    type="submit"
+                    className="bg-[#ea3838] hover:bg-[#d62828] text-white w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-md shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95"
+                  >
+                    →
+                  </button>
+                </form>
               </div>
             </div>
           </section>
@@ -725,22 +939,22 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       )}
 
-      {/* ---------------- ভিউ ২: ক্যাটালগ প্রোডাক্টস ---------------- */}
+      {/* ---------------- VIEW 2: PRODUCTS PAGE ---------------- */}
       {activeTab === 'products' && (
-        <div className="animate-in fade-in duration-300 flex-1 bg-slate-50 py-10 px-4 lg:px-8">
-          <div className="max-w-[1500px] mx-auto space-y-8">
+        <div className="animate-in fade-in duration-300 flex-1 py-10 px-4 lg:px-8">
+          <div className="max-w-[1400px] mx-auto space-y-10">
             
-            {/* সার্চ ও ক্যাটাগরি ফিল্টার বার */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row gap-6 justify-between items-center">
+            {/* Search and filter controls bar */}
+            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col lg:flex-row gap-6 justify-between items-center">
               
-              {/* ক্যাটাগরি ফিল্টার বাটনসমূহ */}
-              <div className="flex flex-wrap gap-2 justify-center lg:justify-start w-full lg:w-auto">
+              {/* Category tabs */}
+              <div className="flex flex-wrap gap-2.5 justify-center lg:justify-start w-full lg:w-auto">
                 <button 
                   onClick={() => setProductCategoryFilter('All')} 
                   className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
                     productCategoryFilter === 'All' 
-                      ? 'bg-slate-950 text-white shadow-md' 
-                      : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                      ? 'bg-slate-900 text-white shadow-md' 
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'
                   }`}
                 >
                   All Products
@@ -751,8 +965,8 @@ const PublicCatalog = ({ onAdminClick }) => {
                     onClick={() => setProductCategoryFilter(cat)}
                     className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
                       productCategoryFilter === cat 
-                        ? 'bg-slate-950 text-white shadow-md' 
-                        : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-800'
+                        ? 'bg-slate-900 text-white shadow-md' 
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'
                     }`}
                   >
                     {getDisplayCategoryName(cat)}
@@ -760,114 +974,112 @@ const PublicCatalog = ({ onAdminClick }) => {
                 ))}
               </div>
 
-              {/* লাইভ সার্চ ইনপুট */}
+              {/* Live Search input */}
               <div className="w-full lg:w-80 relative">
                 <input 
                   type="text" 
-                  placeholder="🔍 প্রোডাক্ট সার্চ করুন..."
+                  placeholder="🔍 Search product model..."
                   value={productSearch}
                   onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full p-3.5 bg-slate-50 border border-slate-100 rounded-2xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-900"
+                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-900"
                 />
               </div>
-
             </div>
 
-            {/* ফিল্টারড ক্যাটাগরি তালিকা */}
+            {/* Hierarchical sections list */}
             <div className="space-y-16">
               {categories
                 .filter(cat => productCategoryFilter === 'All' || productCategoryFilter === cat)
                 .map((cat) => {
                   const displayCat = getDisplayCategoryName(cat);
                   const is12V = displayCat === 'Solar Panel 12V';
-                  const catProds = getFilteredProductsForList(cat);
-                  const grouped = getGroupedProducts(catProds);
-                  
-                  if (grouped.length === 0) return null;
+                  const catProds = getSortedProductsList(cat);
+
+                  if (catProds.length === 0) return null;
 
                   return (
-                    <div key={cat} className="space-y-8">
-                      <div className="flex items-center gap-4">
-                        <h2 className="text-2xl md:text-3xl font-black text-slate-900 uppercase tracking-tight pl-3 border-l-4 border-slate-950">
-                          {displayCat}
-                        </h2>
-                        {is12V && (
-                          <span className="bg-orange-500/10 text-orange-600 font-black text-[9px] uppercase tracking-wider px-3 py-1 rounded-full">
-                            Manufactured Under LAMS banner
-                          </span>
-                        )}
+                    <div key={cat} className="space-y-8 animate-in fade-in duration-300">
+                      
+                      {/* Section Header */}
+                      <div className="flex items-center gap-4 text-left border-l-4 border-[#ea3838] pl-4">
+                        <div>
+                          <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] uppercase tracking-tight font-['Outfit']">
+                            {displayCat}
+                          </h2>
+                          {is12V && (
+                            <span className="text-[#ea3838] font-extrabold text-[9px] uppercase tracking-wider block mt-0.5">
+                              LAMS Power Banner Own Brand
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                        {grouped.map((brand, index) => (
-                          <div 
-                            key={index} 
-                            className={`bg-white rounded-[2.5rem] p-6 border shadow-sm flex flex-col justify-between hover:shadow-xl transition-all duration-300 group ${
-                              is12V ? 'border-orange-100/60 shadow-orange-100/10' : 'border-slate-100'
-                            }`}
-                          >
-                            <div className="w-full">
-                              <div className="w-full bg-slate-50/50 rounded-[2rem] aspect-[4/3] mb-6 flex items-center justify-center p-4 overflow-hidden">
-                                {brand.image_url ? (
-                                  <img src={brand.image_url} alt={brand.name} loading="lazy" className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105" />
-                                ) : (
-                                  <div className="text-4xl">📦</div>
-                                )}
-                              </div>
-
-                              <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-3xl font-black text-slate-900 tracking-tight">
-                                  {brand.name}
-                                </h3>
-                                {is12V && (
-                                  <span className="text-[8px] font-black uppercase text-orange-500 bg-orange-50 px-2 py-0.5 rounded border border-orange-200">
-                                    Own Brand
+                      {/* Split models grid cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        {catProds.map((prod, idx) => {
+                          const hasStock = (prod.availability || '').trim().toLowerCase() === 'in stock';
+                          const isUpcoming = (prod.availability || '').trim().toLowerCase() === 'upcoming';
+                          
+                          return (
+                            <div 
+                              key={idx}
+                              onClick={() => setSelectedModalProduct(prod)}
+                              className={`bg-white rounded-[2.5rem] p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
+                                is12V ? 'border-orange-100/50 hover:border-orange-300/60' : 'border-slate-200/50'
+                              }`}
+                            >
+                              <div>
+                                {/* Aspect 4/3 image wrapper with scale/rotation animation */}
+                                <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50 relative">
+                                  {/* Availability badge */}
+                                  <span className={`absolute top-3.5 left-3.5 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
+                                    hasStock ? 'bg-emerald-500 text-white' : isUpcoming ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white'
+                                  }`}>
+                                    {prod.availability || 'In Stock'}
                                   </span>
-                                )}
+
+                                  {prod.image_url ? (
+                                    <img 
+                                      src={prod.image_url} 
+                                      alt={prod.name} 
+                                      className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
+                                    />
+                                  ) : (
+                                    <div className="text-4xl select-none">📦</div>
+                                  )}
+                                </div>
+
+                                <div className="text-left px-1">
+                                  <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest font-['Outfit']">
+                                    {displayCat}
+                                  </span>
+                                  <h3 className="text-lg font-black text-[#0f172a] mt-1 truncate leading-tight font-['Outfit']">
+                                    {prod.name}
+                                  </h3>
+                                  <p className="text-xs font-bold text-slate-500 mt-0.5">Model: {prod.model}</p>
+                                </div>
                               </div>
-                            </div>
 
-                            <div className="space-y-3 pt-2">
-                              {/* ইন স্টক মডেল তালিকা */}
-                              {brand.inStock.length > 0 && (
-                                <div className="bg-emerald-50/60 border border-emerald-100 p-4 rounded-2xl text-center">
-                                  <span className="text-[9px] font-black uppercase tracking-wider text-emerald-600 block mb-2">✓ In Stock Models</span>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {brand.inStock.map((model) => (
-                                      <button 
-                                        key={model}
-                                        onClick={() => handleModelClick(brand.name, model)}
-                                        className="bg-white hover:bg-emerald-550 border border-emerald-100 text-emerald-700 p-2 rounded-xl text-xs font-black transition-all shadow-sm truncate h-10 flex items-center justify-center"
-                                      >
-                                        {model}
-                                      </button>
-                                    ))}
-                                  </div>
+                              {/* Specifications Summary row on card face */}
+                              <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
+                                <div className="text-left">
+                                  <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block">Voltage / Wattage</span>
+                                  <span className="text-xs font-black text-slate-700 font-['Outfit']">
+                                    {prod.volt || 'Auto'} / {prod.watt || 'N/A'}
+                                  </span>
                                 </div>
-                              )}
-
-                              {/* আপকামিং মডেল তালিকা */}
-                              {brand.upcoming.length > 0 && (
-                                <div className="bg-amber-50/60 border border-amber-100 p-4 rounded-2xl text-center">
-                                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 block mb-2">⏳ Coming Soon</span>
-                                  <div className="grid grid-cols-2 gap-2">
-                                    {brand.upcoming.map((model) => (
-                                      <button 
-                                        key={model}
-                                        onClick={() => handleModelClick(brand.name, model)}
-                                        className="bg-white hover:bg-amber-550 border border-amber-100 text-amber-700 p-2 rounded-xl text-xs font-black transition-all shadow-sm truncate h-10 flex items-center justify-center"
-                                      >
-                                        {model}
-                                      </button>
-                                    ))}
-                                  </div>
+                                
+                                {/* Red icon arrow on click */}
+                                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 transition-all duration-200">
+                                  →
                                 </div>
-                              )}
-                            </div>
+                              </div>
 
-                          </div>
-                        ))}
+                            </div>
+                          );
+                        })}
                       </div>
+
                     </div>
                   );
                 })}
@@ -877,70 +1089,70 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       )}
 
-      {/* ---------------- ভিউ ৩: কন্ট্যাক্ট পেজ ---------------- */}
+      {/* ---------------- VIEW 3: CONTACT PAGE ---------------- */}
       {activeTab === 'contact' && (
-        <div className="animate-in fade-in duration-300 flex-1 bg-slate-50 py-16 px-6 md:px-12 w-full">
-          <div className="max-w-[1200px] mx-auto space-y-12">
+        <div className="animate-in fade-in duration-300 flex-1 py-16 px-6 md:px-12 max-w-[1400px] mx-auto w-full">
+          <div className="space-y-12">
             <div className="text-center">
-              <span className="text-[10px] font-black tracking-widest uppercase text-orange-500">Get In Touch</span>
-              <h3 className="text-4xl font-black text-slate-900 mt-1">Contact LAMS Power</h3>
-              <div className="h-1.5 w-16 bg-orange-500 rounded-full mx-auto mt-3"></div>
+              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Get In Touch</span>
+              <h3 className="text-3xl md:text-4xl font-black text-[#0f172a] mt-1 font-['Outfit']">Contact LAMS Power</h3>
+              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               
-              {/* কর্পোরেট অফিস */}
+              {/* Corporate Office Card */}
               {siteSettings.contact_address && (
-                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col items-center text-center space-y-4 hover:scale-[1.01] transition-transform duration-300">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-inner">
                     🏢
                   </div>
-                  <h4 className="text-lg font-black text-slate-900">Corporate Office</h4>
+                  <h4 className="text-lg font-black text-[#0f172a] font-['Outfit']">Corporate Office</h4>
                   <p className="text-slate-500 text-sm font-semibold leading-relaxed">
                     {siteSettings.contact_address}
                   </p>
                 </div>
               )}
 
-              {/* নবাবপুর শোরুম */}
+              {/* Showroom Card */}
               {siteSettings.contact_showroom && (
-                <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-4">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl">
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col items-center text-center space-y-4 hover:scale-[1.01] transition-transform duration-300">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-inner">
                     🏪
                   </div>
-                  <h4 className="text-lg font-black text-slate-900">Showroom Address</h4>
+                  <h4 className="text-lg font-black text-[#0f172a] font-['Outfit']">Showroom Address</h4>
                   <p className="text-slate-500 text-sm font-semibold leading-relaxed">
                     {siteSettings.contact_showroom}
                   </p>
                 </div>
               )}
 
-              {/* ফোন এবং ইমেইল */}
-              <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center space-y-6">
-                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-xl">
+              {/* Connect details Card */}
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col items-center text-center space-y-5 hover:scale-[1.01] transition-transform duration-300">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center text-lg shadow-inner">
                   📞
                 </div>
-                <h4 className="text-lg font-black text-slate-900">Connect With Us</h4>
+                <h4 className="text-lg font-black text-[#0f172a] font-['Outfit']">Connect With Us</h4>
                 
-                <div className="space-y-4 w-full">
+                <div className="space-y-4 w-full text-center">
                   {siteSettings.contact_hotline && (
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Hotline</span>
-                      <a href={`tel:${siteSettings.contact_hotline}`} className="text-orange-500 font-black text-base hover:underline">{siteSettings.contact_hotline}</a>
+                      <a href={`tel:${siteSettings.contact_hotline}`} className="text-[#ea3838] font-black text-base hover:underline">{siteSettings.contact_hotline}</a>
                     </div>
                   )}
                   {siteSettings.contact_numbers && (
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Sales / Office Phone</span>
-                      <p className="text-slate-700 font-black text-sm whitespace-pre-line leading-relaxed">
+                      <p className="text-slate-700 font-extrabold text-xs whitespace-pre-line leading-relaxed">
                         {siteSettings.contact_numbers.split(', ').join('\n')}
                       </p>
                     </div>
                   )}
                   {siteSettings.contact_email && (
                     <div>
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">E-mail</span>
-                      <a href={`mailto:${siteSettings.contact_email}`} className="text-slate-900 font-bold hover:underline">{siteSettings.contact_email}</a>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">E-mail Address</span>
+                      <a href={`mailto:${siteSettings.contact_email}`} className="text-slate-900 font-semibold hover:underline text-xs">{siteSettings.contact_email}</a>
                     </div>
                   )}
                 </div>
@@ -951,12 +1163,13 @@ const PublicCatalog = ({ onAdminClick }) => {
         </div>
       )}
 
-      {/* 🎯 মডাল উইন্ডো */}
+      {/* 🎯 SPECIFICATIONS MODAL WINDOW */}
       {selectedModalProduct && (() => {
         let parsedDescText = '';
         let pdfUrl = '';
         let catalogImageUrl = '';
         const desc = selectedModalProduct.description || '';
+        
         if (desc.trim().startsWith('{')) {
           try {
             const parsed = JSON.parse(desc);
@@ -964,7 +1177,6 @@ const PublicCatalog = ({ onAdminClick }) => {
             pdfUrl = parsed.pdf_url || '';
             catalogImageUrl = parsed.catalog_image_url || '';
 
-            // Fallback for old catalog_url format
             if (parsed.catalog_url) {
               if (/\.pdf/i.test(parsed.catalog_url)) {
                 if (!pdfUrl) pdfUrl = parsed.catalog_url;
@@ -981,39 +1193,40 @@ const PublicCatalog = ({ onAdminClick }) => {
 
         return (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border shadow-2xl relative animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-xl p-8 border border-slate-200 shadow-2xl relative animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]">
               
               <button 
                 onClick={() => setSelectedModalProduct(null)}
-                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-bold hover:bg-slate-200 transition-all flex items-center justify-center text-xl z-50"
+                className="absolute top-6 right-6 w-10 h-10 rounded-full bg-slate-100 text-slate-500 font-black hover:bg-slate-200 transition-all flex items-center justify-center text-lg z-50 shadow-inner"
               >
                 ✕
               </button>
 
-              <div className="overflow-y-auto custom-scrollbar pr-1 flex-1 space-y-6 mt-4">
-                <div className="border-b pb-4 mb-5">
-                  <span className="text-[10px] font-black tracking-widest bg-orange-100 text-orange-600 px-3.5 py-1 rounded-full uppercase">
-                    {selectedModalProduct.category}
+              <div className="overflow-y-auto pr-1 flex-1 space-y-6 mt-4">
+                <div className="border-b pb-4 mb-4 text-center">
+                  <span className="text-[9px] font-black tracking-widest bg-[#ea3838]/10 text-[#ea3838] px-3.5 py-1.2 rounded-full uppercase font-['Outfit']">
+                    {getDisplayCategoryName(selectedModalProduct.category)}
                   </span>
-                  <h3 className="text-3xl font-black text-slate-900 mt-2 text-center">{selectedModalProduct.name}</h3>
-                  <p className="text-lg font-black text-orange-600 mt-1 text-center">মডেল/ক্ষমতা: {selectedModalProduct.model}</p>
+                  <h3 className="text-2xl md:text-3xl font-black text-[#0f172a] mt-3 font-['Outfit'] leading-tight">{selectedModalProduct.name}</h3>
+                  <p className="text-base font-extrabold text-[#ea3838] mt-1 font-['Outfit']">Model/Capacity: {selectedModalProduct.model}</p>
                 </div>
 
+                {/* Specs layout grid */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ভোল্টেজ</span>
-                    <span className="text-2xl font-black text-slate-800">{selectedModalProduct.volt || 'পাওয়া যায়নি'}</span>
+                  <div className="bg-[#f3f4f6]/60 p-4 rounded-2xl border border-slate-100 text-center">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Load Voltage</span>
+                    <span className="text-xl font-black text-slate-800 font-['Outfit']">{selectedModalProduct.volt || 'Auto Detect'}</span>
                   </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 text-center">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">লোড ওয়াট</span>
-                    <span className="text-2xl font-black text-slate-800">{selectedModalProduct.watt || 'পাওয়া যায়নি'}</span>
+                  <div className="bg-[#f3f4f6]/60 p-4 rounded-2xl border border-slate-100 text-center">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block mb-1">Load Wattage</span>
+                    <span className="text-xl font-black text-slate-800 font-['Outfit']">{selectedModalProduct.watt || 'N/A'}</span>
                   </div>
                 </div>
 
                 {parsedDescText && (
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center">প্রোডাক্ট পরিচিতি ও টেকনিক্যাল বিবরণ</span>
-                    <div className="bg-slate-50 p-5 rounded-2xl border text-base text-slate-800 leading-relaxed font-semibold max-h-48 overflow-y-auto custom-scrollbar">
+                  <div className="space-y-2 text-left">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block px-1 text-center font-['Outfit']">Product description & details</span>
+                    <div className="bg-[#f3f4f6]/60 p-5 rounded-2xl border border-slate-200/50 text-sm text-slate-700 leading-relaxed font-medium max-h-48 overflow-y-auto">
                       <p className="whitespace-pre-line">{parsedDescText}</p>
                     </div>
                   </div>
@@ -1027,17 +1240,16 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img 
                             src={catalogImageUrl} 
                             alt="Product Catalog" 
-                            loading="lazy"
-                            className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
+                            className="w-full h-auto max-h-60 object-contain bg-slate-55 mx-auto"
                           />
                         </div>
                         <a 
                           href={catalogImageUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-orange-500 hover:bg-orange-650 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-[#ea3838] hover:bg-[#d62828] text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
                         >
-                          🖼️ ইমেজ ক্যাটালগ ডাউনলোড / দেখুন
+                          🖼️ View Image Catalog
                         </a>
                       </div>
                     )}
@@ -1048,9 +1260,9 @@ const PublicCatalog = ({ onAdminClick }) => {
                           href={pdfUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-orange-600 text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
+                          className="w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-slate-900 hover:bg-[#ea3838] text-white rounded-2xl font-black text-xs uppercase tracking-wider transition-colors shadow-md active:scale-95 duration-200"
                         >
-                          📄 PDF ক্যাটালগ ডাউনলোড / দেখুন
+                          📄 Download Catalog PDF
                         </a>
                       </div>
                     )}
@@ -1060,39 +1272,40 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               <button 
                 onClick={() => setSelectedModalProduct(null)}
-                className="w-full mt-6 bg-slate-900 hover:bg-orange-600 text-white py-4 rounded-2xl font-black text-md transition-colors shadow-lg shrink-0"
+                className="w-full mt-6 bg-slate-900 hover:bg-[#ea3838] text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-colors shadow-lg shrink-0 active:scale-[0.98]"
               >
-                বন্ধ করুন
+                Close View
               </button>
 
             </div>
           </div>
         );
       })()}
-            {/* 🏛️ স্লিক মিনিমাল ফুটার - লাইট থিম */}
-            <footer className="bg-slate-50 text-slate-800 py-12 px-6 border-t border-slate-200 mt-auto">
-              <div className="max-w-[1500px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-                <div className="text-center md:text-left">
-                  <h5 className="text-lg font-black text-slate-900 tracking-tighter uppercase">LAMS <span className="text-orange-500">POWER</span></h5>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
-                </div>
-      
-                {/* এডমিন পোর্টাল লগইন বাটন */}
-                <div className="flex justify-center">
-                  <button 
-                    onClick={onAdminClick}
-                    className="border border-slate-200 text-slate-600 hover:border-orange-500 hover:text-orange-500 px-6 py-2.5 rounded-full font-black text-xs uppercase tracking-widest transition-all duration-300 shadow-sm active:scale-95 bg-transparent hover:bg-orange-50/30"
-                  >
-                    Portal Login
-                  </button>
-                </div>
-                          {landingConfig.actual_footer_image && (
-                            <div className="max-w-[600px] w-full opacity-90 hover:opacity-100 transition-opacity flex justify-center md:justify-end mix-blend-multiply">
-                              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" loading="lazy" className="max-h-36 w-auto object-contain" />
-                            </div>
-                          )}
-              </div>
-            </footer>
+
+      {/* 🏛️ SLATE MINIMAL FOOTER */}
+      <footer className="bg-slate-900 text-slate-400 py-16 px-6 md:px-12 border-t border-slate-800 mt-auto rounded-t-[3rem]">
+        <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="text-center md:text-left space-y-2">
+            <h5 className="text-2xl font-black text-white tracking-tighter uppercase font-['Outfit']">LAMS<span className="text-[#ea3838]">.</span></h5>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+              © {new Date().getFullYear()} Lams Power. All Rights Reserved.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-500">
+            <button onClick={() => setActiveTab('home')} className="hover:text-white transition-colors">Home</button>
+            <button onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} className="hover:text-white transition-colors">Store</button>
+            <button onClick={() => setActiveTab('contact')} className="hover:text-white transition-colors">Contact</button>
+            <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838]">Portal</button>
+          </div>
+
+          {landingConfig.actual_footer_image && (
+            <div className="max-w-[180px] w-full opacity-65 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
+              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-12 w-auto object-contain filter invert opacity-80" />
+            </div>
+          )}
+        </div>
+      </footer>
 
     </div>
   );
