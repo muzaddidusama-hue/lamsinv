@@ -192,10 +192,14 @@ const PublicCatalog = ({ onAdminClick }) => {
   
   const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
 
-  // Filter individual models without brand aggregation
+  // Filter individual models with stock quantity >= 10
   const getFilteredProductsList = (cat) => {
     return products.filter(p => {
       if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return false;
+      
+      // Stock quantity check: Must have at least 10 pcs in stock
+      if (Number(p.stock_quantity) < 10) return false;
+
       const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
@@ -224,6 +228,22 @@ const PublicCatalog = ({ onAdminClick }) => {
       const capB = parseFloat(b.model.match(/([\d.]+)/)?.[1] || 0);
       return capA - capB;
     });
+  };
+
+  // Group products by brand/name subsection
+  const groupProductsByBrand = (prods) => {
+    const groups = {};
+    prods.forEach(p => {
+      const brandName = p.name ? p.name.trim() : 'Other Brand';
+      if (!groups[brandName]) {
+        groups[brandName] = [];
+      }
+      groups[brandName].push(p);
+    });
+    return Object.entries(groups).map(([brandName, brandProds]) => ({
+      brandName,
+      brandProds
+    })).sort((a, b) => a.brandName.localeCompare(b.brandName));
   };
 
   // Get active product details for the interactive portfolio specs card
@@ -272,6 +292,27 @@ const PublicCatalog = ({ onAdminClick }) => {
   };
 
   const activeShowcaseProduct = getShowcaseProduct(categories[activeCollectionIdx]);
+
+  // Find SolarOn 3600 & 6200 products dynamically for the featured hero section
+  const solarOn3600 = products.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
+    name: 'SolarOn',
+    model: '3600VA',
+    image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
+    volt: '24V',
+    watt: '3600W',
+    availability: 'in stock',
+    description: 'High efficiency SolarOn 3600VA hybrid inverter.'
+  };
+
+  const solarOn6200 = products.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('6200')) || {
+    name: 'SolarOn',
+    model: '6200VA',
+    image_url: 'https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png',
+    volt: '48V',
+    watt: '6200W',
+    availability: 'in stock',
+    description: 'High efficiency SolarOn 6200VA hybrid inverter.'
+  };
 
   // Dynamic clean display mapping
   const getDisplayCategoryName = (c) => {
@@ -326,13 +367,17 @@ const PublicCatalog = ({ onAdminClick }) => {
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER */}
-      <header className="bg-[#f3f4f6]/70 backdrop-blur-xl py-5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/50">
+      {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
+      <header className="bg-[#f3f4f6]/70 backdrop-blur-xl py-4.5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/50">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => setActiveTab('home')}>
-            <div className="w-8 h-8 rounded-full bg-[#ea3838] flex items-center justify-center text-white font-black text-sm tracking-tighter">L</div>
-            <h1 className="text-2xl font-black text-[#0f172a] tracking-tight uppercase font-['Outfit']">
-              Lams<span className="text-[#ea3838] font-black">.</span>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
+            <img 
+              src="https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/Lams%20Power/Lams-Logo.png" 
+              alt="Lams Power Logo" 
+              className="h-10 md:h-11 object-contain" 
+            />
+            <h1 className="text-xl font-black text-[#0f172a] tracking-tight uppercase font-['Outfit'] hidden sm:block">
+              Lams<span className="text-[#ea3838] font-black">Power</span>
             </h1>
           </div>
 
@@ -375,74 +420,147 @@ const PublicCatalog = ({ onAdminClick }) => {
       {activeTab === 'home' && (
         <div className="animate-in fade-in duration-300 flex-1 flex flex-col gap-16 pb-16">
           
-          {/* ⚡ BANNER HERO SECTION */}
+          {/* ⚡ BANNER HERO SECTION - SOLARON 3600 & 6200 DUAL SHOWCASE WITH CHECKMARK SPECS */}
           <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full pt-8">
-            <div className="bg-[#eaecf0] rounded-[3rem] p-8 md:p-16 relative overflow-hidden flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[550px] shadow-sm">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-8 md:p-16 relative overflow-hidden flex flex-col lg:flex-row items-stretch justify-between gap-12 min-h-[600px] shadow-sm">
               {/* Back panels */}
               <div className="absolute top-0 right-0 w-[45%] h-full bg-slate-300/20 rounded-[3rem] -skew-x-12 origin-top pointer-events-none" />
               
-              {/* Left Content */}
-              <div className="max-w-xl space-y-8 z-10 text-left">
-                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-1.5 rounded-full border border-slate-200/50 shadow-sm">
+              {/* Left Content Column */}
+              <div className="max-w-xl space-y-6 z-10 text-left flex flex-col justify-center">
+                <div className="inline-flex items-center gap-2 bg-white/80 px-4 py-1.5 rounded-full border border-slate-200/50 shadow-sm self-start">
                   <span className="flex h-2 w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#ea3838] opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-[#ea3838]"></span>
                   </span>
                   <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">
-                    Premium Solar Solutions
+                    Featured Hybrid Showcase
                   </span>
                 </div>
 
-                <h2 className="text-4xl md:text-6xl font-black tracking-tight leading-[1.05] text-[#0f172a] font-['Outfit']">
-                  Super clean <br />
+                <h2 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight leading-[1.05] text-[#0f172a] font-['Outfit']">
+                  SolarOn Series <br />
                   <span className="text-[#ea3838] relative inline-block">
-                    solar Energy
+                    3600 & 6200
                     <span className="absolute left-0 bottom-0.5 w-full h-1.5 bg-[#ea3838]/20 rounded-full"></span>
                   </span>
                 </h2>
 
-                <p className="text-slate-500 font-medium text-sm md:text-base leading-relaxed">
-                  Experience top-tier quality solar equipment manufactured and distributed under strict environmental and safety compliance standards. Empowering Bangladesh since 2010.
+                <p className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">
+                  Premium technology equipped with state-of-the-art power conversion features:
                 </p>
 
-                {/* Left Showcase Widget (equivalent to moped hero side card) */}
-                <div className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-200/60 flex items-center gap-5 max-w-sm">
-                  <div className="w-16 h-16 bg-[#f3f4f6] rounded-2xl flex items-center justify-center p-2 shrink-0">
-                    <img 
-                      src={activeShowcaseProduct.image_url} 
-                      alt="Featured Inverter" 
-                      className="max-h-full max-w-full object-contain"
-                    />
+                {/* Grid of features from the provided screenshot */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-white/45 p-6 rounded-[2rem] border border-slate-200/60 shadow-inner">
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>Lithium battery auto-restart function</span>
                   </div>
-                  <div>
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Featured Arrival</span>
-                    <h4 className="font-extrabold text-[#0f172a] text-sm font-['Outfit']">{activeShowcaseProduct.name} {activeShowcaseProduct.model}</h4>
-                    <p className="text-emerald-600 font-bold text-[10px] tracking-wide mt-0.5 uppercase flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> In Stock
-                    </p>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>Designed with a touch screen panel</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>Utility/PV charging voltage adjustable</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>CT anti-back flow function support</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>PF1.0 High efficiency, lower consumption</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>PV generation fed into grid supported</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>Communication: external WIFI module</span>
+                  </div>
+                  <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
+                    <span className="text-[#ea3838] font-black text-sm">✓</span>
+                    <span>BMS function for lithium battery</span>
                   </div>
                 </div>
 
-                {/* Explore Red Button */}
-                <div className="flex items-center gap-4">
+                {/* Explore Action button */}
+                <div className="flex items-center gap-4 pt-2">
                   <button 
-                    onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
-                    className="w-14 h-14 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-xl font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95 duration-300"
+                    onClick={() => { setActiveTab('products'); setProductCategoryFilter('Hybrid Inverter'); }} 
+                    className="w-13 h-13 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-lg font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95"
                   >
                     →
                   </button>
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Explore Catalog</span>
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Explore Hybrid Series</span>
                 </div>
               </div>
 
-              {/* Right Showcase (Floating Product Image with curved shadows) */}
-              <div className="relative z-10 flex items-center justify-center self-center w-full lg:w-1/2 min-h-[300px]">
-                <div className="w-80 h-80 md:w-96 md:h-96 rounded-full bg-slate-300/40 absolute blur-2xl opacity-60 z-0 animate-pulse" />
-                <img 
-                  src={activeShowcaseProduct.image_url} 
-                  alt="Solar On Inverter" 
-                  className="max-h-[350px] md:max-h-[450px] w-auto object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700" 
-                />
+              {/* Right Side Column: Side-by-Side Dual Product Display Cards */}
+              <div className="z-10 flex flex-col sm:flex-row items-center justify-center gap-6 lg:w-1/2 w-full self-center">
+                
+                {/* SolarOn 3600 Card */}
+                <div 
+                  onClick={() => setSelectedModalProduct(solarOn3600)}
+                  className="bg-white/80 p-5 rounded-[2.5rem] shadow-md border border-slate-200/50 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 w-full sm:w-1/2 flex flex-col justify-between aspect-[3/4] cursor-pointer group text-left animate-float"
+                >
+                  <div>
+                    <div className="w-full bg-[#f3f4f6]/60 rounded-3xl aspect-square flex items-center justify-center p-4 overflow-hidden mb-4">
+                      <img 
+                        src={solarOn3600.image_url} 
+                        alt="SolarOn 3600" 
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                    <span className="text-[8px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded uppercase tracking-wider">
+                      Hybrid Inverter
+                    </span>
+                    <h3 className="text-lg font-black text-[#0f172a] mt-2 font-['Outfit'] truncate">
+                      {solarOn3600.name}
+                    </h3>
+                    <p className="text-slate-400 text-xs font-extrabold">Model: {solarOn3600.model}</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-3">
+                    <span className="text-[9px] text-slate-500 font-extrabold uppercase">Specs: {solarOn3600.volt} / {solarOn3600.watt}</span>
+                    <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] group-hover:bg-[#ea3838] transition-colors">
+                      →
+                    </div>
+                  </div>
+                </div>
+
+                {/* SolarOn 6200 Card */}
+                <div 
+                  onClick={() => setSelectedModalProduct(solarOn6200)}
+                  className="bg-white/80 p-5 rounded-[2.5rem] shadow-md border border-slate-200/50 hover:shadow-xl hover:scale-[1.03] transition-all duration-300 w-full sm:w-1/2 flex flex-col justify-between aspect-[3/4] cursor-pointer group text-left animate-float-delayed"
+                >
+                  <div>
+                    <div className="w-full bg-[#f3f4f6]/60 rounded-3xl aspect-square flex items-center justify-center p-4 overflow-hidden mb-4">
+                      <img 
+                        src={solarOn6200.image_url} 
+                        alt="SolarOn 6200" 
+                        className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500"
+                      />
+                    </div>
+                    <span className="text-[8px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded uppercase tracking-wider">
+                      Hybrid Inverter
+                    </span>
+                    <h3 className="text-lg font-black text-[#0f172a] mt-2 font-['Outfit'] truncate">
+                      {solarOn6200.name}
+                    </h3>
+                    <p className="text-slate-400 text-xs font-extrabold">Model: {solarOn6200.model}</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-3">
+                    <span className="text-[9px] text-slate-500 font-extrabold uppercase">Specs: {solarOn6200.volt} / {solarOn6200.watt}</span>
+                    <div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] group-hover:bg-[#ea3838] transition-colors">
+                      →
+                    </div>
+                  </div>
+                </div>
+
               </div>
 
             </div>
@@ -905,7 +1023,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {/* ⚡ COMMUNITY NEWSLETTER FORM */}
           <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
-            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-355/40 relative overflow-hidden">
+            <div className="bg-[#eaecf0] rounded-[3rem] p-10 md:p-14 text-center border border-slate-350/40 relative overflow-hidden">
               <div className="max-w-2xl mx-auto space-y-6 relative z-10">
                 <span className="text-[9px] font-black tracking-widest uppercase text-slate-400 font-['Outfit']">Newsletter</span>
                 <h3 className="text-2xl md:text-4xl font-black text-[#0f172a] leading-tight font-['Outfit']">
@@ -986,8 +1104,8 @@ const PublicCatalog = ({ onAdminClick }) => {
               </div>
             </div>
 
-            {/* Hierarchical sections list */}
-            <div className="space-y-16">
+            {/* Hierarchical sections list with brand subsection groupings */}
+            <div className="space-y-16 text-left">
               {categories
                 .filter(cat => productCategoryFilter === 'All' || productCategoryFilter === cat)
                 .map((cat) => {
@@ -997,10 +1115,13 @@ const PublicCatalog = ({ onAdminClick }) => {
 
                   if (catProds.length === 0) return null;
 
+                  // Group sorted models by their brand/name dynamically
+                  const brandGroups = groupProductsByBrand(catProds);
+
                   return (
                     <div key={cat} className="space-y-8 animate-in fade-in duration-300">
                       
-                      {/* Section Header */}
+                      {/* Section Category Header */}
                       <div className="flex items-center gap-4 text-left border-l-4 border-[#ea3838] pl-4">
                         <div>
                           <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] uppercase tracking-tight font-['Outfit']">
@@ -1014,70 +1135,91 @@ const PublicCatalog = ({ onAdminClick }) => {
                         </div>
                       </div>
 
-                      {/* Split models grid cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {catProds.map((prod, idx) => {
-                          const hasStock = (prod.availability || '').trim().toLowerCase() === 'in stock';
-                          const isUpcoming = (prod.availability || '').trim().toLowerCase() === 'upcoming';
-                          
-                          return (
-                            <div 
-                              key={idx}
-                              onClick={() => setSelectedModalProduct(prod)}
-                              className={`bg-white rounded-[2.5rem] p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
-                                is12V ? 'border-orange-100/50 hover:border-orange-300/60' : 'border-slate-200/50'
-                              }`}
-                            >
-                              <div>
-                                {/* Aspect 4/3 image wrapper with scale/rotation animation */}
-                                <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50 relative">
-                                  {/* Availability badge */}
-                                  <span className={`absolute top-3.5 left-3.5 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
-                                    hasStock ? 'bg-emerald-500 text-white' : isUpcoming ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white'
-                                  }`}>
-                                    {prod.availability || 'In Stock'}
-                                  </span>
-
-                                  {prod.image_url ? (
-                                    <img 
-                                      src={prod.image_url} 
-                                      alt={prod.name} 
-                                      className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
-                                    />
-                                  ) : (
-                                    <div className="text-4xl select-none">📦</div>
-                                  )}
-                                </div>
-
-                                <div className="text-left px-1">
-                                  <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest font-['Outfit']">
-                                    {displayCat}
-                                  </span>
-                                  <h3 className="text-lg font-black text-[#0f172a] mt-1 truncate leading-tight font-['Outfit']">
-                                    {prod.name}
-                                  </h3>
-                                  <p className="text-xs font-bold text-slate-500 mt-0.5">Model: {prod.model}</p>
-                                </div>
-                              </div>
-
-                              {/* Specifications Summary row on card face */}
-                              <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
-                                <div className="text-left">
-                                  <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block">Voltage / Wattage</span>
-                                  <span className="text-xs font-black text-slate-700 font-['Outfit']">
-                                    {prod.volt || 'Auto'} / {prod.watt || 'N/A'}
-                                  </span>
-                                </div>
-                                
-                                {/* Red icon arrow on click */}
-                                <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 transition-all duration-200">
-                                  →
-                                </div>
-                              </div>
-
+                      {/* Brand Groups iteration */}
+                      <div className="space-y-10 pl-2">
+                        {brandGroups.map(({ brandName, brandProds }) => (
+                          <div key={brandName} className="space-y-5">
+                            
+                            {/* Brand Sub Header */}
+                            <div className="flex items-center gap-2.5 pb-1">
+                              <span className="w-2 h-2 rounded-full bg-[#ea3838]"></span>
+                              <h3 className="text-lg font-black text-[#0f172a] tracking-tight font-['Outfit'] uppercase">
+                                {brandName}
+                              </h3>
+                              <span className="text-[9px] text-slate-400 font-extrabold bg-[#eaecf0] px-2 py-0.5 rounded-full font-['Outfit']">
+                                {brandProds.length} {brandProds.length === 1 ? 'Model' : 'Models'}
+                              </span>
                             </div>
-                          );
-                        })}
+
+                            {/* Grid of individual split cards of this brand */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                              {brandProds.map((prod, idx) => {
+                                const hasStock = (prod.availability || '').trim().toLowerCase() === 'in stock';
+                                const isUpcoming = (prod.availability || '').trim().toLowerCase() === 'upcoming';
+                                
+                                return (
+                                  <div 
+                                    key={idx}
+                                    onClick={() => setSelectedModalProduct(prod)}
+                                    className={`bg-white rounded-[2.5rem] p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
+                                      is12V ? 'border-orange-100/50 hover:border-orange-350/60' : 'border-slate-200/50'
+                                    }`}
+                                  >
+                                    <div>
+                                      {/* Aspect 4/3 image wrapper with scale/rotation animation */}
+                                      <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50 relative">
+                                        
+                                        {/* Availability/Stock badge */}
+                                        <span className={`absolute top-3.5 left-3.5 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
+                                          hasStock ? 'bg-emerald-500 text-white' : isUpcoming ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white'
+                                        }`}>
+                                          {prod.availability || 'In Stock'}
+                                        </span>
+
+                                        {prod.image_url ? (
+                                          <img 
+                                            src={prod.image_url} 
+                                            alt={prod.name} 
+                                            className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
+                                          />
+                                        ) : (
+                                          <div className="text-4xl select-none">📦</div>
+                                        )}
+                                      </div>
+
+                                      <div className="text-left px-1">
+                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest font-['Outfit']">
+                                          {displayCat}
+                                        </span>
+                                        <h3 className="text-base font-black text-[#0f172a] mt-1 truncate leading-tight font-['Outfit']">
+                                          {prod.name}
+                                        </h3>
+                                        <p className="text-xs font-bold text-slate-500 mt-0.5">Model: {prod.model}</p>
+                                      </div>
+                                    </div>
+
+                                    {/* Specifications Summary row on card face */}
+                                    <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
+                                      <div className="text-left">
+                                        <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block">Voltage / Wattage</span>
+                                        <span className="text-xs font-black text-slate-700 font-['Outfit']">
+                                          {prod.volt || 'Auto'} / {prod.watt || 'N/A'}
+                                        </span>
+                                      </div>
+                                      
+                                      {/* Red icon arrow on click */}
+                                      <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 transition-all duration-200">
+                                        →
+                                      </div>
+                                    </div>
+
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                          </div>
+                        ))}
                       </div>
 
                     </div>
@@ -1240,7 +1382,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                           <img 
                             src={catalogImageUrl} 
                             alt="Product Catalog" 
-                            className="w-full h-auto max-h-60 object-contain bg-slate-55 mx-auto"
+                            className="w-full h-auto max-h-60 object-contain bg-slate-50 mx-auto"
                           />
                         </div>
                         <a 
@@ -1282,11 +1424,18 @@ const PublicCatalog = ({ onAdminClick }) => {
         );
       })()}
 
-      {/* 🏛️ SLATE MINIMAL FOOTER */}
+      {/* 🏛️ SLATE MINIMAL FOOTER WITH LOGO */}
       <footer className="bg-slate-900 text-slate-400 py-16 px-6 md:px-12 border-t border-slate-800 mt-auto rounded-t-[3rem]">
         <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="text-center md:text-left space-y-2">
-            <h5 className="text-2xl font-black text-white tracking-tighter uppercase font-['Outfit']">LAMS<span className="text-[#ea3838]">.</span></h5>
+          <div className="text-center md:text-left space-y-2 flex flex-col items-center md:items-start">
+            <div className="flex items-center gap-2 justify-center md:justify-start">
+              <img 
+                src="https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/Lams%20Power/Lams-Logo.png" 
+                alt="Lams Power Logo" 
+                className="h-8 object-contain filter invert opacity-90" 
+              />
+              <h5 className="text-lg font-black text-white tracking-tighter uppercase font-['Outfit']">Lams<span className="text-[#ea3838]">Power</span></h5>
+            </div>
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
               © {new Date().getFullYear()} Lams Power. All Rights Reserved.
             </p>
