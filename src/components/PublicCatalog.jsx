@@ -936,6 +936,21 @@ const PublicCatalog = ({ onAdminClick }) => {
             </div>
           </section>
 
+          {/* 📊 INVENTORY NUMBERS BANNER */}
+          <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden rounded-[3rem] max-w-[1400px] mx-auto border border-slate-800">
+            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
+            <div className="absolute -top-32 -left-32 w-80 h-80 bg-[#ea3838]/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="max-w-[1200px] mx-auto text-center space-y-6 relative z-10">
+              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Inventory Volume</span>
+              <h3 className="text-xl md:text-3xl font-black tracking-tight leading-normal max-w-2xl mx-auto font-['Outfit']">
+                Distributing <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of High-Efficiency green equipment.
+              </h3>
+              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
+            </div>
+          </section>
+
           {/* 📦 REGULAR USE CARD GRID (Featured In stock Highlights) */}
           <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
@@ -993,21 +1008,6 @@ const PublicCatalog = ({ onAdminClick }) => {
                   </div>
                 );
               })}
-            </div>
-          </section>
-
-          {/* 📊 INVENTORY NUMBERS BANNER */}
-          <section ref={counterRef} className="py-16 px-6 md:px-12 bg-slate-900 text-white w-full relative overflow-hidden rounded-[3rem] max-w-[1400px] mx-auto border border-slate-800">
-            <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(#ffffff_1px,transparent_1px)] opacity-5 [background-size:16px_16px] pointer-events-none" />
-            <div className="absolute -top-32 -left-32 w-80 h-80 bg-[#ea3838]/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-32 -right-32 w-80 h-80 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-
-            <div className="max-w-[1200px] mx-auto text-center space-y-6 relative z-10">
-              <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Inventory Volume</span>
-              <h3 className="text-xl md:text-3xl font-black tracking-tight leading-normal max-w-2xl mx-auto font-['Outfit']">
-                Distributing <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalBrands} trigger={isCounterVisible} /></span> Brands and <span className="text-[#ea3838] text-3xl md:text-5xl inline-block px-1.5"><AnimatedCounter target={totalModels} trigger={isCounterVisible} /></span> Models of High-Efficiency green equipment.
-              </h3>
-              <div className="h-1 w-12 bg-[#ea3838] rounded-full mx-auto mt-2"></div>
             </div>
           </section>
 
