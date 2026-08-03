@@ -18,6 +18,45 @@ const sortModelsByCapacity = (modelsArray) => {
   });
 };
 
+// Smart wattage parser
+const parseSmartWattage = (input) => {
+  if (input === null || input === undefined || input === '') return null;
+  const str = String(input).toLowerCase().trim();
+  // Extract numeric part and unit (kw, w, va)
+  const match = str.match(/([\d.]+)\s*(kw|w|va)?/);
+  if (!match) return null;
+  const num = parseFloat(match[1]);
+  const unit = match[2];
+  if (isNaN(num)) return null;
+
+  if (unit === 'kw') {
+    return num * 1000;
+  } else if (unit === 'w' || unit === 'va') {
+    return num;
+  } else {
+    // Smart auto-detection for numbers without unit
+    // If num < 40, assume kW (e.g. 3.2 -> 3200W, 12 -> 12000W)
+    // Otherwise, assume Watts (e.g. 50 -> 50W, 550 -> 550W)
+    if (num < 40) {
+      return num * 1000;
+    }
+    return num;
+  }
+};
+
+// Resolve wattage from product fields
+const getProductWattageVal = (p) => {
+  if (p.watt) {
+    const parsed = parseSmartWattage(p.watt);
+    if (parsed !== null) return parsed;
+  }
+  if (p.model) {
+    const parsed = parseSmartWattage(p.model);
+    if (parsed !== null) return parsed;
+  }
+  return null;
+};
+
 const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
   const [count, setCount] = useState(0);
 
@@ -87,6 +126,10 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [productCategoryFilter, setProductCategoryFilter] = useState('All');
   // Catalog Live Search state
   const [productSearch, setProductSearch] = useState('');
+  const [selectedBrands, setSelectedBrands] = useState([]);
+  const [minWattInput, setMinWattInput] = useState('');
+  const [maxWattInput, setMaxWattInput] = useState('');
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
   
   // Interactive specs card showcase queue and hover state
   const [showcaseQueue, setShowcaseQueue] = useState([]);
@@ -259,13 +302,35 @@ const PublicCatalog = ({ onAdminClick }) => {
         if (!searchStr.includes(productSearch.toLowerCase())) return false;
       }
 
+      // 1. Category check
+      let matchesCat = false;
       if (cat === 'Solar Panel - 12 Volt') {
-        return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+        matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+      } else if (cat === 'Solar Panel - 24 Volt') {
+        matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+      } else {
+        matchesCat = p.category === cat;
       }
-      if (cat === 'Solar Panel - 24 Volt') {
-        return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+      if (!matchesCat) return false;
+
+      // 2. Brand check
+      if (selectedBrands.length > 0) {
+        if (!selectedBrands.includes(pNameLower)) return false;
       }
-      return p.category === cat;
+
+      // 3. Watt/kW range check
+      const minVal = parseSmartWattage(minWattInput);
+      const maxVal = parseSmartWattage(maxWattInput);
+      if (minVal !== null || maxVal !== null) {
+        const prodWattVal = getProductWattageVal(p);
+        if (prodWattVal === null) {
+          return false; // User entered range but product wattage cannot be resolved, so hide it
+        }
+        if (minVal !== null && prodWattVal < minVal) return false;
+        if (maxVal !== null && prodWattVal > maxVal) return false;
+      }
+
+      return true;
     });
   };
 
@@ -470,6 +535,286 @@ const PublicCatalog = ({ onAdminClick }) => {
     return c;
   };
 
+  // Helper to get all brands available in the selected category
+  const getAvailableBrandsForCategory = () => {
+    const deDuplicated = getDeDuplicatedProductsList(products);
+    // Filter by stock and category (but NOT by brand or wattage range)
+    const filtered = deDuplicated.filter(p => {
+      const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+      if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
+
+      const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
+      const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
+
+      // Live search filter matching name, model, category, volt, or watt
+      if (productSearch) {
+        const searchStr = `${p.name} ${p.model} ${p.category} ${p.volt || ''} ${p.watt || ''}`.toLowerCase();
+        if (!searchStr.includes(productSearch.toLowerCase())) return false;
+      }
+
+      // Category check
+      if (productCategoryFilter !== 'All') {
+        let matchesCat = false;
+        if (productCategoryFilter === 'Solar Panel - 12 Volt') {
+          matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+        } else if (productCategoryFilter === 'Solar Panel - 24 Volt') {
+          matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+        } else {
+          matchesCat = p.category === productCategoryFilter;
+        }
+        if (!matchesCat) return false;
+      }
+
+      return true;
+    });
+
+    // Extract unique brands
+    const brands = [...new Set(filtered.map(p => p.name ? p.name.trim() : '').filter(Boolean))].sort();
+    return brands;
+  };
+
+  const getBrandCount = (brandName) => {
+    const deDuplicated = getDeDuplicatedProductsList(products);
+    return deDuplicated.filter(p => {
+      // Stock quantity check
+      const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+      if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
+
+      const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
+      if (pNameLower !== brandName.toLowerCase().trim()) return false;
+
+      // Category check
+      if (productCategoryFilter !== 'All') {
+        const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
+        let matchesCat = false;
+        if (productCategoryFilter === 'Solar Panel - 12 Volt') {
+          matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+        } else if (productCategoryFilter === 'Solar Panel - 24 Volt') {
+          matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+        } else {
+          matchesCat = p.category === productCategoryFilter;
+        }
+        if (!matchesCat) return false;
+      }
+      return true;
+    }).length;
+  };
+
+  const getActiveFiltersCount = () => {
+    let count = 0;
+    if (productCategoryFilter !== 'All') count++;
+    if (selectedBrands.length > 0) count += selectedBrands.length;
+    if (minWattInput.trim() !== '') count++;
+    if (maxWattInput.trim() !== '') count++;
+    return count;
+  };
+
+  const clearAllFilters = () => {
+    setProductCategoryFilter('All');
+    setSelectedBrands([]);
+    setMinWattInput('');
+    setMaxWattInput('');
+  };
+
+  const handleBrandToggle = (brandName) => {
+    const brandLower = brandName.toLowerCase().trim();
+    setSelectedBrands(prev => {
+      if (prev.includes(brandLower)) {
+        return prev.filter(b => b !== brandLower);
+      } else {
+        return [...prev, brandLower];
+      }
+    });
+  };
+
+  const FiltersPanel = ({ isMobile = false }) => {
+    const availableBrands = getAvailableBrandsForCategory();
+
+    return (
+      <div className={`bg-white rounded-[2.5rem] border border-slate-200/50 p-6 shadow-sm text-left ${isMobile ? '' : 'w-full'}`}>
+        
+        {/* Filter Title / Header */}
+        <div className="flex justify-between items-center pb-4 mb-5 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-black text-[#0f172a] uppercase tracking-tight font-['Outfit']">
+              Filters
+            </span>
+            {getActiveFiltersCount() > 0 && (
+              <span className="bg-[#ea3838] text-white text-[10px] font-black px-2 py-0.5 rounded-full font-['Outfit']">
+                {getActiveFiltersCount()}
+              </span>
+            )}
+          </div>
+          {getActiveFiltersCount() > 0 && (
+            <button 
+              onClick={clearAllFilters} 
+              className="text-xs font-black text-[#ea3838] hover:underline hover:text-[#ea3838]/80 transition-colors"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {/* Section 1: Categories */}
+        <div className="space-y-3 mb-6">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-['Outfit']">
+            Category
+          </h4>
+          <div className="flex flex-col gap-1.5">
+            <button 
+              onClick={() => setProductCategoryFilter('All')}
+              className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-between ${
+                productCategoryFilter === 'All' 
+                  ? 'bg-slate-900 text-white shadow-sm' 
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+              }`}
+            >
+              <span>All Categories</span>
+              <span className="text-[9px] opacity-75 font-bold">
+                {getDeDuplicatedProductsList(products).filter(p => {
+                  const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+                  return isJarrettHybrid || Number(p.stock_quantity) >= 10;
+                }).length}
+              </span>
+            </button>
+            {categories.map((cat) => {
+              const displayCat = getDisplayCategoryName(cat);
+              const isActive = productCategoryFilter === cat;
+              const catCount = getDeDuplicatedProductsList(products).filter(p => {
+                const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+                if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
+                const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
+                const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
+                if (cat === 'Solar Panel - 12 Volt') {
+                  return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+                }
+                if (cat === 'Solar Panel - 24 Volt') {
+                  return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+                }
+                return p.category === cat;
+              }).length;
+
+              return (
+                <button 
+                  key={cat}
+                  onClick={() => setProductCategoryFilter(cat)}
+                  className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-between ${
+                    isActive 
+                      ? 'bg-slate-900 text-white shadow-sm' 
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                  }`}
+                >
+                  <span>{displayCat}</span>
+                  <span className="text-[9px] opacity-75 font-bold">{catCount}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Section 2: Brands */}
+        <div className="space-y-3 mb-6">
+          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-['Outfit']">
+            Brand
+          </h4>
+          {availableBrands.length === 0 ? (
+            <p className="text-xs text-slate-400 italic pl-1">No brands found</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {availableBrands.map((brand) => {
+                const brandLower = brand.toLowerCase().trim();
+                const isSelected = selectedBrands.includes(brandLower);
+                const count = getBrandCount(brand);
+
+                return (
+                  <button 
+                    key={brand}
+                    onClick={() => handleBrandToggle(brand)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5 border ${
+                      isSelected 
+                        ? 'bg-[#ea3838] border-[#ea3838] text-white shadow-sm' 
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <span>{brand}</span>
+                    <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full ${
+                      isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'
+                    }`}>
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Section 3: Capacity Range */}
+        <div className="space-y-4">
+          <div>
+            <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest block font-['Outfit'] mb-2">
+              Capacity Range
+            </h4>
+            <div className="flex gap-2 items-center">
+              <input 
+                type="text" 
+                placeholder="Min (e.g. 50W)" 
+                value={minWattInput}
+                onChange={(e) => setMinWattInput(e.target.value)}
+                className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-1 focus:ring-slate-900"
+              />
+              <span className="text-xs text-slate-400 font-bold">to</span>
+              <input 
+                type="text" 
+                placeholder="Max (e.g. 6.2kW)" 
+                value={maxWattInput}
+                onChange={(e) => setMaxWattInput(e.target.value)}
+                className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:ring-1 focus:ring-slate-900"
+              />
+            </div>
+            <p className="text-[9px] text-slate-400 mt-1.5 font-bold leading-normal">
+              💡 Smart detection parses kW (e.g. 3.2) or Watts (e.g. 550).
+            </p>
+          </div>
+
+          {/* Quick presets */}
+          <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block font-['Outfit']">
+              Quick presets
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              <button 
+                onClick={() => { setMinWattInput('50W'); setMaxWattInput('150W'); }}
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-250 text-slate-600 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                50W - 150W
+              </button>
+              <button 
+                onClick={() => { setMinWattInput('400W'); setMaxWattInput('600W'); }}
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-250 text-slate-600 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                400W - 600W
+              </button>
+              <button 
+                onClick={() => { setMinWattInput('3kW'); setMaxWattInput('6kW'); }}
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-250 text-slate-600 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                3kW - 6kW
+              </button>
+              <button 
+                onClick={() => { setMinWattInput('10kW'); setMaxWattInput('15kW'); }}
+                className="text-[10px] font-bold bg-slate-100 hover:bg-slate-250 text-slate-600 px-2.5 py-1 rounded-lg transition-colors"
+              >
+                10kW - 15kW
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-[#f3f4f6] flex flex-col items-center justify-center gap-4">
       <div className="relative w-16 h-16">
@@ -486,6 +831,8 @@ const PublicCatalog = ({ onAdminClick }) => {
   const uniqueModels = [...new Set(deDuplicatedProducts.map(p => `${p.name?.trim() || ''}|${p.model?.trim() || ''}`).filter(b => b && b !== '|'))];
   const totalBrands = uniqueBrands.length || 4;
   const totalModels = uniqueModels.length || 18;
+
+  const hasMatchingProducts = categories.some(cat => getSortedProductsList(cat).length > 0);
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
@@ -1017,173 +1364,201 @@ const PublicCatalog = ({ onAdminClick }) => {
       {/* ---------------- VIEW 2: PRODUCTS PAGE ---------------- */}
       {activeTab === 'products' && (
         <div className="animate-in fade-in duration-300 flex-1 py-10 px-4 lg:px-8">
-          <div className="max-w-[1400px] mx-auto space-y-10">
+          <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-8">
             
-            {/* Search and filter controls bar */}
-            <div className="bg-white p-6 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col lg:flex-row gap-6 justify-between items-center">
+            {/* Desktop Filters Sidebar (hidden on mobile, shown on lg) */}
+            <div className="hidden lg:block w-72 shrink-0 self-start sticky top-24">
+              <FiltersPanel />
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 space-y-8">
               
-              {/* Category tabs */}
-              <div className="flex flex-wrap gap-2.5 justify-center lg:justify-start w-full lg:w-auto">
-                <button 
-                  onClick={() => setProductCategoryFilter('All')} 
-                  className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                    productCategoryFilter === 'All' 
-                      ? 'bg-slate-900 text-white shadow-md' 
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'
-                  }`}
-                >
-                  All Products
-                </button>
-                {categories.map((cat) => (
+              {/* Search Bar / Row */}
+              <div className="bg-white p-4 rounded-[2.5rem] border border-slate-200/50 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between">
+                {/* Live Search input */}
+                <div className="w-full sm:flex-1 relative">
+                  <input 
+                    type="text" 
+                    placeholder="🔍 Search product brand, model, specs..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-900"
+                  />
+                </div>
+
+                {/* Filter controls row */}
+                <div className="flex gap-2 w-full sm:w-auto shrink-0 justify-end">
+                  {/* Mobile Filters Toggle Button */}
                   <button 
-                    key={cat}
-                    onClick={() => setProductCategoryFilter(cat)}
-                    className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 ${
-                      productCategoryFilter === cat 
-                        ? 'bg-slate-900 text-white shadow-md' 
-                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-800'
+                    onClick={() => setShowMobileFilters(!showMobileFilters)}
+                    className={`lg:hidden px-4.5 py-3 rounded-xl text-xs font-black uppercase tracking-wider flex items-center gap-2 transition-all duration-200 ${
+                      showMobileFilters || getActiveFiltersCount() > 0
+                        ? 'bg-[#ea3838] text-white shadow-md' 
+                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
                   >
-                    {getDisplayCategoryName(cat)}
+                    ⚙️ Filters {getActiveFiltersCount() > 0 ? `(${getActiveFiltersCount()})` : ''}
                   </button>
-                ))}
+
+                  {/* Clear all filters button */}
+                  {getActiveFiltersCount() > 0 && (
+                    <button 
+                      onClick={clearAllFilters}
+                      className="px-4.5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-650 hover:text-slate-900 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* Live Search input */}
-              <div className="w-full lg:w-80 relative">
-                <input 
-                  type="text" 
-                  placeholder="🔍 Search product model..."
-                  value={productSearch}
-                  onChange={(e) => setProductSearch(e.target.value)}
-                  className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-xs text-slate-700 outline-none focus:ring-2 focus:ring-slate-900"
-                />
-              </div>
-            </div>
+              {/* Mobile Filters dropdown panel */}
+              {showMobileFilters && (
+                <div className="lg:hidden animate-in slide-in-from-top-4 duration-200">
+                  <FiltersPanel isMobile={true} />
+                </div>
+              )}
 
-            {/* Hierarchical sections list with brand subsection groupings */}
-            <div className="space-y-16 text-left">
-              {categories
-                .filter(cat => productCategoryFilter === 'All' || productCategoryFilter === cat)
-                .map((cat) => {
-                  const displayCat = getDisplayCategoryName(cat);
-                  const is12V = displayCat === 'Solar Panel 12V';
-                  const catProds = getSortedProductsList(cat);
+              {/* Hierarchical sections list with brand subsection groupings */}
+              <div className="space-y-16 text-left">
+                {hasMatchingProducts ? (
+                  categories
+                    .filter(cat => productCategoryFilter === 'All' || productCategoryFilter === cat)
+                    .map((cat) => {
+                      const displayCat = getDisplayCategoryName(cat);
+                      const is12V = displayCat === 'Solar Panel 12V';
+                      const catProds = getSortedProductsList(cat);
 
-                  if (catProds.length === 0) return null;
+                      if (catProds.length === 0) return null;
 
-                  // Group sorted models by their brand/name dynamically
-                  const brandGroups = groupProductsByBrand(catProds);
+                      // Group sorted models by their brand/name dynamically
+                      const brandGroups = groupProductsByBrand(catProds);
 
-                  return (
-                    <div key={cat} className="space-y-8 animate-in fade-in duration-300">
-                      
-                      {/* Section Category Header */}
-                      <div className="flex items-center gap-4 text-left border-l-4 border-[#ea3838] pl-4">
-                        <div>
-                          <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] uppercase tracking-tight font-['Outfit']">
-                            {displayCat}
-                          </h2>
-                          {is12V && (
-                            <span className="text-[#ea3838] font-extrabold text-[9px] uppercase tracking-wider block mt-0.5">
-                              LAMS Power Banner Own Brand
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Brand Groups iteration */}
-                      <div className="space-y-10 pl-2">
-                        {brandGroups.map(({ brandName, brandProds }) => (
-                          <div key={brandName} className="space-y-5">
-                            
-                            {/* Brand Sub Header */}
-                            <div className="flex items-center gap-2.5 pb-1">
-                              <span className="w-2 h-2 rounded-full bg-[#ea3838]"></span>
-                              <h3 className="text-lg font-black text-[#0f172a] tracking-tight font-['Outfit'] uppercase">
-                                {brandName}
-                              </h3>
-                              <span className="text-[9px] text-slate-400 font-extrabold bg-[#eaecf0] px-2 py-0.5 rounded-full font-['Outfit']">
-                                {brandProds.length} {brandProds.length === 1 ? 'Model' : 'Models'}
-                              </span>
+                      return (
+                        <div key={cat} className="space-y-8 animate-in fade-in duration-300">
+                          
+                          {/* Section Category Header */}
+                          <div className="flex items-center gap-4 text-left border-l-4 border-[#ea3838] pl-4">
+                            <div>
+                              <h2 className="text-2xl md:text-3xl font-black text-[#0f172a] uppercase tracking-tight font-['Outfit']">
+                                {displayCat}
+                              </h2>
+                              {is12V && (
+                                <span className="text-[#ea3838] font-extrabold text-[9px] uppercase tracking-wider block mt-0.5">
+                                  LAMS Power Banner Own Brand
+                                </span>
+                              )}
                             </div>
-
-                            {/* Grid of individual split cards of this brand */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                              {brandProds.map((prod, idx) => {
-                                const hasStock = (prod.availability || '').trim().toLowerCase() === 'in stock';
-                                const isUpcoming = (prod.availability || '').trim().toLowerCase() === 'upcoming';
-                                
-                                return (
-                                  <div 
-                                    key={idx}
-                                    onClick={() => setSelectedModalProduct(prod)}
-                                    className={`bg-white rounded-[2.5rem] p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
-                                      is12V ? 'border-orange-100/50 hover:border-orange-350/60' : 'border-slate-200/50'
-                                    }`}
-                                  >
-                                    <div>
-                                      {/* Aspect 4/3 image wrapper with scale/rotation animation */}
-                                      <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50 relative">
-                                        
-                                        {/* Availability/Stock badge */}
-                                        <span className={`absolute top-3.5 left-3.5 text-[8px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
-                                          hasStock ? 'bg-emerald-500 text-white' : isUpcoming ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white'
-                                        }`}>
-                                          {prod.availability || 'In Stock'}
-                                        </span>
-
-                                        {prod.image_url ? (
-                                          <img 
-                                            src={prod.image_url} 
-                                            alt={prod.name} 
-                                            className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
-                                          />
-                                        ) : (
-                                          <div className="text-4xl select-none">📦</div>
-                                        )}
-                                      </div>
-
-                                      <div className="text-left px-1">
-                                        <span className="text-[8px] font-black uppercase text-slate-400 tracking-widest font-['Outfit']">
-                                          {displayCat}
-                                        </span>
-                                        <h3 className="text-base font-black text-[#0f172a] mt-1 truncate leading-tight font-['Outfit']">
-                                          {prod.name}
-                                        </h3>
-                                        <p className="text-xs font-bold text-slate-500 mt-0.5">Model: {prod.model}</p>
-                                      </div>
-                                    </div>
-
-                                    {/* Specifications Summary row on card face */}
-                                    <div className="border-t border-slate-100 pt-4 mt-4 flex items-center justify-between">
-                                      <div className="text-left">
-                                        <span className="text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block">Voltage / Wattage</span>
-                                        <span className="text-xs font-black text-slate-700 font-['Outfit']">
-                                          {prod.volt || 'Auto'} / {prod.watt || 'N/A'}
-                                        </span>
-                                      </div>
-                                      
-                                      {/* Red icon arrow on click */}
-                                      <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 transition-all duration-200">
-                                        →
-                                      </div>
-                                    </div>
-
-                                  </div>
-                                );
-                              })}
-                            </div>
-
                           </div>
-                        ))}
-                      </div>
 
-                    </div>
-                  );
-                })}
+                          {/* Brand Groups iteration */}
+                          <div className="space-y-10 pl-2">
+                            {brandGroups.map(({ brandName, brandProds }) => (
+                              <div key={brandName} className="space-y-5">
+                                
+                                {/* Brand Sub Header */}
+                                <div className="flex items-center gap-2.5 pb-1">
+                                  <span className="w-2 h-2 rounded-full bg-[#ea3838]"></span>
+                                  <h3 className="text-lg font-black text-[#0f172a] tracking-tight font-['Outfit'] uppercase">
+                                    {brandName}
+                                  </h3>
+                                  <span className="text-[9px] text-slate-400 font-extrabold bg-[#eaecf0] px-2 py-0.5 rounded-full font-['Outfit']">
+                                    {brandProds.length} {brandProds.length === 1 ? 'Model' : 'Models'}
+                                  </span>
+                                </div>
+
+                                {/* Grid of individual split cards of this brand: two products in a row on mobile */}
+                                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
+                                  {brandProds.map((prod, idx) => {
+                                    const hasStock = (prod.availability || '').trim().toLowerCase() === 'in stock';
+                                    const isUpcoming = (prod.availability || '').trim().toLowerCase() === 'upcoming';
+                                    
+                                    return (
+                                      <div 
+                                        key={idx}
+                                        onClick={() => setSelectedModalProduct(prod)}
+                                        className={`bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-3 sm:p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
+                                          is12V ? 'border-orange-100/50 hover:border-orange-350/60' : 'border-slate-200/50'
+                                        }`}
+                                      >
+                                        <div>
+                                          {/* Aspect 4/3 image wrapper with scale/rotation animation */}
+                                          <div className="w-full bg-[#f3f4f6]/60 rounded-[1.25rem] sm:rounded-[2rem] aspect-[4/3] mb-3 sm:mb-4.5 flex items-center justify-center p-2 sm:p-4 overflow-hidden border border-slate-100/50 relative">
+                                            
+                                            {/* Availability/Stock badge */}
+                                            <span className={`absolute top-2 sm:top-3.5 left-2 sm:left-3.5 text-[7px] sm:text-[8px] font-black px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
+                                              hasStock ? 'bg-emerald-500 text-white' : isUpcoming ? 'bg-amber-500 text-white' : 'bg-slate-400 text-white'
+                                            }`}>
+                                              {prod.availability || 'In Stock'}
+                                            </span>
+
+                                            {prod.image_url ? (
+                                              <img 
+                                                src={prod.image_url} 
+                                                alt={prod.name} 
+                                                className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
+                                              />
+                                            ) : (
+                                              <div className="text-2xl sm:text-4xl select-none">📦</div>
+                                            )}
+                                          </div>
+
+                                          <div className="text-left px-1">
+                                            <span className="text-[7px] sm:text-[8px] font-black uppercase text-slate-400 tracking-widest font-['Outfit']">
+                                              {displayCat}
+                                            </span>
+                                            <h3 className="text-xs sm:text-base font-black text-[#0f172a] mt-1 truncate leading-tight font-['Outfit']">
+                                              {prod.name}
+                                            </h3>
+                                            <p className="text-[10px] sm:text-xs font-bold text-slate-500 mt-0.5">Model: {prod.model}</p>
+                                          </div>
+                                        </div>
+
+                                        {/* Specifications Summary row on card face */}
+                                        <div className="border-t border-slate-100 pt-2.5 sm:pt-4 mt-2.5 sm:mt-4 flex items-center justify-between">
+                                          <div className="text-left">
+                                            <span className="text-[7px] sm:text-[8px] text-slate-400 font-extrabold uppercase tracking-wider block">Voltage / Wattage</span>
+                                            <span className="text-[9px] sm:text-xs font-black text-slate-700 font-['Outfit']">
+                                              {prod.volt || 'Auto'} / {prod.watt || 'N/A'}
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Red icon arrow on click */}
+                                          <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-sm group-hover:bg-[#ea3838] group-hover:scale-105 transition-all duration-200">
+                                            →
+                                          </div>
+                                        </div>
+
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="bg-white rounded-[2.5rem] p-12 text-center border border-slate-200/50 shadow-sm space-y-4 max-w-lg mx-auto mt-8 flex flex-col items-center">
+                    <div className="text-5xl">🔍</div>
+                    <h3 className="text-xl font-black text-slate-800 font-['Outfit']">No Matching Products</h3>
+                    <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                      We couldn't find any products matching your current combination of filters. Try clearing your filters or adjusting your search term.
+                    </p>
+                    <button 
+                      onClick={clearAllFilters}
+                      className="px-6 py-3 bg-[#ea3838] text-white rounded-xl text-xs font-black uppercase tracking-wider hover:bg-[#ea3838]/90 transition-all duration-200 shadow-md"
+                    >
+                      Reset All Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
             </div>
-
           </div>
         </div>
       )}
