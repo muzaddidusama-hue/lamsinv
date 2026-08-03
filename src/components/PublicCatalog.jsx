@@ -135,6 +135,15 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [showcaseQueue, setShowcaseQueue] = useState([]);
   const [isShowcaseHovered, setIsShowcaseHovered] = useState(false);
 
+  // Autoplay states for Regular Use Collections
+  const [regularUseIndices, setRegularUseIndices] = useState({
+    "Hybrid Inverter": 0,
+    "On-grid Inverter": 0,
+    "Solar Panel - 12 Volt": 0,
+    "Solar Panel - 24 Volt": 0
+  });
+  const [isRegularUseHovered, setIsRegularUseHovered] = useState(false);
+
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
 
   useEffect(() => {
@@ -525,6 +534,39 @@ const PublicCatalog = ({ onAdminClick }) => {
     watt: "3600W",
     availability: "in stock",
     description: "High efficiency SolarOn 3600VA hybrid inverter."
+  };
+
+  // Autoplay conveyor-belt effect for Regular Use Collections
+  useEffect(() => {
+    if (products.length === 0 || isRegularUseHovered) return;
+
+    const interval = setInterval(() => {
+      setRegularUseIndices(prev => {
+        const next = { ...prev };
+        categories.forEach(c => {
+          const list = getSortedProductsList(c);
+          const len = list.length;
+          if (len > 1) {
+            next[c] = (prev[c] + 1) % len;
+          } else {
+            next[c] = 0;
+          }
+        });
+        return next;
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [products, isRegularUseHovered]);
+
+  const getRegularUseShowcaseProduct = (categoryName) => {
+    const list = getSortedProductsList(categoryName);
+    if (list.length > 0) {
+      const idx = regularUseIndices[categoryName] || 0;
+      const activeIdx = idx < list.length ? idx : 0;
+      return list[activeIdx];
+    }
+    return getShowcaseProduct(categoryName);
   };
 
   // Dynamic clean display mapping
@@ -1299,7 +1341,11 @@ const PublicCatalog = ({ onAdminClick }) => {
           </section>
 
           {/* 📦 REGULAR USE CARD GRID (Featured In stock Highlights) */}
-          <section className="px-6 md:px-12 max-w-[1400px] mx-auto w-full">
+          <section 
+            onMouseEnter={() => setIsRegularUseHovered(true)}
+            onMouseLeave={() => setIsRegularUseHovered(false)}
+            className="px-6 md:px-12 max-w-[1400px] mx-auto w-full"
+          >
             <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-10">
               <div className="text-left">
                 <span className="text-[10px] font-black tracking-widest uppercase text-[#ea3838] font-['Outfit']">Regular Use Collections</span>
@@ -1320,7 +1366,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {categories.map((c) => {
                 const displayCat = getDisplayCategoryName(c);
-                const showProd = getShowcaseProduct(c);
+                const showProd = getRegularUseShowcaseProduct(c);
 
                 return (
                   <div 
