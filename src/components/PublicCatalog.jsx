@@ -594,7 +594,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                   </div>
                   <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
                     <span className="text-[#ea3838] font-black text-sm">✓</span>
-                    <span>Designed with a touch screen panel</span>
+                    <span>Can function without battery</span>
                   </div>
                   <div className="flex items-start gap-2.5 text-xs font-semibold text-[#374151]">
                     <span className="text-[#ea3838] font-black text-sm">✓</span>
