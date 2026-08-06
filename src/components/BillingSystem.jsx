@@ -235,7 +235,7 @@ const addToCart = () => {
     setLoading(true);
     try {
       let customerId = null;
-      let finalName = name.trim() || 'Walk-in';
+      let finalName = isInHouse ? `Transfer: ${house} to ${transferTo}` : (name.trim() || 'Walk-in');
       let finalPhone = phone.trim() || null;
       let finalAddress = address.trim() || null;
       let customerData = { name: finalName, phone: finalPhone, address: finalAddress };

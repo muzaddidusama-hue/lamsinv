@@ -96,8 +96,9 @@ const BillManager = () => {
   // কাস্টমার ডাটা বের করার হেল্পার
   const getCustomerData = (record) => {
     if (!record) return { name: 'Walk-in', phone: '', address: '' };
+    const isInHouse = record.is_in_house === true || String(record.is_in_house).toLowerCase() === 'true';
     return {
-      name: record.customer_name || record.customers?.name || ((record.is_in_house === true || String(record.is_in_house) === 'true') ? 'Transfer' : 'Walk-in'),
+      name: isInHouse ? `Transfer: ${record.house} to ${record.transfer_to}` : (record.customer_name || record.customers?.name || 'Walk-in'),
       phone: record.phone || record.customers?.phone || '',
       address: record.address || record.customers?.address || ''
     };

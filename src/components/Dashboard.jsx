@@ -468,7 +468,7 @@ const Dashboard = ({ setView }) => {
                 </div>
                 <h4 className="font-black text-slate-800 text-base">{c.chalan_no}</h4>
                 <p className="text-xs font-semibold text-slate-500 mt-1 truncate">
-                  {c.customer_name || c.customers?.name || (checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : 'Walk-in')}
+                  {checkIsTransfer(c.is_in_house) ? `${c.house} ➔ ${c.transfer_to}` : (c.customer_name || c.customers?.name || 'Walk-in')}
                 </p>
                 <div className="mt-4 flex justify-between items-center pt-2 border-t border-slate-50">
                   <span className="text-base font-black text-slate-800">{c.total_amount.toLocaleString()} ৳</span>
@@ -523,7 +523,7 @@ const Dashboard = ({ setView }) => {
                     <div>
                       <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
                       <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[200px]">
-                        {tc.customer_name || tc.customers?.name || (checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : 'Walk-in')}
+                        {checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : (tc.customer_name || tc.customers?.name || 'Walk-in')}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
