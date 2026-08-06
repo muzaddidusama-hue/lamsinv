@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 
 const BillManager = () => {
+  const location = useLocation();
   const date = new Date();
   const currentMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [activeTab, setActiveTab] = useState('bills'); // 'bills' বা 'chalans'
-  const [searchQuery, setSearchQuery] = useState(''); // স্মার্ট সার্চের জন্য
+  const [activeTab, setActiveTab] = useState(location.state?.tab || 'bills'); // 'bills' বা 'chalans'
+  const [searchQuery, setSearchQuery] = useState(location.state?.searchQuery || ''); // স্মার্ট সার্চের জন্য
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(false);
   
@@ -21,12 +23,17 @@ const BillManager = () => {
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
-  useEffect(() => { 
-    // Fetch automatically if search is empty or when month changes
-    if (!searchQuery.trim()) {
+  useEffect(() => {
+    if (location.state?.searchQuery) {
+      setSearchQuery(location.state.searchQuery);
+      if (location.state.tab) {
+        setActiveTab(location.state.tab);
+      }
+      fetchAllRecords(location.state.searchQuery);
+    } else if (!searchQuery.trim()) {
       fetchAllRecords();
     }
-  }, [selectedMonth, searchQuery]); 
+  }, [location.state, selectedMonth, searchQuery]);
 
   useEffect(() => {
     const chalansChannel = supabase
@@ -46,9 +53,10 @@ const BillManager = () => {
   }, [selectedMonth, searchQuery]);
 
   // মাস বা সার্চ অনুযায়ী সব ডাটা ফেচ করার লজিক
-  const fetchAllRecords = async () => {
+  const fetchAllRecords = async (queryOverride) => {
     setLoading(true);
     try {
+      const activeQuery = typeof queryOverride === 'string' ? queryOverride : searchQuery;
       let queryBuilder = supabase
         .from('chalans')
         .select(`
@@ -57,7 +65,7 @@ const BillManager = () => {
           chalan_items(quantity, products(name, model))
         `);
 
-      if (searchQuery.trim()) {
+      if (activeQuery.trim()) {
         // সার্চ কোয়েরি থাকলে সম্পূর্ণ ডাটাবেজ থেকে সার্চ করার জন্য মাস ফিল্টার বাদ দিয়ে লাস্ট ১০০০ রেকর্ড নিয়ে আসবো
         queryBuilder = queryBuilder.order('created_at', { ascending: false }).limit(1000);
       } else {

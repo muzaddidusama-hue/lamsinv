@@ -1,5 +1,6 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 
 // Modern Minimal SVG Icons for Sidebar - styled to match Landing Page colors (#ea3838 and slate)
 const DashboardIcon = () => (
@@ -58,6 +59,93 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   // Functional features states
   const [searchText, setSearchText] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [dbResults, setDbResults] = useState([]);
+
+  // Smart Live Search DB Query effect
+  useEffect(() => {
+    const text = searchText.trim();
+    if (text.length < 2) {
+      setDbResults([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const results = [];
+
+        // 1. Search in chalans (matching chalan_no or bill_no)
+        const { data: chalansData } = await supabase
+          .from('chalans')
+          .select(`
+            id,
+            chalan_no,
+            bill_no,
+            status,
+            customer_name,
+            phone,
+            customers(name, phone)
+          `)
+          .or(`chalan_no.ilike.%${text}%,bill_no.ilike.%${text}%,customer_name.ilike.%${text}%,phone.ilike.%${text}%`)
+          .limit(5);
+
+        if (chalansData) {
+          chalansData.forEach(c => {
+            const custName = c.customer_name || c.customers?.name || 'Walk-in';
+            const custPhone = c.phone || c.customers?.phone || '';
+            if (c.bill_no) {
+              results.push({
+                type: 'bill',
+                label: `বিল #${c.bill_no} (${custName} - ${custPhone})`,
+                path: '/bills',
+                state: { searchQuery: c.bill_no, tab: 'bills' }
+              });
+            }
+            if (c.chalan_no) {
+              if (c.status === 'hold') {
+                results.push({
+                  type: 'challan_pending',
+                  label: `হোল্ড চালান #${c.chalan_no} (${custName})`,
+                  path: '/challans',
+                  state: { chalanNo: c.chalan_no }
+                });
+              } else {
+                results.push({
+                  type: 'challan_completed',
+                  label: `ডেলিভারড চালান #${c.chalan_no} (${custName})`,
+                  path: '/bills',
+                  state: { searchQuery: c.chalan_no, tab: 'chalans' }
+                });
+              }
+            }
+          });
+        }
+
+        // 2. Search in customers (matching name or phone)
+        const { data: customersData } = await supabase
+          .from('customers')
+          .select('id, name, phone')
+          .or(`name.ilike.%${text}%,phone.ilike.%${text}%`)
+          .limit(5);
+
+        if (customersData) {
+          customersData.forEach(cust => {
+            results.push({
+              type: 'customer',
+              label: `গ্রাহক: ${cust.name} (${cust.phone})`,
+              path: '/bills',
+              state: { searchQuery: cust.phone || cust.name, tab: 'bills' }
+            });
+          });
+        }
+
+        setDbResults(results);
+      } catch (err) {
+        console.error('Error searching db:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([
@@ -143,8 +231,8 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     return item.subItems.some(sub => sub.path === currentPath);
   };
 
-  const handleSearchResultClick = (path) => {
-    navigate(path);
+  const handleSearchResultClick = (path, state) => {
+    navigate(path, { state });
     setSearchText('');
     setShowSearchResults(false);
   };
@@ -262,11 +350,6 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
           {/* Search input with navigation filtering */}
           <div className="flex items-center gap-4 flex-1 max-w-md relative">
             <div className="relative w-full hidden sm:block">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
               <input 
                 type="text" 
                 value={searchText}
@@ -276,33 +359,49 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                 }}
                 onFocus={() => setShowSearchResults(true)}
                 placeholder="মডেল, ক্যাটাগরি, চালান বা রিপোর্ট সার্চ করুন..." 
-                className="w-full border-0 rounded-xl pl-9 pr-4 py-2 text-xs font-semibold placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#ea3838]/20 transition-all bg-[#f4f6fa] text-slate-700 focus:bg-white"
+                className="w-full border-0 rounded-xl px-4 py-2 text-xs font-semibold placeholder-slate-400 outline-none focus:ring-2 focus:ring-[#ea3838]/20 transition-all bg-[#f4f6fa] text-slate-700 focus:bg-white pr-10"
               />
               {searchText && (
                 <button 
                   onClick={() => setSearchText('')} 
-                  className="absolute inset-y-0 right-8 flex items-center px-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
+                  className="absolute inset-y-0 right-3 flex items-center px-1 text-slate-400 hover:text-slate-600 text-[10px] font-bold"
                 >
                   ✕
                 </button>
               )}
-              <span className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-[10px] font-bold text-slate-400 uppercase">
-                ⌘K
-              </span>
             </div>
 
             {/* Search Dropdown Panel */}
-            {showSearchResults && filteredSearchItems.length > 0 && (
+            {showSearchResults && (filteredSearchItems.length > 0 || dbResults.length > 0) && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowSearchResults(false)}></div>
                 <div className="absolute top-full left-0 right-0 mt-2 rounded-xl border shadow-xl z-30 max-h-60 overflow-y-auto divide-y animate-in fade-in slide-in-from-top-2 duration-155 bg-white border-slate-100 divide-slate-55">
+                  {/* Static Menu Navigation Matches */}
                   {filteredSearchItems.map((item, idx) => (
                     <button
-                      key={idx}
+                      key={`static-${idx}`}
                       onClick={() => handleSearchResultClick(item.path)}
                       className="w-full text-left px-4 py-3 text-xs font-bold transition-colors flex items-center justify-between hover:bg-slate-50 text-slate-700"
                     >
-                      <span>{item.label}</span>
+                      <span className="flex items-center gap-2">
+                        <span>⚙️</span>
+                        <span>{item.label}</span>
+                      </span>
+                      <span className="text-[9px] text-[#ea3838] uppercase tracking-wider font-extrabold">যাব ➔</span>
+                    </button>
+                  ))}
+
+                  {/* Database Smart Redirect Matches */}
+                  {dbResults.map((item, idx) => (
+                    <button
+                      key={`db-${idx}`}
+                      onClick={() => handleSearchResultClick(item.path, item.state)}
+                      className="w-full text-left px-4 py-3 text-xs font-bold transition-colors flex items-center justify-between hover:bg-slate-50 text-slate-700"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>{item.type === 'bill' ? '📄' : item.type === 'customer' ? '👤' : '📦'}</span>
+                        <span>{item.label}</span>
+                      </span>
                       <span className="text-[9px] text-[#ea3838] uppercase tracking-wider font-extrabold">যাব ➔</span>
                     </button>
                   ))}

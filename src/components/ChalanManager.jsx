@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 
 const ChalanManager = () => {
-  const [searchNo, setSearchNo] = useState('');
+  const location = useLocation();
+  const [searchNo, setSearchNo] = useState(location.state?.chalanNo || '');
   const [chalan, setChalan] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -14,6 +16,12 @@ const ChalanManager = () => {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [isManualBill, setIsManualBill] = useState(false);
   const [manualBillNo, setManualBillNo] = useState('');
+
+  useEffect(() => {
+    if (location.state?.chalanNo) {
+      loadChalanDetails(location.state.chalanNo);
+    }
+  }, [location.state]);
 
   useEffect(() => { fetchPendingChalans(); }, [chalan]); 
 
