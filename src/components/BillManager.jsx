@@ -103,6 +103,10 @@ const BillManager = () => {
     };
   };
 
+  const checkIsTransfer = (val) => {
+    return val === true || String(val).toLowerCase() === 'true';
+  };
+
   // প্রোডাক্ট সামারি তৈরি করার হেল্পার
   const getProductSummary = (items) => {
     if (!items || items.length === 0) return 'No items';
@@ -289,7 +293,11 @@ const BillManager = () => {
                       {getProductSummary(record.chalan_items)}
                     </td>
                     <td className="p-4 text-right font-black text-slate-900">
-                      {record.total_amount} ৳
+                      {checkIsTransfer(record.is_in_house) ? (
+                        <span className="text-slate-400 font-semibold text-xs uppercase">Transfer</span>
+                      ) : (
+                        `${record.total_amount} ৳`
+                      )}
                     </td>
                     <td className="p-4 text-center pr-6 space-x-2">
                       <button onClick={() => openViewModal(record)} className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-600 hover:text-white transition-colors">
@@ -416,20 +424,36 @@ const BillManager = () => {
               </div>
               <table className="w-full text-left mb-6">
                 <thead className="text-[10px] uppercase font-black text-slate-400 border-b">
-                  <tr><th className="pb-4">Product Details</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Price</th><th className="pb-4 text-right pr-0">Total</th></tr>
+                  <tr>
+                    <th className="pb-4">Product Details</th>
+                    <th className="pb-4 text-center">Qty</th>
+                    {!checkIsTransfer(viewRecord.is_in_house) && <th className="pb-4 text-right">Price</th>}
+                    {!checkIsTransfer(viewRecord.is_in_house) && <th className="pb-4 text-right pr-0">Total</th>}
+                  </tr>
                 </thead>
                 <tbody>
                   {viewItems.map((item, idx) => (
                     <tr key={idx} className="border-b last:border-0 hover:bg-slate-50">
                       <td className="py-4 font-bold">{item.products?.name} <br/><span className="text-xs text-slate-400">{item.products?.model}</span></td>
                       <td className="text-center font-black">{item.quantity}</td>
-                      <td className="text-right font-medium">{item.unit_price} ৳</td>
-                      <td className="text-right font-black pr-0">{item.total_price} ৳</td>
+                      {!checkIsTransfer(viewRecord.is_in_house) && <td className="text-right font-medium">{item.unit_price} ৳</td>}
+                      {!checkIsTransfer(viewRecord.is_in_house) && <td className="text-right font-black pr-0">{item.total_price} ৳</td>}
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr><td colSpan="3" className="pt-6 text-right font-black text-slate-400 uppercase">Grand Total</td><td className="pt-6 text-right text-3xl font-black text-blue-600 pr-0">{viewRecord.total_amount} ৳</td></tr>
+                  <tr>
+                    <td colSpan={checkIsTransfer(viewRecord.is_in_house) ? "1" : "3"} className="pt-6 text-right font-black text-slate-400 uppercase">
+                      {checkIsTransfer(viewRecord.is_in_house) ? "Total Qty" : "Grand Total"}
+                    </td>
+                    <td className={checkIsTransfer(viewRecord.is_in_house) ? "pt-6 text-center text-3xl font-black text-blue-600 pr-0" : "pt-6 text-right text-3xl font-black text-blue-600 pr-0"}>
+                      {checkIsTransfer(viewRecord.is_in_house) ? (
+                        viewItems.reduce((acc, itm) => acc + itm.quantity, 0)
+                      ) : (
+                        `${viewRecord.total_amount} ৳`
+                      )}
+                    </td>
+                  </tr>
                 </tfoot>
               </table>
             </div>

@@ -172,8 +172,24 @@ const ChalanManager = () => {
               <button onClick={() => printChallan(chalan, getCustomerData(chalan), items.map(i => ({...i.products, quantity: i.quantity, total_price: i.total_price})))} className="bg-slate-100 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-slate-200">🖨️ প্রিন্ট চালান</button>
             </div>
             <table className="w-full text-left mb-6">
-              <thead className="text-[10px] uppercase font-black text-slate-400 border-b"><tr><th className="pb-4">Product</th><th className="pb-4 text-center">Qty</th><th className="pb-4 text-right">Price</th><th className="pb-4 text-right">Total</th></tr></thead>
-              <tbody>{items.map((item, idx) => (<tr key={idx} className="border-b last:border-0"><td className="py-4 font-bold">{item.products?.name} <br/><span className="text-xs text-slate-400">{item.products?.model}</span></td><td className="text-center font-black">{item.quantity}</td><td className="text-right font-medium">{item.unit_price} ৳</td><td className="text-right font-black">{item.total_price} ৳</td></tr>))}</tbody>
+              <thead className="text-[10px] uppercase font-black text-slate-400 border-b">
+                <tr>
+                  <th className="pb-4">Product</th>
+                  <th className="pb-4 text-center">Qty</th>
+                  {!chalan.is_in_house && <th className="pb-4 text-right">Price</th>}
+                  {!chalan.is_in_house && <th className="pb-4 text-right">Total</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item, idx) => (
+                  <tr key={idx} className="border-b last:border-0">
+                    <td className="py-4 font-bold">{item.products?.name} <br/><span className="text-xs text-slate-400">{item.products?.model}</span></td>
+                    <td className="text-center font-black">{item.quantity}</td>
+                    {!chalan.is_in_house && <td className="text-right font-medium">{item.unit_price} ৳</td>}
+                    {!chalan.is_in_house && <td className="text-right font-black">{item.total_price} ৳</td>}
+                  </tr>
+                ))}
+              </tbody>
             </table>
             <div className="flex justify-between items-end border-t pt-6">
               <div>
@@ -181,30 +197,47 @@ const ChalanManager = () => {
                 <p className="font-black text-slate-800">{getCustomerData(chalan).name}</p>
                 <p className="text-xs text-slate-400 italic">📍 {getCustomerData(chalan).address || 'No Address'}</p>
               </div>
-              <p className="text-4xl font-black text-slate-900">{chalan.total_amount} ৳</p>
+              <p className="text-4xl font-black text-slate-900">
+                {chalan.is_in_house ? (
+                  <span className="text-blue-600 text-sm font-black uppercase tracking-wider bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-2xl">Transfer</span>
+                ) : (
+                  `${chalan.total_amount} ৳`
+                )}
+              </p>
             </div>
           </div>
 
           <div className="lg:col-span-4 bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl flex flex-col justify-between">
-            <div className="space-y-6">
-              <h3 className="text-xl font-black mb-6">💰 পেমেন্ট কনফার্মেশন</h3>
-              <div className="p-4 bg-slate-800 rounded-2xl mb-4 border border-slate-700">
-                <label className="flex items-center gap-2 cursor-pointer mb-2"><input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="accent-orange-500 w-4 h-4" /><span className="text-[10px] font-black text-slate-300 uppercase">ম্যানুয়াল বিল নম্বর?</span></label>
-                {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="যেমন: BLL-OFF-101" className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl font-bold text-white uppercase outline-none focus:border-orange-500" />}
+            {chalan.is_in_house ? (
+              <div className="space-y-6">
+                <h3 className="text-xl font-black mb-6 text-blue-400">🏠 ইন-হাউজ ট্রান্সফার</h3>
+                <div className="p-5 bg-slate-800 rounded-3xl border border-slate-700 text-slate-350 text-xs font-semibold leading-relaxed space-y-4">
+                  <p>এটি একটি অভ্যন্তরীণ স্টক স্থানান্তর চালান (ইন-হাউজ মোড)।</p>
+                  <p>মালামাল স্থানান্তর সম্পন্ন করার জন্য অনুগ্রহ করে <b>ড্যাশবোর্ডের পেন্ডিং রিকোয়েস্ট তালিকা</b> থেকে চালানটি সম্পন্ন (Receive/Deliver) করুন।</p>
+                  <p>ইন-হাউজ স্থানান্তরের ক্ষেত্রে কোনো পেমেন্ট হিসাব বা বিক্রয় রেভিনিউ গণনা করা হয় না।</p>
+                </div>
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase px-1">পেমেন্ট মেথড</label>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-800 border-2 border-slate-700 rounded-2xl font-black outline-none focus:border-orange-500">
-                  <option value="">সিলেক্ট করুন...</option>
-                  <option value="Cash">Cash (💵)</option>
-                  <option value="bKash">bKash (📱)</option>
-                  <option value="Bank">Bank Transfer (🏦)</option>
-                </select>
+            ) : (
+              <div className="space-y-6">
+                <h3 className="text-xl font-black mb-6">💰 পেমেন্ট কনফার্মেশন</h3>
+                <div className="p-4 bg-slate-800 rounded-2xl mb-4 border border-slate-700">
+                  <label className="flex items-center gap-2 cursor-pointer mb-2"><input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="accent-orange-500 w-4 h-4" /><span className="text-[10px] font-black text-slate-300 uppercase">ম্যানুয়াল বিল নম্বর?</span></label>
+                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="যেমন: BLL-OFF-101" className="w-full p-3 bg-slate-900 border border-slate-600 rounded-xl font-bold text-white uppercase outline-none focus:border-orange-500" />}
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase px-1">পেমেন্ট মেথড</label>
+                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-800 border-2 border-slate-700 rounded-2xl font-black outline-none focus:border-orange-500">
+                    <option value="">সিলেক্ট করুন...</option>
+                    <option value="Cash">Cash (💵)</option>
+                    <option value="bKash">bKash (📱)</option>
+                    <option value="Bank">Bank Transfer (🏦)</option>
+                  </select>
+                </div>
+                <button onClick={handlePaymentConfirm} disabled={processingPayment || !paymentMethod} className="w-full bg-white text-slate-900 py-5 rounded-2xl font-black text-lg hover:bg-orange-500 hover:text-white transition-all active:scale-95 disabled:opacity-50 shadow-xl disabled:bg-slate-700">
+                  {processingPayment ? 'প্রসেসিং...' : 'পেমেন্ট ও বিল কনফার্ম'}
+                </button>
               </div>
-              <button onClick={handlePaymentConfirm} disabled={processingPayment || !paymentMethod} className="w-full bg-white text-slate-900 py-5 rounded-2xl font-black text-lg hover:bg-orange-500 hover:text-white transition-all active:scale-95 disabled:opacity-50 shadow-xl disabled:bg-slate-700">
-                {processingPayment ? 'প্রসেসিং...' : 'পেমেন্ট ও বিল কনফার্ম'}
-              </button>
-            </div>
+            )}
             <button onClick={() => setChalan(null)} className="mt-6 text-slate-500 font-bold text-sm hover:text-white transition-colors">← পিছনে যান</button>
           </div>
         </div>

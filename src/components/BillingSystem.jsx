@@ -190,15 +190,14 @@ const addToCart = () => {
     if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
   
-    
     setCart([...cart, { 
         product_id: product.id, 
         name: product.name, 
         model: product.model, 
         category: product.category, 
-        unit_price: parseFloat(product.unit_price) || 0, 
+        unit_price: isInHouse ? 0 : (parseFloat(product.unit_price) || 0), 
         qty: parseInt(qty), 
-        total: (parseFloat(product.unit_price) || 0) * parseInt(qty) 
+        total: isInHouse ? 0 : ((parseFloat(product.unit_price) || 0) * parseInt(qty))
     }]);
     setSelectedProduct(''); setQty(''); setProductSearchText(''); 
   };
@@ -215,10 +214,10 @@ const addToCart = () => {
       }
       updatedCart[index].qty = parsedQty;
     } else if (field === 'unit_price') {
-      updatedCart[index].unit_price = parseFloat(value) || 0; 
+      updatedCart[index].unit_price = isInHouse ? 0 : (parseFloat(value) || 0); 
     }
 
-    updatedCart[index].total = updatedCart[index].qty * updatedCart[index].unit_price;
+    updatedCart[index].total = isInHouse ? 0 : (updatedCart[index].qty * updatedCart[index].unit_price);
     setCart(updatedCart);
   };
   const handleGenerateChallan = async () => {
@@ -547,23 +546,29 @@ const handleQuickBillConfirm = async () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="text-[10px] font-black text-slate-400 uppercase border-b pb-2">
-                    <th className="pb-4">Item</th><th className="pb-4 text-center w-24">Qty</th><th className="pb-4 text-center w-36">Price (Editable)</th><th className="pb-4 text-right">Total</th><th className="pb-4"></th>
+                    <th className="pb-4">Item</th>
+                    <th className="pb-4 text-center w-24">Qty</th>
+                    {!isInHouse && <th className="pb-4 text-center w-36">Price (Editable)</th>}
+                    {!isInHouse && <th className="pb-4 text-right">Total</th>}
+                    <th className="pb-4"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {cart.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                    <tr key={idx} className="hover:bg-slate-50 transition-colors group">
                       <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
                       <td className="py-4 text-center">
                         <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900" />
                       </td>
-                      <td className="py-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <input type="number" value={item.unit_price} onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)} className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none focus:border-orange-500" placeholder="0"/>
-                          <span className="text-slate-400 text-[11px]">৳</span>
-                        </div>
-                      </td>
-                      <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>
+                      {!isInHouse && (
+                        <td className="py-4 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <input type="number" value={item.unit_price} onChange={(e) => handleCartDataChange(idx, 'unit_price', e.target.value)} className="w-24 p-1.5 bg-slate-50 border rounded-lg text-right font-bold text-xs outline-none focus:border-orange-500" placeholder="0"/>
+                            <span className="text-slate-400 text-[11px]">৳</span>
+                          </div>
+                        </td>
+                      )}
+                      {!isInHouse && <td className="py-4 text-right font-black text-slate-900">{item.total} ৳</td>}
                       <td className="py-4 text-right">
                         <button onClick={() => setCart(cart.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700 font-bold text-xl">×</button>
                       </td>
@@ -573,7 +578,13 @@ const handleQuickBillConfirm = async () => {
               </table>
             </div>
             <div className="mt-6 pt-6 border-t flex justify-between items-center">
-              <div className="text-2xl font-black text-slate-900">{cart.reduce((acc, item) => acc + item.total, 0)} ৳</div>
+              <div className="text-2xl font-black text-slate-900">
+                {isInHouse ? (
+                  <span className="text-blue-600 text-sm font-black uppercase tracking-wider bg-blue-50 border border-blue-100 px-3 py-1 rounded-xl">In-House Transfer</span>
+                ) : (
+                  `${cart.reduce((acc, item) => acc + item.total, 0)} ৳`
+                )}
+              </div>
               <button 
                 onClick={handleGenerateChallan} 
                 disabled={loading || cart.length === 0} 
