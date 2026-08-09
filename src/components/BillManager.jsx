@@ -109,10 +109,16 @@ const BillManager = () => {
   };
 
   // প্রোডাক্ট সামারি তৈরি করার হেল্পার
-  const getProductSummary = (items) => {
+  const getProductSummary = (items, noTruncate = false) => {
     if (!items || items.length === 0) return 'No items';
-    const summary = items.map(i => `${i.products?.name} (${i.quantity})`).join(', ');
-    return summary.length > 40 ? summary.substring(0, 40) + '...' : summary;
+    const summary = items.map(i => {
+      const brandName = i.products?.name || '';
+      const modelName = i.products?.model && i.products.model.toUpperCase() !== 'N/A' ? i.products.model : '';
+      const fullName = `${brandName} ${modelName}`.trim();
+      return `${fullName} (${i.quantity})`;
+    }).join(', ');
+    if (noTruncate) return summary;
+    return summary.length > 60 ? summary.substring(0, 60) + '...' : summary;
   };
 
   // বিল/চালান প্রিন্ট ভিউ লোড করা
@@ -290,7 +296,7 @@ const BillManager = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="p-4 text-xs text-slate-500 truncate max-w-[200px]" title={getProductSummary(record.chalan_items)}>
+                    <td className="p-4 text-xs text-slate-500 truncate max-w-[200px]" title={getProductSummary(record.chalan_items, true)}>
                       {getProductSummary(record.chalan_items)}
                     </td>
                     <td className="p-4 text-right font-black text-slate-900">
