@@ -23,6 +23,8 @@ const ServiceManager = lazy(() => import('./components/ServiceManager'));
 const UserManagement = lazy(() => import('./components/UserManagement'));
 const LabelPrint = lazy(() => import('./components/LabelPrint'));
 const BrokenManager = lazy(() => import('./components/BrokenManager'));
+const ResellerOfferPublic = lazy(() => import('./components/ResellerOfferPublic'));
+const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
 const PublicCatalogWrapper = () => {
@@ -200,6 +202,7 @@ function App() {
         <Routes>
           {/* Public Page Route */}
           <Route path="/" element={<PublicCatalogWrapper />} />
+          <Route path="/reseller-offer" element={<ResellerOfferPublic />} />
 
           {/* Login Route */}
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} isAdmin={isAdmin} />} />
@@ -225,6 +228,11 @@ function App() {
             <Route path="/frontend-custom" element={
               <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
                 <FrontEndCustom />
+              </RoleRoute>
+            } />
+            <Route path="/reseller-offer-admin" element={
+              <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
+                <ResellerOfferAdmin />
               </RoleRoute>
             } />
             <Route path="/user-management" element={

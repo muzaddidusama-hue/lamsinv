@@ -273,6 +273,33 @@ const FrontEndCustom = () => {
     }
   };
 
+  const getMergedPayload = (updatedSliders) => {
+    let existing = {};
+    if (siteSettings.footer_image_url && siteSettings.footer_image_url.startsWith('{')) {
+      try {
+        existing = JSON.parse(siteSettings.footer_image_url);
+      } catch (e) {
+        console.error("Error parsing existing footer_image_url JSON:", e);
+      }
+    }
+    return {
+      ...existing,
+      about_profile_title: aboutProfileTitle,
+      about_profile_text: aboutProfileText,
+      about_quality_title: aboutQualityTitle,
+      about_quality_text: aboutQualityText,
+      category_images: categoryImages,
+      featured_keys: featuredKeys,
+      featured_text: featuredText,
+      featured_custom_images: featuredCustomImages,
+      featured_banner_title: featuredBannerTitle,
+      featured_banner_desc: featuredBannerDesc,
+      featured_banner_image_url: featuredBannerImageUrl,
+      actual_footer_image: actualFooterImage,
+      slider_images: updatedSliders || sliderImages
+    };
+  };
+
   // স্লাইডার ইমেজ আপলোড হ্যান্ডলার
   const handleSliderImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -298,25 +325,9 @@ const FrontEndCustom = () => {
       setSliderImages(updatedSliders);
       
       // Auto save
-      const customPayload = {
-        about_profile_title: aboutProfileTitle,
-        about_profile_text: aboutProfileText,
-        about_quality_title: aboutQualityTitle,
-        about_quality_text: aboutQualityText,
-        category_images: categoryImages,
-        featured_keys: featuredKeys,
-        featured_text: featuredText,
-        featured_custom_images: featuredCustomImages,
-        featured_banner_title: featuredBannerTitle,
-        featured_banner_desc: featuredBannerDesc,
-        featured_banner_image_url: featuredBannerImageUrl,
-        actual_footer_image: actualFooterImage,
-        slider_images: updatedSliders
-      };
-
       const finalSettings = {
         ...siteSettings,
-        footer_image_url: JSON.stringify(customPayload)
+        footer_image_url: JSON.stringify(getMergedPayload(updatedSliders))
       };
 
       const { error } = await supabase.from('site_settings').upsert([finalSettings]);
@@ -351,25 +362,9 @@ const FrontEndCustom = () => {
       setSliderImages(updatedSliders);
 
       // Auto save
-      const customPayload = {
-        about_profile_title: aboutProfileTitle,
-        about_profile_text: aboutProfileText,
-        about_quality_title: aboutQualityTitle,
-        about_quality_text: aboutQualityText,
-        category_images: categoryImages,
-        featured_keys: featuredKeys,
-        featured_text: featuredText,
-        featured_custom_images: featuredCustomImages,
-        featured_banner_title: featuredBannerTitle,
-        featured_banner_desc: featuredBannerDesc,
-        featured_banner_image_url: featuredBannerImageUrl,
-        actual_footer_image: actualFooterImage,
-        slider_images: updatedSliders
-      };
-
       const finalSettings = {
         ...siteSettings,
-        footer_image_url: JSON.stringify(customPayload)
+        footer_image_url: JSON.stringify(getMergedPayload(updatedSliders))
       };
 
       const { error } = await supabase.from('site_settings').upsert([finalSettings]);
@@ -387,26 +382,10 @@ const FrontEndCustom = () => {
   const saveAllSettings = async (updatedSettingsObject) => {
     setLoading(true);
     try {
-      const customPayload = {
-        about_profile_title: aboutProfileTitle,
-        about_profile_text: aboutProfileText,
-        about_quality_title: aboutQualityTitle,
-        about_quality_text: aboutQualityText,
-        category_images: categoryImages,
-        featured_keys: featuredKeys,
-        featured_text: featuredText,
-        featured_custom_images: featuredCustomImages,
-        featured_banner_title: featuredBannerTitle,
-        featured_banner_desc: featuredBannerDesc,
-        featured_banner_image_url: featuredBannerImageUrl,
-        actual_footer_image: actualFooterImage,
-        slider_images: sliderImages
-      };
-
       const finalSettings = {
         ...siteSettings,
         ...updatedSettingsObject,
-        footer_image_url: JSON.stringify(customPayload)
+        footer_image_url: JSON.stringify(getMergedPayload())
       };
 
       const { error } = await supabase.from('site_settings').upsert([finalSettings]);

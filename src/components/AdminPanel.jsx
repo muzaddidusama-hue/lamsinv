@@ -187,6 +187,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     },
     { id: 'reports', label: 'রিপোর্ট ও খতিয়ান', path: '/reports', icon: <ReportsIcon />, isDropdown: false },
     { id: 'frontend_custom', label: 'পাবলিক পেজ এডিট', path: '/frontend-custom', icon: <SettingsIcon />, isDropdown: false },
+    { id: 'reseller_offer_admin', label: 'রিসেলার অফার', path: '/reseller-offer-admin', icon: <SettingsIcon />, isDropdown: false },
     { id: 'user_management', label: 'ইউজার ম্যানেজমেন্ট', path: '/user-management', icon: <UserIcon />, isDropdown: false },
   ];
 
