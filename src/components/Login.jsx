@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
+import lamsLogo from '../assets/lams-logo.webp';
 
 const Login = ({ onLoginSuccess }) => {
   const [email, setEmail] = useState('');
@@ -68,7 +69,7 @@ const Login = ({ onLoginSuccess }) => {
 
   return (
     <div className="w-full text-center space-y-6 px-4 py-6" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
-      <img src="https://i.postimg.cc/2S35fVxS/Lams-Logo.png" alt="Lams Logo" className="h-16 mx-auto object-contain" />
+      <img src={lamsLogo} alt="Lams Logo" className="h-16 mx-auto object-contain" />
       
       <div>
         <h2 className="text-2xl font-black text-slate-800 uppercase">LAMS Power</h2>

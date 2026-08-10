@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import lamsLogo from '../assets/lams-logo.webp';
 
 const ResellerOfferPublic = () => {
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ const ResellerOfferPublic = () => {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <img 
-              src="https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/Lams%20Power/Lams-Logo.png" 
+              src={lamsLogo} 
               alt="Lams Power Logo" 
               className="h-10 w-auto object-contain" 
             />

@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
+import lamsLogo from '../assets/lams-logo.webp';
+import solarOnInverter from '../assets/solar-on-inverter.webp';
+import inhenergyImg from '../assets/inhenergy.webp';
+import solarPanel12v from '../assets/solar-panel-12v.webp';
+import solarPanel24v from '../assets/solar-panel-24v.webp';
+import productsImg from '../assets/products-image.webp';
+import solarOn3600Img from '../assets/solaron-3600.webp';
+import OptimizedImage from './OptimizedImage';
 
 const sortModelsByCapacity = (modelsArray) => {
   const parseCapacity = (modelName) => {
@@ -104,10 +112,10 @@ const PublicCatalog = ({ onAdminClick }) => {
     about_quality_title: 'Operations & Quality Assurance',
     about_quality_text: "At Lams Power, quality is at the core of our operations. We maintain a comprehensive and carefully curated catalog of advanced solar technology, specializing in high-efficiency solar panels and cutting-edge inverters from globally recognized brands.",
     category_images: {
-      "Hybrid Inverter": "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
-      "On Grid Inverter": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png",
-      "Solar Panel 12V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png",
-      "Solar Panel 24V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png"
+      "Hybrid Inverter": solarOnInverter,
+      "On Grid Inverter": inhenergyImg,
+      "Solar Panel 12V": solarPanel12v,
+      "Solar Panel 24V": solarPanel24v
     },
     featured_keys: [],
     featured_text: 'Currently SolarOn 3600VA and 6200VA are our new arrival products',
@@ -115,7 +123,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     featured_banner_title: 'Premium Solar Solutions',
     featured_banner_desc: 'Experience top-tier quality solar equipment manufactured under strict environmental and safety compliance standards.',
     featured_banner_image_url: '',
-    actual_footer_image: 'https://i.postimg.cc/bvTWjG7T/Propducts-Image.png'
+    actual_footer_image: productsImg
   });
   const [loading, setLoading] = useState(true);
   const [selectedModalProduct, setSelectedModalProduct] = useState(null);
@@ -377,26 +385,26 @@ const PublicCatalog = ({ onAdminClick }) => {
       return catProds[0];
     }
     // Fallbacks if database is empty
-    let fallbackImg = "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png";
+    let fallbackImg = solarOnInverter;
     let fallbackModel = "6200VA";
     let fallbackVolt = "48V";
     let fallbackWatt = "6200W";
     let fallbackName = "SolarOn";
 
     if (categoryName.includes("On-grid")) {
-      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png";
+      fallbackImg = inhenergyImg;
       fallbackModel = "10 kW";
       fallbackVolt = "230V";
       fallbackWatt = "10000W";
       fallbackName = "Inhenergy";
     } else if (categoryName.includes("12 Volt")) {
-      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png";
+      fallbackImg = solarPanel12v;
       fallbackModel = "150W";
       fallbackVolt = "12V";
       fallbackWatt = "150W";
       fallbackName = "Powerland";
     } else if (categoryName.includes("24 Volt")) {
-      fallbackImg = "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png";
+      fallbackImg = solarPanel24v;
       fallbackModel = "400W";
       fallbackVolt = "24V";
       fallbackWatt = "400W";
@@ -421,7 +429,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   const solarOn3600 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
     name: 'SolarOn',
     model: '3600VA',
-    image_url: 'https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/SolarOn-3600.png',
+    image_url: solarOn3600Img,
     volt: '24V',
     watt: '3600W',
     availability: 'in stock',
@@ -444,14 +452,14 @@ const PublicCatalog = ({ onAdminClick }) => {
     const inStock = deDuplicatedProducts.filter(p => Number(p.stock_quantity) >= 10);
 
     const fallbacks = {
-      'inhenergy': { category: "On-grid Inverter", name: "Inhenergy", model: "10 kW", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png", volt: "230V", watt: "10000W", availability: "in stock", description: "Inhenergy 10kW On-grid inverter." },
-      'jfy': { category: "On-grid Inverter", name: "JFY", model: "3000TL", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777535747499_4rv9mr.png", volt: "550VDC", watt: "4500W", availability: "in stock", description: "JFY 3000TL On-grid inverter." },
-      'solaron': { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/SolarOn-3600.png", volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
-      'ae solar': { category: "Solar Panel - 24 Volt", name: "AE Solar", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "AE Solar 24V Premium Panel." },
-      'lefn': { category: "Solar Panel - 24 Volt", name: "LEFN", model: "380W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "380W", availability: "in stock", description: "LEFN 24V High Performance Panel." },
-      'powerland': { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1780746071370_caq4d.png", volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
-      'sunland': { category: "Solar Panel - 12 Volt", name: "Sunland", model: "200W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png", volt: "12V", watt: "200W", availability: "in stock", description: "Sunland 12V Solar Panel." },
-      'sunland extreme': { category: "Solar Panel - 24 Volt", name: "Sunland Extreme", model: "400W", image_url: "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png", volt: "24V", watt: "400W", availability: "in stock", description: "Sunland Extreme 24V Solar Panel." }
+      'inhenergy': { category: "On-grid Inverter", name: "Inhenergy", model: "10 kW", image_url: inhenergyImg, volt: "230V", watt: "10000W", availability: "in stock", description: "Inhenergy 10kW On-grid inverter." },
+      'jfy': { category: "On-grid Inverter", name: "JFY", model: "3000TL", image_url: inhenergyImg, volt: "550VDC", watt: "4500W", availability: "in stock", description: "JFY 3000TL On-grid inverter." },
+      'solaron': { category: "Hybrid Inverter", name: "SolarOn", model: "3600VA", image_url: solarOn3600Img, volt: "24V", watt: "3600W", availability: "in stock", description: "High efficiency SolarOn 3600VA hybrid inverter." },
+      'ae solar': { category: "Solar Panel - 24 Volt", name: "AE Solar", model: "400W", image_url: solarPanel24v, volt: "24V", watt: "400W", availability: "in stock", description: "AE Solar 24V Premium Panel." },
+      'lefn': { category: "Solar Panel - 24 Volt", name: "LEFN", model: "380W", image_url: solarPanel24v, volt: "24V", watt: "380W", availability: "in stock", description: "LEFN 24V High Performance Panel." },
+      'powerland': { category: "Solar Panel - 12 Volt", name: "Powerland", model: "150W", image_url: solarPanel12v, volt: "12V", watt: "150W", availability: "in stock", description: "Powerland 12V Solar Panel." },
+      'sunland': { category: "Solar Panel - 12 Volt", name: "Sunland", model: "200W", image_url: solarPanel12v, volt: "12V", watt: "200W", availability: "in stock", description: "Sunland 12V Solar Panel." },
+      'sunland extreme': { category: "Solar Panel - 24 Volt", name: "Sunland Extreme", model: "400W", image_url: solarPanel24v, volt: "24V", watt: "400W", availability: "in stock", description: "Sunland Extreme 24V Solar Panel." }
     };
 
     const finalModels = [];
@@ -884,7 +892,7 @@ const PublicCatalog = ({ onAdminClick }) => {
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
             <img 
-              src="https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/Lams%20Power/Lams-Logo.png" 
+              src={lamsLogo} 
               alt="Lams Power Logo" 
               className="h-10 md:h-11 object-contain" 
             />
@@ -943,11 +951,12 @@ const PublicCatalog = ({ onAdminClick }) => {
               {/* Image Showcase Column - Placed first (on top) in mobile, second in desktop */}
               <div className="relative z-10 flex items-center justify-center w-full lg:w-1/2 min-h-[300px] order-1 lg:order-2">
                 <div className="w-80 h-80 md:w-96 md:h-96 rounded-full bg-slate-300/40 absolute blur-2xl opacity-60 z-0 animate-pulse" />
-                <img 
+                <OptimizedImage 
                   src={solarOn3600.image_url} 
                   alt="SolarOn 3600VA Inverter" 
                   className="max-h-[340px] md:max-h-[440px] w-auto object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700 cursor-pointer" 
                   onClick={() => setSelectedModalProduct(solarOn3600)}
+                  width={500}
                 />
               </div>
 
@@ -1100,10 +1109,11 @@ const PublicCatalog = ({ onAdminClick }) => {
                       }}
                       className="absolute inset-0 transition-all duration-[800ms] ease-out flex items-center justify-center p-2"
                     >
-                      <img 
+                      <OptimizedImage 
                         src={url} 
                         alt={`Slider ${idx + 1}`} 
                         className="h-full w-auto max-w-full object-contain rounded-[2.5rem] shadow-[0_20px_45px_-10px_rgba(0,0,0,0.12)] border border-slate-200 bg-white p-3 hover:scale-[1.01] transition-transform duration-500" 
+                        width={800}
                       />
                     </div>
                   );
@@ -1166,28 +1176,31 @@ const PublicCatalog = ({ onAdminClick }) => {
             <div className="lg:col-span-6 flex items-center justify-center h-[420px] relative w-full order-1 lg:order-2">
               {/* Capsule Left */}
               <div className="w-[110px] h-[240px] rounded-[5rem] overflow-hidden border-[6px] border-white shadow-lg rotate-[-6deg] absolute left-6 md:left-16 hover:scale-105 transition-all duration-500 hover:rotate-0 hover:z-30 group">
-                <img 
+                <OptimizedImage 
                   src="https://images.unsplash.com/photo-1542332213-9b5a5a3fad35?w=500&auto=format&fit=crop&q=80" 
                   alt="Solar Panels Array" 
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  width={200}
                 />
               </div>
 
               {/* Capsule Center */}
               <div className="w-[160px] h-[340px] rounded-[7rem] overflow-hidden border-[6px] border-white shadow-2xl absolute z-25 hover:scale-105 transition-all duration-500 hover:rotate-[-2deg] group">
-                <img 
+                <OptimizedImage 
                   src="https://images.unsplash.com/photo-1509391366360-2e959784a276?w=600&auto=format&fit=crop&q=80" 
                   alt="Eco Factory Warehouse" 
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  width={300}
                 />
               </div>
 
               {/* Capsule Right */}
               <div className="w-[120px] h-[270px] rounded-[6rem] overflow-hidden border-[6px] border-white shadow-lg rotate-[6deg] absolute right-6 md:right-16 hover:scale-105 transition-all duration-500 hover:rotate-0 hover:z-30 group">
-                <img 
+                <OptimizedImage 
                   src="https://images.unsplash.com/photo-1508514177221-188b1cf16e9d?w=500&auto=format&fit=crop&q=80" 
                   alt="Inverter Installations" 
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+                  width={200}
                 />
               </div>
             </div>
@@ -1253,10 +1266,11 @@ const PublicCatalog = ({ onAdminClick }) => {
 
                   {/* Showcase Product Image */}
                   <div className="w-full md:w-1/2 aspect-square flex items-center justify-center p-4 bg-[#f3f4f6]/50 rounded-3xl overflow-hidden relative">
-                    <img 
+                    <OptimizedImage 
                       src={activeShowcaseProduct.image_url} 
                       alt={activeShowcaseProduct.name} 
                       className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-md"
+                      width={400}
                     />
                   </div>
                 </div>
@@ -1311,10 +1325,12 @@ const PublicCatalog = ({ onAdminClick }) => {
 
                       {/* Row Thumbnail */}
                       <div className="w-12 h-12 bg-[#f3f4f6] rounded-xl flex items-center justify-center p-2 overflow-hidden shrink-0 border border-slate-100 group-hover:scale-105 transition-transform duration-500">
-                        <img 
+                        <OptimizedImage 
                           src={p.image_url} 
                           alt={p.name} 
                           className="max-h-full max-w-full object-contain"
+                          width={60}
+                          quality={75}
                         />
                       </div>
                     </div>
@@ -1377,10 +1393,11 @@ const PublicCatalog = ({ onAdminClick }) => {
                     <div>
                       {/* Image placeholder with big rounding */}
                       <div className="w-full bg-[#f3f4f6]/60 rounded-[2rem] aspect-[4/3] mb-4.5 flex items-center justify-center p-4 overflow-hidden border border-slate-100/50">
-                        <img 
+                        <OptimizedImage 
                           src={showProd.image_url} 
                           alt={showProd.name} 
                           className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500" 
+                          width={300}
                         />
                       </div>
                       <div className="text-left">
@@ -1540,10 +1557,11 @@ const PublicCatalog = ({ onAdminClick }) => {
                                             </span>
 
                                             {prod.image_url ? (
-                                              <img 
+                                              <OptimizedImage 
                                                 src={prod.image_url} 
                                                 alt={prod.name} 
                                                 className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
+                                                width={250}
                                               />
                                             ) : (
                                               <div className="text-2xl sm:text-4xl select-none">📦</div>
@@ -1757,10 +1775,11 @@ const PublicCatalog = ({ onAdminClick }) => {
                     {catalogImageUrl && (
                       <div className="flex flex-col items-center animate-in fade-in duration-200">
                         <div className="w-full mb-3 rounded-2xl overflow-hidden border border-slate-200">
-                          <img 
+                          <OptimizedImage 
                             src={catalogImageUrl} 
                             alt="Product Catalog" 
                             className="w-full h-auto max-h-60 object-contain bg-slate-55 mx-auto"
+                            width={500}
                           />
                         </div>
                         <a 
@@ -1808,7 +1827,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           <div className="text-center md:text-left space-y-2 flex flex-col items-center md:items-start">
             <div className="flex items-center gap-2 justify-center md:justify-start">
               <img 
-                src="https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/Lams%20Power/Lams-Logo.png" 
+                src={lamsLogo} 
                 alt="Lams Power Logo" 
                 className="h-8 object-contain filter invert opacity-90" 
               />
@@ -1828,7 +1847,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
           {landingConfig.actual_footer_image && (
             <div className="max-w-[540px] w-full opacity-80 hover:opacity-100 transition-opacity flex justify-center md:justify-end">
-              <img src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain filter invert opacity-95" />
+              <OptimizedImage src={landingConfig.actual_footer_image} alt="LAMS Energy Partner" className="max-h-36 w-auto object-contain filter invert opacity-95" width={500} />
             </div>
           )}
         </div>

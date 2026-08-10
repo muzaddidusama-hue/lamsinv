@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import solarOnInverter from '../assets/solar-on-inverter.webp';
+import inhenergyImg from '../assets/inhenergy.webp';
+import solarPanel12v from '../assets/solar-panel-12v.webp';
+import solarPanel24v from '../assets/solar-panel-24v.webp';
+import productsImg from '../assets/products-image.webp';
 
 const FrontEndCustom = () => {
   const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products, featured_banner, product_details
@@ -24,13 +29,13 @@ const FrontEndCustom = () => {
   );
 
   const [categoryImages, setCategoryImages] = useState({
-    "Hybrid Inverter": "https://i.postimg.cc/NfbsgbhR/Solar-On-Inverter.png",
-    "On Grid Inverter": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/Inhenergy.png",
-    "Solar Panel 12V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361937927_kup74h.png",
-    "Solar Panel 24V": "https://iahytcrmstlkvnmwfxgs.supabase.co/storage/v1/object/public/product%20image/1777361856220_dmal4.png"
+    "Hybrid Inverter": solarOnInverter,
+    "On Grid Inverter": inhenergyImg,
+    "Solar Panel 12V": solarPanel12v,
+    "Solar Panel 24V": solarPanel24v
   });
 
-  const [actualFooterImage, setActualFooterImage] = useState('https://i.postimg.cc/bvTWjG7T/Propducts-Image.png');
+  const [actualFooterImage, setActualFooterImage] = useState(productsImg);
   
   // নিউ অ্যারাইভাল ট্যাব স্টেটস
   const [featuredKeys, setFeaturedKeys] = useState([]); // "category|name|model" ফরম্যাটে
