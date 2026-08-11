@@ -1269,7 +1269,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                     <OptimizedImage 
                       src={activeShowcaseProduct.image_url} 
                       alt={activeShowcaseProduct.name} 
-                      className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-md"
+                      className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500 drop-shadow-md"
                       width={400}
                     />
                   </div>
@@ -1328,7 +1328,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                         <OptimizedImage 
                           src={p.image_url} 
                           alt={p.name} 
-                          className="max-h-full max-w-full object-contain"
+                          className="w-full h-full object-contain"
                           width={60}
                           quality={75}
                         />
@@ -1396,7 +1396,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                         <OptimizedImage 
                           src={showProd.image_url} 
                           alt={showProd.name} 
-                          className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500" 
+                          className="w-full h-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500" 
                           width={300}
                         />
                       </div>
@@ -1560,7 +1560,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                                               <OptimizedImage 
                                                 src={prod.image_url} 
                                                 alt={prod.name} 
-                                                className="max-h-full max-w-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
+                                                className="w-full h-full object-contain group-hover:scale-106 group-hover:rotate-[0.5deg] transition-all duration-500 drop-shadow-sm" 
                                                 width={250}
                                               />
                                             ) : (
