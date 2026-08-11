@@ -40,7 +40,35 @@ export default function OptimizedImage({
     }
   };
 
-  // Styling helpers
+  // Detect explicit width/height sizing in the Tailwind/Vanilla classes
+  const classesList = className.split(' ');
+  const hasWidthClass = classesList.some(c => c.startsWith('w-') && c !== 'w-auto');
+  const hasHeightClass = classesList.some(c => c.startsWith('h-') && c !== 'h-auto');
+  const isBlock = className.includes('block') && !className.includes('inline-block');
+
+  // Wrapper style - positioning and layouts should live on the wrapper
+  const containerStyle = {
+    position: 'relative',
+    display: isBlock ? 'block' : 'inline-block',
+    // Apply overflow: hidden only when loading to clip the skeleton to border-radius.
+    // Once loaded, set to visible so drop shadows and animations do not get clipped!
+    overflow: loaded ? 'visible' : 'hidden',
+    ...style, // merge inline styles passed from user
+  };
+
+  // Inner image style - scales to fill container while honoring sizes & fit
+  const imgStyle = {
+    display: 'block',
+    width: hasWidthClass ? '100%' : 'auto',
+    height: hasHeightClass ? '100%' : 'auto',
+    maxWidth: '100%',
+    maxHeight: '100%',
+    objectFit: className.includes('object-cover') ? 'cover' : (className.includes('object-fill') ? 'fill' : 'contain'),
+    opacity: loaded ? 1 : 0,
+    transition: 'opacity 0.4s ease-in-out',
+    animation: 'inherit', // inherit parent float or pulse animation if applicable
+  };
+
   const skeletonStyle = {
     position: 'absolute',
     top: 0,
@@ -49,32 +77,12 @@ export default function OptimizedImage({
     height: '100%',
     backgroundColor: '#f1f5f9',
     animation: 'pulse-bg 1.8s infinite ease-in-out',
-    borderRadius: 'inherit',
+    borderRadius: style.borderRadius || 'inherit',
     zIndex: 1
   };
 
-  const containerStyle = {
-    position: 'relative',
-    display: 'inline-block',
-    overflow: 'hidden',
-    width: width ? (typeof width === 'number' ? `${width}px` : width) : '100%',
-    height: height ? (typeof height === 'number' ? `${height}px` : height) : '100%',
-    ...style
-  };
-
-  const imgStyle = {
-    display: 'block',
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    opacity: loaded ? 1 : 0,
-    transition: 'opacity 0.4s ease-in-out',
-    zIndex: 2,
-    position: 'relative'
-  };
-
   return (
-    <div className={`optimized-image-container ${className}`} style={containerStyle}>
+    <div className={`optimized-image-wrapper ${className}`} style={containerStyle}>
       <style dangerouslySetInnerHTML={{__html: `
         @keyframes pulse-bg {
           0% { background-color: #f1f5f9; }
@@ -106,6 +114,8 @@ export default function OptimizedImage({
         <img
           src={currentSrc}
           alt={alt}
+          width={width}
+          height={height}
           onLoad={() => setLoaded(true)}
           onError={handleImageError}
           style={imgStyle}
