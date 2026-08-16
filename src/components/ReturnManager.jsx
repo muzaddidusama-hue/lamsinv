@@ -162,46 +162,74 @@ const ReturnManager = () => {
       for (let item of selectedInvoice.chalan_items) {
         const rq = qtysToReturn[item.id] || 0;
         if (rq > 0) {
-          // স্টক আপডেট
-          const { data: prodData } = await supabase.from('products').select('stock_quantity').eq('id', item.product_id).single();
-          if (prodData) {
-            await supabase.from('products').update({ stock_quantity: prodData.stock_quantity + rq }).eq('id', item.product_id);
+          // স্টক আপডেট (RPC ব্যবহার করে, যা RLS বাইপাস করে এবং অ্যাটমিক)
+          const { error: rpcErr } = await supabase.rpc('update_product_stock', { 
+            prod_id: item.product_id, 
+            qty_change: rq 
+          });
+          if (rpcErr) {
+            console.error("RPC Error updating product stock:", rpcErr);
+            throw new Error(`স্টক আপডেট করতে সমস্যা হয়েছে: ${rpcErr.message}`);
           }
 
           // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
-          await supabase.from('ledger').insert([{
+          const { error: ledgerErr } = await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
             source: `Return from Inv: #${invoiceRef} (To: ${selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
             date: new Date().toISOString().split('T')[0],
             in: new Date().toISOString()
           }]);
+          if (ledgerErr) {
+            console.error("Ledger insertion error:", ledgerErr);
+            throw new Error(`লেজার এন্ট্রি তৈরি করতে সমস্যা হয়েছে: ${ledgerErr.message}`);
+          }
 
           // chalan_items আপডেট বা ডিলিট
           const newQty = item.quantity - rq;
           if (newQty <= 0) {
-            await supabase.from('chalan_items').delete().eq('id', item.id);
+            const { error: deleteErr } = await supabase.from('chalan_items').delete().eq('id', item.id);
+            if (deleteErr) {
+              console.error("Delete chalan_item error:", deleteErr);
+              throw new Error(`আইটেম মুছতে সমস্যা হয়েছে: ${deleteErr.message}`);
+            }
           } else {
             const newTotal = newQty * item.unit_price;
-            await supabase.from('chalan_items').update({ quantity: newQty, total: newTotal }).eq('id', item.id);
+            const { error: updateErr } = await supabase.from('chalan_items').update({ quantity: newQty, total: newTotal }).eq('id', item.id);
+            if (updateErr) {
+              console.error("Update chalan_item error:", updateErr);
+              throw new Error(`আইটেম আপডেট করতে সমস্যা হয়েছে: ${updateErr.message}`);
+            }
           }
         }
       }
 
       // ২. সিলেক্টেড সিরিয়ালগুলো ডিলিট করা
       if (serialsToDelete.length > 0) {
-        await supabase.from('inv_sl').delete().in('sl_no', serialsToDelete);
+        const { error: serialsErr } = await supabase.from('inv_sl').delete().in('sl_no', serialsToDelete);
+        if (serialsErr) {
+          console.error("Delete serials error:", serialsErr);
+          throw new Error(`সিরিয়াল নম্বর মুছতে সমস্যা হয়েছে: ${serialsErr.message}`);
+        }
       }
 
       // ৩. চালানের মোট ভ্যালু বা স্ট্যাটাস আপডেট করা
       if (isFullCancellation || isActuallyFullReturn) {
         // সম্পূর্ণ বাতিল / সম্পূর্ণ রিটার্ন
-        await supabase.from('chalans').update({ status: 'cancelled', total_amount: 0 }).eq('id', selectedInvoice.id);
+        const { error: chalanErr } = await supabase.from('chalans').update({ status: 'cancelled', total_amount: 0 }).eq('id', selectedInvoice.id);
+        if (chalanErr) {
+          console.error("Update chalan error:", chalanErr);
+          throw new Error(`বিল/চালান বাতিল করতে সমস্যা হয়েছে: ${chalanErr.message}`);
+        }
         alert('✅ সফলভাবে বিল/চালান বাতিল করা হয়েছে এবং সকল স্টক ফেরত নেওয়া হয়েছে!');
       } else {
         // আংশিক রিটার্ন
         const newTotalAmount = Math.max(0, selectedInvoice.total_amount - totalReturnedValue);
-        await supabase.from('chalans').update({ total_amount: newTotalAmount }).eq('id', selectedInvoice.id);
+        const { error: chalanErr } = await supabase.from('chalans').update({ total_amount: newTotalAmount }).eq('id', selectedInvoice.id);
+        if (chalanErr) {
+          console.error("Update chalan error:", chalanErr);
+          throw new Error(`বিলের মোট মূল্য আপডেট করতে সমস্যা হয়েছে: ${chalanErr.message}`);
+        }
         alert(`✅ সফলভাবে আংশিক রিটার্ন সম্পন্ন হয়েছে! স্টক ও বিলের মূল্য (${newTotalAmount} ৳) আপডেট করা হয়েছে।`);
       }
 
@@ -212,7 +240,7 @@ const ReturnManager = () => {
       handleSearch({ preventDefault: () => {} }); // রিফ্রেশ
     } catch (error) {
       console.error(error);
-      alert('রিটার্ন প্রসেস করতে সমস্যা হয়েছে! কনসোল চেক করুন।');
+      alert(error.message || 'রিটার্ন প্রসেস করতে সমস্যা হয়েছে! কনসোল চেক করুন।');
     }
     setProcessing(false);
   };
