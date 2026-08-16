@@ -421,7 +421,7 @@ setCart([...cart, {
                     <tr key={idx} className="hover:bg-slate-50 transition-colors">
                       <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
                       <td className="py-4 text-center">
-                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none" />
+                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-20 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none" />
                       </td>
                       <td className="py-4 text-center">
                         <div className="flex items-center justify-center gap-1">

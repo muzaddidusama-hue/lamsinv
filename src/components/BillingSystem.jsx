@@ -558,7 +558,7 @@ const handleQuickBillConfirm = async () => {
                     <tr key={idx} className="hover:bg-slate-50 transition-colors group">
                       <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
                       <td className="py-4 text-center">
-                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-16 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900" />
+                        <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-20 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900" />
                       </td>
                       {!isInHouse && (
                         <td className="py-4 text-center">
