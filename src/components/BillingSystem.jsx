@@ -79,7 +79,7 @@ const CustomDatePicker = ({ value, onChange }) => {
      const [house, setHouse] = useState('Head Office');
   const [isInHouse, setIsInHouse] = useState(false); 
   const [transferTo, setTransferTo] = useState('Showroom');
-  const [isManualChalan, setIsManualChalan] = useState(false);
+  const [isManualChalan, setIsManualChalan] = useState(true);
   const [manualChalanNo, setManualChalanNo] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString());
   const [phone, setPhone] = useState('');
@@ -223,7 +223,7 @@ const addToCart = () => {
   const handleGenerateChallan = async () => {
     if (!isInHouse && !name.trim()) return alert('কাস্টমারের নাম দিন!');
     if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
-    if (isManualChalan && !manualChalanNo) return alert('ম্যানুয়াল চালান নম্বর দিন!');
+    if (isManualChalan && !manualChalanNo.trim()) return alert('ম্যানুয়াল চালান নম্বর দিন!');
 
     // Direct bill validations
     if (!isInHouse && paymentMethod) {
@@ -272,7 +272,7 @@ const addToCart = () => {
         customerData = { name: `Transfer: ${house} to ${transferTo}`, phone: '-', address: '-' };
       }
 
-      const chalanNo = isManualChalan ? manualChalanNo : `CHL-${Date.now().toString().slice(-6)}`;
+      const chalanNo = isManualChalan && manualChalanNo.trim() !== '' ? manualChalanNo : `CHL-${Date.now().toString().slice(-6)}`;
       const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
 
       const isDirectPaidBill = !isInHouse && paymentMethod !== '';
@@ -324,7 +324,7 @@ const addToCart = () => {
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(false); setManualChalanNo(''); setManualDate(new Date().toISOString());
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualChalan(true); setManualChalanNo(''); setManualDate(new Date().toISOString());
       // বিল ডিটেইলস রিসেট
          setPaymentMethod('Bank'); setIsManualBill(true); setManualBillNo('');
       
@@ -385,7 +385,7 @@ const handleQuickBillConfirm = async () => {
           <div className="w-full sm:w-48">
                <CustomDatePicker value={manualDate} onChange={setManualDate} />
             </div>
-          <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-blue-600 text-white' : 'bg-slate-900 text-white'}`}>
+          <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'}`}>
             {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}
           </button>
         </div>
@@ -394,13 +394,15 @@ const handleQuickBillConfirm = async () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-             <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                <label className="flex items-center gap-2 cursor-pointer mb-2">
-                  <input type="checkbox" checked={isManualChalan} onChange={(e) => setIsManualChalan(e.target.checked)} className="accent-orange-600" />
-                  <span className="text-[10px] font-black text-orange-700 uppercase">ম্যানুয়াল চালান নম্বর?</span>
-                </label>
-                {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="CHL-2025" className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold uppercase outline-none" />}
-             </div>
+             {isInHouse && (
+               <div className="p-4 bg-red-50 rounded-2xl border border-red-100">
+                  <label className="flex items-center gap-2 cursor-pointer mb-2">
+                    <input type="checkbox" checked={isManualChalan} onChange={(e) => setIsManualChalan(e.target.checked)} className="accent-red-600" />
+                    <span className="text-[10px] font-black text-red-700 uppercase">ম্যানুয়াল চালান নম্বর?</span>
+                  </label>
+                  {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="CHL-2025" className="w-full p-3 bg-white border border-red-200 rounded-xl font-bold uppercase outline-none" />}
+               </div>
+             )}
 
              <div className="bg-slate-50 p-4 rounded-2xl border">
                 <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">১. সোর্স হাউজ</label>
@@ -410,46 +412,14 @@ const handleQuickBillConfirm = async () => {
                 </div>
              </div>
               {isInHouse ? (
-                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                  <label className="text-[10px] font-bold text-blue-400 uppercase block mb-2">গন্তব্য হাউজ (Transfer To)</label>
+                <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
+                  <label className="text-[10px] font-bold text-red-400 uppercase block mb-2">গন্তব্য হাউজ (Transfer To)</label>
                   <select value={transferTo} onChange={(e)=>setTransferTo(e.target.value)} className="w-full p-3 bg-white border rounded-xl font-bold outline-none">
                     <option value="Head Office">Head Office</option><option value="Showroom">Showroom</option>
                   </select>
                 </div>
               ) : (
                                 <div className="space-y-4">
-                                  {/* পেমেন্ট ও বিল ডিটেইলস অপশন (সরাসরি বিল এন্ট্রি করার জন্য) */}
-                                  <div className="p-4 bg-green-50 rounded-2xl border border-green-100 space-y-3">
-                                    <label className="text-[10px] font-black text-green-700 uppercase block mb-1">পেমেন্ট ও বিল টাইপ (ঐচ্ছিক)</label>
-                                    <select 
-                                      value={paymentMethod} 
-                                      onChange={(e) => {
-                                        setPaymentMethod(e.target.value);
-                                        if (!e.target.value) {
-                                          setIsManualBill(false);
-                                          setManualBillNo('');
-                                        }
-                                      }} 
-                                      className="w-full p-3 bg-white border border-green-200 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-green-500 text-slate-800"
-                                    >
-                                      <option value="">চালান মোড (Hold)</option>
-                                      <option value="Cash">Cash (💵)</option>
-                                      <option value="bKash">bKash (📱)</option>
-                                      <option value="Bank">Bank (🏦)</option>
-                                    </select>
-                                    
-                                    {paymentMethod && (
-                                      <div className="pt-2 border-t border-green-200/50 space-y-2 animate-in slide-in-from-top-2">
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                          <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="accent-green-600" />
-                                          <span className="text-[10px] font-black text-green-700 uppercase">ম্যানুয়াল বিল নম্বর?</span>
-                                        </label>
-                                        {isManualBill && (
-                                          <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-12345" className="w-full p-3 bg-white border border-green-200 rounded-xl font-bold uppercase outline-none text-xs text-slate-800" />
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
                                   <div className="relative">
                                     <input 
                                       type="text" 
@@ -457,12 +427,12 @@ const handleQuickBillConfirm = async () => {
                                       value={phone} 
                                       onChange={e => handlePhoneChange(e.target.value)} 
                                       onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
-                                      className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                                      className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                     />
                                     {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
                                       <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                         {customerSuggestions.map(c => (
-                                          <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                          <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
                                             {c.name} {c.phone ? `- ${c.phone}` : ''}
                                           </div>
                                         ))}
@@ -477,12 +447,12 @@ const handleQuickBillConfirm = async () => {
                                       value={name} 
                                       onChange={e => handleNameChange(e.target.value)} 
                                       onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
-                                      className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                                      className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                     />
                                     {activeSearchField === 'name' && customerSuggestions.length > 0 && (
                                       <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                         {customerSuggestions.map(c => (
-                                          <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                          <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
                                             {c.name} {c.phone ? `- ${c.phone}` : ''}
                                           </div>
                                         ))}
@@ -490,7 +460,7 @@ const handleQuickBillConfirm = async () => {
                                     )}
                                   </div>
                 
-                                  <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" />
+                                  <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" />
                                 </div>
              )}
           </div>
@@ -510,7 +480,7 @@ const handleQuickBillConfirm = async () => {
                 }}
                 onFocus={() => setShowProductDropdown(true)}
                 onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
-                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900"
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600"
               />
               {showProductDropdown && (
                 <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-64 overflow-y-auto custom-scrollbar">
@@ -534,8 +504,8 @@ const handleQuickBillConfirm = async () => {
             </div>
 
             <div className="flex gap-3">
-              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900" />
-              <button onClick={addToCart} className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-orange-600 transition-all whitespace-nowrap">Add</button>
+              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600" />
+              <button onClick={addToCart} className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-red-600 transition-all whitespace-nowrap">Add</button>
             </div>
           </div>
         </div>
@@ -577,10 +547,25 @@ const handleQuickBillConfirm = async () => {
                 </tbody>
               </table>
             </div>
+            {!isInHouse && (
+               <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-4 rounded-2xl mb-4">
+                 <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="w-4 h-4 accent-red-600" />
+                    <span className="text-xs font-bold text-slate-700">ম্যানুয়াল বিল নম্বর?</span>
+                 </div>
+                 {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="Bill No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
+
+                 <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={isManualChalan} onChange={(e) => setIsManualChalan(e.target.checked)} className="w-4 h-4 accent-red-600" />
+                    <span className="text-xs font-bold text-slate-700">ম্যানুয়াল চালান নম্বর?</span>
+                 </div>
+                 {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="Chalan No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
+               </div>
+            )}
             <div className="mt-6 pt-6 border-t flex justify-between items-center">
               <div className="text-2xl font-black text-slate-900">
                 {isInHouse ? (
-                  <span className="text-blue-600 text-sm font-black uppercase tracking-wider bg-blue-50 border border-blue-100 px-3 py-1 rounded-xl">In-House Transfer</span>
+                  <span className="text-red-600 text-sm font-black uppercase tracking-wider bg-red-50 border border-red-100 px-3 py-1 rounded-xl">In-House Transfer</span>
                 ) : (
                   `${cart.reduce((acc, item) => acc + item.total, 0)} ৳`
                 )}
@@ -588,7 +573,7 @@ const handleQuickBillConfirm = async () => {
               <button 
                 onClick={handleGenerateChallan} 
                 disabled={loading || cart.length === 0} 
-                className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-orange-600 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
+                className="bg-slate-900 text-white px-10 py-5 rounded-2xl font-black shadow-lg hover:bg-red-600 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -608,7 +593,7 @@ const handleQuickBillConfirm = async () => {
           <div className="bg-white rounded-[2.5rem] p-8 w-full max-w-sm shadow-2xl animate-in zoom-in-95">
             {billGenerated ? (
               <div className="text-center space-y-5">
-                <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-2xl">✓</div>
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto text-2xl">✓</div>
                 <div>
                   <h2 className="text-2xl font-black text-slate-800">বিল ও চালান তৈরি হয়েছে!</h2>
                   <p className="font-bold text-slate-400 text-xs mt-1 uppercase">বিল নং: {generatedData.chalan.bill_no}</p>
@@ -617,14 +602,14 @@ const handleQuickBillConfirm = async () => {
                 <div className="flex flex-col gap-2 pt-2">
                   <button 
                     onClick={() => printBill({ ...generatedData.chalan, bill_no: generatedData.chalan.bill_no, payment_method: generatedData.chalan.payment_method }, generatedData.customer, generatedData.items)} 
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-black uppercase text-sm tracking-wider flex items-center justify-center gap-2"
+                    className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-black uppercase text-sm tracking-wider flex items-center justify-center gap-2"
                   >
                     🖨️ প্রিন্ট বিল
                   </button>
                   <div className="grid grid-cols-2 gap-2">
                     <button 
                       onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Bill')} 
-                      className="bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl font-bold uppercase text-xs"
+                      className="bg-red-600 hover:bg-red-700 text-white py-3.5 rounded-xl font-bold uppercase text-xs"
                     >
                       📥 ডাউনলোড PDF
                     </button>
@@ -645,36 +630,36 @@ const handleQuickBillConfirm = async () => {
               </div>
             ) : !quickBillMode ? (
               <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
+                <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">✓</div>
                 <h2 className="text-2xl font-black mb-2">চালান তৈরি হয়েছে!</h2>
                 <p className="font-bold text-slate-400 mb-6 uppercase">নং: {generatedData.chalan.chalan_no}</p>
                 <div className="flex flex-col gap-3">
                   <div className="grid grid-cols-2 gap-3">
                      <button onClick={() => printChallan(generatedData.chalan, generatedData.customer, generatedData.items)} className="bg-slate-900 text-white py-4 rounded-xl font-bold uppercase text-xs">🖨️ প্রিন্ট চালান</button>
-                     <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="bg-blue-600 text-white py-4 rounded-xl font-bold uppercase text-xs">📥 ডাউনলোড PDF</button>
+                     <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="bg-red-600 text-white py-4 rounded-xl font-bold uppercase text-xs">📥 ডাউনলোড PDF</button>
                   </div>
-                  {!isInHouse && <button onClick={() => setQuickBillMode(true)} className="w-full bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg uppercase tracking-widest">💰 সরাসরি বিল তৈরি করুন</button>}
+                  {!isInHouse && <button onClick={() => setQuickBillMode(true)} className="w-full bg-red-600 text-white py-4 rounded-xl font-bold shadow-lg uppercase tracking-widest">💰 সরাসরি বিল তৈরি করুন</button>}
                   <button onClick={() => setShowSuccessModal(false)} className="mt-2 text-slate-400 font-bold">পরে করবো / বন্ধ করুন</button>
                 </div>
               </div>
             ) : (
               <div className="space-y-5">
                 <h2 className="text-xl font-black border-b pb-3">বিল কনফার্মেশন</h2>
-                <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100">
+                <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
                   <label className="flex items-center gap-2 cursor-pointer mb-2">
                     <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} />
-                    <span className="text-xs font-black text-orange-700 uppercase">ম্যানুয়াল বিল নম্বর?</span>
+                    <span className="text-xs font-black text-red-700 uppercase">ম্যানুয়াল বিল নম্বর?</span>
                   </label>
-                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold uppercase outline-none" />}
+                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="BLL-OFF-101" className="w-full p-3 bg-white border border-red-200 rounded-xl font-bold uppercase outline-none" />}
                 </div>
-                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-green-500 shadow-sm">
+                <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full p-4 bg-slate-50 border-2 rounded-2xl font-black outline-none focus:border-red-500 shadow-sm">
                   <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash (💵)</option><option value="bKash">bKash (📱)</option><option value="Bank">Bank (🏦)</option>
                 </select>
                 
                 <button 
                   onClick={handleQuickBillConfirm} 
                   disabled={loading || !paymentMethod} 
-                  className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
@@ -687,7 +672,7 @@ const handleQuickBillConfirm = async () => {
                 </button>
                 
                 <div className="flex justify-center">
-                    <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="text-blue-600 font-bold text-sm underline">📥 আপাতত চালানটি PDF ডাউনলোড করুন</button>
+                    <button onClick={() => downloadPDF(generatedData.chalan, generatedData.customer, generatedData.items, 'Challan')} className="text-red-600 font-bold text-sm underline">📥 আপাতত চালানটি PDF ডাউনলোড করুন</button>
                 </div>
 
                 <button onClick={() => setQuickBillMode(false)} className="w-full text-slate-400 font-bold text-center">পিছনে যান</button>
@@ -702,7 +687,7 @@ const handleQuickBillConfirm = async () => {
           <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl flex flex-col items-center gap-5 text-center max-w-xs mx-4 animate-in zoom-in-95 duration-300">
             <div className="relative w-16 h-16">
               <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-t-orange-500 animate-spin"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-t-red-600 animate-spin"></div>
             </div>
             <div>
               <h3 className="font-black text-slate-800 text-lg uppercase tracking-wider">Processing Request</h3>

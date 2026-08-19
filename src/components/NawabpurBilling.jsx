@@ -92,9 +92,11 @@ const CustomDatePicker = ({ value, onChange }) => {
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [generatedData, setGeneratedData] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [isManualBill, setIsManualBill] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('Bank');
+  const [isManualBill, setIsManualBill] = useState(true);
   const [manualBillNo, setManualBillNo] = useState('');
+  const [isManualChalan, setIsManualChalan] = useState(true);
+  const [manualChalanNo, setManualChalanNo] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString());
   const searchTimeoutRef = useRef(null);
 
@@ -196,7 +198,8 @@ setCart([...cart, {
     if (!phone && !name) return alert('কাস্টমারের তথ্য দিন (নাম বা মোবাইল)!');
     if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
     if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');
-    if (isManualBill && !manualBillNo) return alert('ম্যানুয়াল বিল নম্বর দিন!');
+    if (isManualBill && !manualBillNo.trim()) return alert('ম্যানুয়াল বিল নম্বর দিন!');
+    if (isManualChalan && !manualChalanNo.trim()) return alert('ম্যানুয়াল চালান নম্বর দিন!');
 
     setLoading(true);
     try {
@@ -228,18 +231,18 @@ setCart([...cart, {
         if (Object.keys(updatePayload).length > 0) {
           await supabase.from('customers').update(updatePayload).eq('id', customerId);
         }
-} else if (finalName !== 'Walk-in' || finalPhone) {
-  // 🔴 ফোন না থাকলেও শুধু নাম দিয়ে কাস্টমার টেবিলে এন্ট্রি নেওয়ার অনুমতি দেওয়া হলো
-  const { data: newCust, error: custErr } = await supabase.from('customers').insert([{ 
-    name: finalName, 
-    phone: finalPhone, // এখানে null যাবে যদি ইনপুট খালি থাকে
-    address: finalAddress 
-  }]).select().single();
-  if (!custErr) customerId = newCust?.id;
+      } else if (finalName !== 'Walk-in' || finalPhone) {
+        // 🔴 ফোন না থাকলেও শুধু নাম দিয়ে কাস্টমার টেবিলে এন্ট্রি নেওয়ার অনুমতি দেওয়া হলো
+        const { data: newCust, error: custErr } = await supabase.from('customers').insert([{ 
+          name: finalName, 
+          phone: finalPhone, // এখানে null যাবে যদি ইনপুট খালি থাকে
+          address: finalAddress 
+        }]).select().single();
+        if (!custErr) customerId = newCust?.id;
       }
 
-      const finalBillNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
-      const chalanNo = `CHL-DIR-${Date.now().toString().slice(-6)}`;
+      const finalBillNo = isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
+      const chalanNo = isManualChalan && manualChalanNo.trim() !== '' ? manualChalanNo : `CHL-DIR-${Date.now().toString().slice(-6)}`;
       const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
 
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
@@ -279,7 +282,7 @@ setCart([...cart, {
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(false); setManualBillNo(''); setPaymentMethod('Cash'); setManualDate(new Date().toISOString());
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(true); setManualBillNo(''); setIsManualChalan(true); setManualChalanNo(''); setPaymentMethod('Bank'); setManualDate(new Date().toISOString());
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
     
@@ -292,10 +295,10 @@ setCart([...cart, {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-blue-600 p-6 rounded-3xl border shadow-sm text-white gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-red-600 p-6 rounded-3xl border shadow-sm text-white gap-4">
         <div>
            <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
-           <p className="text-xs text-blue-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
+           <p className="text-xs text-red-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
         </div>
         <div className="w-full md:w-48">
               <CustomDatePicker value={manualDate} onChange={setManualDate} />
@@ -313,12 +316,12 @@ setCart([...cart, {
                                  value={phone} 
                                  onChange={e => handlePhoneChange(e.target.value)} 
                                  onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
-                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                />
                                {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
                                  <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                    {customerSuggestions.map(c => (
-                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
                                        {c.name} {c.phone ? `- ${c.phone}` : ''}
                                      </div>
                                    ))}
@@ -333,12 +336,12 @@ setCart([...cart, {
                                  value={name} 
                                  onChange={e => handleNameChange(e.target.value)} 
                                  onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
-                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" 
+                                 className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                />
                                {activeSearchField === 'name' && customerSuggestions.length > 0 && (
                                  <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                    {customerSuggestions.map(c => (
-                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-blue-50 cursor-pointer font-bold text-xs text-slate-800">
+                                     <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
                                        {c.name} {c.phone ? `- ${c.phone}` : ''}
                                      </div>
                                    ))}
@@ -346,7 +349,7 @@ setCart([...cart, {
                                )}
                              </div>
              
-                             <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-blue-600 text-slate-800" />
+                             <input type="text" placeholder="ঠিকানা" value={address} onChange={e=>setAddress(e.target.value)} className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" />
                            </div>
           </div>
           
@@ -365,7 +368,7 @@ setCart([...cart, {
                 }}
                 onFocus={() => setShowProductDropdown(true)}
                 onBlur={() => setTimeout(() => setShowProductDropdown(false), 200)}
-                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600"
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600"
               />
               {showProductDropdown && (
                 <div className="absolute w-full mt-2 bg-white border border-slate-200 rounded-xl shadow-2xl z-[100] max-h-64 overflow-y-auto custom-scrollbar">
@@ -377,9 +380,9 @@ setCart([...cart, {
                         setProductSearchText(`${p.name} - ${p.model} [স্টক: ${p.stock_quantity}]`);
                         setShowProductDropdown(false);
                       }}
-                      className="p-3 border-b border-slate-50 hover:bg-blue-50 cursor-pointer font-bold text-sm text-slate-700"
+                      className="p-3 border-b border-slate-50 hover:bg-red-50 cursor-pointer font-bold text-sm text-slate-700"
                     >
-                      📦 {p.name} - {p.model} <span className="text-blue-600 ml-1">[স্টক: {p.stock_quantity}]</span>
+                      📦 {p.name} - {p.model} <span className="text-red-600 ml-1">[স্টক: {p.stock_quantity}]</span>
                     </div>
                   )) : (
                     <div className="p-4 text-center text-slate-400 text-sm font-bold">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
@@ -395,11 +398,11 @@ setCart([...cart, {
                 value={qty} 
                 onChange={(e) => setQty(e.target.value)} 
                 placeholder="পরিমাণ (Qty)" 
-                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-blue-600" 
+                className="w-full p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600" 
               />
               <button 
                 onClick={addToCart} 
-                className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all active:scale-95 shadow-md"
+                className="w-full py-4 bg-red-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-red-700 transition-all active:scale-95 shadow-md"
               >
                 ➕ Add Product
               </button>
@@ -440,14 +443,17 @@ setCart([...cart, {
             </div>
             <div className="mt-6 pt-6 border-t space-y-4">
                <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-4 rounded-2xl">
-                 <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="w-full md:w-auto flex-1 p-3 bg-white border rounded-xl font-bold outline-none">
-                    <option value="">পেমেন্ট মেথড...</option><option value="Cash">Cash</option><option value="bKash">bKash</option><option value="Bank">Bank</option>
-                 </select>
                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="w-4 h-4" />
-                    <span className="text-xs font-bold text-slate-500">ম্যানুয়াল বিল?</span>
+                    <input type="checkbox" checked={isManualBill} onChange={(e) => setIsManualBill(e.target.checked)} className="w-4 h-4 accent-red-600" />
+                    <span className="text-xs font-bold text-slate-700">ম্যানুয়াল বিল নম্বর?</span>
                  </div>
-                 {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="Bill No..." className="p-3 bg-white border rounded-xl font-bold w-32" />}
+                 {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="Bill No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
+
+                 <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={isManualChalan} onChange={(e) => setIsManualChalan(e.target.checked)} className="w-4 h-4 accent-red-600" />
+                    <span className="text-xs font-bold text-slate-700">ম্যানুয়াল চালান নম্বর?</span>
+                 </div>
+                 {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="Chalan No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
                </div>
 
               <div className="flex justify-between items-center">
@@ -455,7 +461,7 @@ setCart([...cart, {
                 <button 
                   onClick={handleDirectBill} 
                   disabled={loading || cart.length === 0} 
-                  className="bg-blue-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-blue-700 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
+                  className="bg-red-600 text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:bg-red-700 transition-all uppercase tracking-tighter flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>
