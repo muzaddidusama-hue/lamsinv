@@ -17,9 +17,6 @@ const Dashboard = ({ setView }) => {
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
   const [billNo, setBillNo] = useState('');
-  
-  // Dashboard tab state for recent logs
-  const [recentLogTab, setRecentLogTab] = useState('chalans');
 
   useEffect(() => {
     fetchDashboardData();
@@ -70,6 +67,133 @@ const Dashboard = ({ setView }) => {
       setLowStockProducts(stock || []);
     } catch (error) { console.error(error); }
     setLoading(false);
+  };
+
+  const handleOpenLowStockWindow = () => {
+    const newWindow = window.open('', '_blank', 'width=900,height=700');
+    if (!newWindow) return alert('Popup blocked! Please allow popups for this site.');
+    
+    const tableRows = lowStockProducts.map(p => `
+      <tr style="border-bottom: 1px solid #e2e8f0; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='#fff5f5'" onmouseout="this.style.backgroundColor='transparent'">
+        <td style="padding: 14px 16px; font-weight: 700; color: #1e293b;">${p.name}</td>
+        <td style="padding: 14px 16px; color: #64748b; font-weight: 500;">${p.model || '-'}</td>
+        <td style="padding: 14px 16px;">
+          <span style="font-size: 10px; font-weight: 800; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; ${p.house === 'Showroom' ? 'background-color: #f3e8ff; color: #6b21a8;' : 'background-color: #f1f5f9; color: #1e3a8a;'}">
+            ${p.house || 'HO'}
+          </span>
+        </td>
+        <td style="padding: 14px 16px; text-align: right;">
+          <span style="font-weight: 900; padding: 6px 12px; border-radius: 8px; font-size: 13px; ${p.stock_quantity < 10 ? 'background-color: #fee2e2; color: #ef4444;' : 'background-color: #ffedd5; color: #f97316;'}">
+            ${p.stock_quantity}
+          </span>
+        </td>
+      </tr>
+    `).join('');
+
+    newWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Critical Low Stock List</title>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+          <style>
+            body { 
+              font-family: 'Inter', sans-serif; 
+              padding: 40px; 
+              color: #1e293b; 
+              background-color: #f8fafc; 
+              margin: 0;
+            }
+            .container {
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 24px;
+              border-bottom: 2px solid #f1f5f9;
+              padding-bottom: 16px;
+            }
+            h1 { 
+              color: #dc2626; 
+              font-size: 24px; 
+              font-weight: 900;
+              margin: 0; 
+              letter-spacing: -0.5px;
+            }
+            .meta { 
+              font-size: 12px; 
+              color: #64748b; 
+              font-weight: 600;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              background: white; 
+              border-radius: 16px; 
+              overflow: hidden; 
+              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03); 
+              border: 1px solid #e2e8f0;
+            }
+            th { 
+              background: #f8fafc; 
+              color: #475569; 
+              padding: 14px 16px; 
+              text-align: left; 
+              font-size: 11px; 
+              font-weight: 800;
+              text-transform: uppercase; 
+              letter-spacing: 0.5px;
+              border-bottom: 1px solid #e2e8f0;
+            }
+            .empty {
+              padding: 40px; 
+              text-align: center; 
+              color: #94a3b8; 
+              font-weight: 600;
+              font-style: italic;
+              font-size: 14px;
+            }
+            @media print {
+              body { background-color: white; padding: 20px; }
+              table { box-shadow: none; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div>
+                <h1>⚠️ Critical Low Stock Alert List</h1>
+                <div class="meta" style="margin-top: 4px;">Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</div>
+              </div>
+              <button onclick="window.print()" class="no-print" style="background-color: #dc2626; color: white; border: none; padding: 8px 16px; font-weight: 700; border-radius: 8px; cursor: pointer; font-size: 12px; transition: background-color 0.2s;">
+                🖨️ Print List
+              </button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Product Name</th>
+                  <th>Model</th>
+                  <th>Location</th>
+                  <th style="text-align: right;">Stock Qty</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows || '<tr><td colspan="4" class="empty">All products are well stocked.</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </body>
+      </html>
+    `);
+    newWindow.document.close();
   };
 
   const handleViewDetails = async (item, type) => {
@@ -274,12 +398,11 @@ const Dashboard = ({ setView }) => {
       </div>
 
       {/* Top statistical cards - modern, sleek design with lavender highlights */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {[
           { label: 'Pending Action', val: holdChalans.length, bg: 'bg-[#ea3838]/5 border-[#ea3838]/10', icon: pendingIcon, colorText: 'text-[#ea3838]' },
           { label: "This Month's Chalans", val: todayChalans.length, bg: 'bg-slate-100/80 border-blue-100/50', icon: chalansIcon, colorText: 'text-slate-700' },
-          { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: salesIcon, colorText: 'text-emerald-600' },
-          { label: 'Low Stock Alert', val: lowStockProducts.length, bg: 'bg-rose-50/80 border-rose-100/50', icon: stockIcon, colorText: 'text-rose-600' }
+          { label: "This Month's Sales", val: todayBills.length, bg: 'bg-emerald-50/80 border-emerald-100/50', icon: salesIcon, colorText: 'text-emerald-600' }
         ].map((s, i) => (
           <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm hover-scale flex items-center justify-between relative overflow-hidden group">
             <div>
@@ -486,137 +609,100 @@ const Dashboard = ({ setView }) => {
           </div>
         </div>
 
-        {/* Right Column: Tabbed Logs (Recent Chalans, Recent Bills) & Critical Stock */}
-        <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-12 gap-8">
+        {/* Right Column: Split Logs (Recent Chalans & Recent Bills) */}
+        <div className="xl:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           
-          {/* Tabbed transaction logs */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px] md:col-span-7">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 mb-4 gap-3">
-              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Transaction Log</h3>
-              
-              {/* Tab Selector */}
-              <div className="flex bg-slate-100 p-1 rounded-xl">
-                <button 
-                  onClick={() => setRecentLogTab('chalans')}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all ${recentLogTab === 'chalans' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Chalans ({todayChalans.length})
-                </button>
-                <button 
-                  onClick={() => setRecentLogTab('bills')}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all ${recentLogTab === 'bills' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-                >
-                  Bills ({todayBills.length})
-                </button>
-              </div>
-            </div>
-
-            {/* List for Chalans */}
-            {recentLogTab === 'chalans' && (
-              <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
-                {todayChalans.map(tc => (
-                  <div 
-                    key={tc.id} 
-                    onClick={() => handleViewDetails(tc, 'chalan')} 
-                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-[#ea3838]/5/20 hover:border-[#ea3838]/10 cursor-pointer transition-all flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[200px]">
-                        {checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : (tc.customer_name || tc.customers?.name || 'Walk-in')}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-black text-slate-800">{tc.total_amount.toLocaleString()} ৳</span>
-                      <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${
-                        tc.status === 'paid' ? 'bg-green-50 text-green-600 border border-green-100' : 
-                        tc.status === 'cancelled' ? 'bg-red-50 text-red-600 border border-red-100' : 
-                        'bg-amber-50 text-amber-600 border border-amber-100'
-                      }`}>
-                        {tc.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {todayChalans.length === 0 && (
-                  <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
-                    No challans created this month.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* List for Bills */}
-            {recentLogTab === 'bills' && (
-              <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
-                {todayBills.map(tb => (
-                  <div 
-                    key={tb.id} 
-                    onClick={() => handleViewDetails(tb, 'bill')} 
-                    className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-green-50/20 hover:border-green-150 cursor-pointer transition-all flex items-center justify-between"
-                  >
-                    <div>
-                      <p className="font-black text-slate-850 text-xs">#{tb.bill_no || 'N/A'}</p>
-                      <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[200px]">
-                        {tb.customer_name || tb.customers?.name || 'Walk-in'}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] font-black text-slate-800">{tb.total_amount.toLocaleString()} ৳</span>
-                      <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider">
-                        {tb.payment_method}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                {todayBills.length === 0 && (
-                  <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
-                    No bills issued this month.
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Critical stock card */}
-          <div className="bg-rose-50/45 p-6 rounded-2xl border border-rose-100 flex flex-col h-[540px] md:col-span-5">
-            <div className="flex justify-between items-center border-b border-rose-100/50 pb-4 mb-4">
-              <h3 className="text-xs font-black text-rose-600 uppercase tracking-widest">Critical Stock Alert</h3>
-              <span className="text-[9px] font-black bg-rose-500 text-white px-2 py-0.5 rounded-full">
-                {lowStockProducts.length} Items
+          {/* Monthly Challan Log */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px]">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Challan Log</h3>
+              <span className="text-[10px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                {todayChalans.length} Chalans
               </span>
             </div>
-            
+
             <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
-              {lowStockProducts.map(p => (
+              {todayChalans.map(tc => (
                 <div 
-                  key={p.id} 
-                  onClick={() => handleViewDetails(p, 'product')} 
-                  className="bg-white p-3.5 rounded-xl border border-rose-50 hover:border-rose-200 flex items-center justify-between hover:shadow-sm cursor-pointer transition-all"
+                  key={tc.id} 
+                  onClick={() => handleViewDetails(tc, 'chalan')} 
+                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-[#ea3838]/5 hover:border-[#ea3838]/10 cursor-pointer transition-all flex items-center justify-between"
                 >
-                  <div className="max-w-[70%]">
-                    <p className="font-black text-slate-800 text-xs truncate">{p.name}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-[9px] font-bold text-slate-400 uppercase truncate">{p.model}</p>
-                      <span className={`text-[8px] font-black px-1.5 py-0.25 rounded uppercase tracking-wider ${p.house === 'Showroom' ? 'bg-purple-50 text-purple-650' : 'bg-slate-100 text-blue-650'}`}>
-                        {p.house === 'Showroom' ? 'Showroom' : 'HO'}
-                      </span>
-                    </div>
+                  <div>
+                    <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[150px]">
+                      {checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : (tc.customer_name || tc.customers?.name || 'Walk-in')}
+                    </p>
                   </div>
-                  <div className={`px-2.5 py-1 rounded-lg font-black text-xs ${p.stock_quantity < 10 ? 'bg-red-500 text-white' : 'bg-orange-100 text-orange-655'}`}>
-                    {p.stock_quantity}
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-black text-slate-800">{tc.total_amount.toLocaleString()} ৳</span>
+                    <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${
+                      tc.status === 'paid' ? 'bg-green-50 text-green-600 border border-green-100' : 
+                      tc.status === 'cancelled' ? 'bg-red-50 text-red-600 border border-red-100' : 
+                      'bg-amber-50 text-amber-600 border border-amber-100'
+                    }`}>
+                      {tc.status}
+                    </span>
                   </div>
                 </div>
               ))}
-              {lowStockProducts.length === 0 && (
+              {todayChalans.length === 0 && (
                 <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
-                  All products are well stocked.
+                  No challans created this month.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Monthly Bill Log */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px]">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+              <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Bill Log</h3>
+              <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
+                {todayBills.length} Bills
+              </span>
+            </div>
+
+            <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
+              {todayBills.map(tb => (
+                <div 
+                  key={tb.id} 
+                  onClick={() => handleViewDetails(tb, 'bill')} 
+                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-green-50/20 hover:border-green-150 cursor-pointer transition-all flex items-center justify-between"
+                >
+                  <div>
+                    <p className="font-black text-slate-855 text-xs">#{tb.bill_no || 'N/A'}</p>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[150px]">
+                      {tb.customer_name || tb.customers?.name || 'Walk-in'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[11px] font-black text-slate-800">{tb.total_amount.toLocaleString()} ৳</span>
+                    <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider">
+                      {tb.payment_method}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {todayBills.length === 0 && (
+                <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                  No bills issued this month.
                 </div>
               )}
             </div>
           </div>
 
         </div>
+      </div>
+
+      {/* Low Stock Button */}
+      <div className="flex justify-start pt-2">
+        <button 
+          onClick={handleOpenLowStockWindow}
+          className="bg-red-600 hover:bg-red-700 text-white font-black px-6 py-3.5 rounded-xl text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg hover:shadow-xl transition-all"
+        >
+          ⚠️ Low Stock Alert ({lowStockProducts.length})
+        </button>
       </div>
 
       {/* Action and details modal - styled in violet MatDash theme */}
