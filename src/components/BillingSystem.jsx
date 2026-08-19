@@ -377,15 +377,25 @@ const handleQuickBillConfirm = async () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-3xl border shadow-sm gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-           <h1 className="text-2xl font-black text-slate-800 tracking-tighter">🧾 চালান ও বিলিং</h1>
+           <h1 className="text-2xl font-black text-red-600 tracking-tighter">🧾 চালান ও বিলিং</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           <div className="w-full sm:w-48">
                <CustomDatePicker value={manualDate} onChange={setManualDate} />
             </div>
-          <button onClick={() => { setIsInHouse(!isInHouse); setCart([]); }} className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'}`}>
+          <button 
+            onClick={() => { 
+              const newMode = !isInHouse;
+              setIsInHouse(newMode); 
+              setCart([]); 
+              if (!newMode) {
+                setHouse('Head Office');
+              }
+            }} 
+            className={`px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg w-full sm:w-auto ${isInHouse ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'}`}
+          >
             {isInHouse ? '🏠 ইন-হাউজ মোড: ON' : '🛒 রেগুলার মোড: ON'}
           </button>
         </div>
@@ -403,14 +413,15 @@ const handleQuickBillConfirm = async () => {
                   {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="CHL-2025" className="w-full p-3 bg-white border border-red-200 rounded-xl font-bold uppercase outline-none" />}
                </div>
              )}
-
-             <div className="bg-slate-50 p-4 rounded-2xl border">
-                <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">১. সোর্স হাউজ</label>
-                <div className="flex gap-6">
-                   <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" checked={house==='Head Office'} onChange={()=>setHouse('Head Office')} /> HO</label>
-                   <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" checked={house==='Showroom'} onChange={()=>setHouse('Showroom')} /> Showroom</label>
-                </div>
-             </div>
+             {isInHouse && (
+               <div className="bg-slate-50 p-4 rounded-2xl border">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">১. সোর্স হাউজ</label>
+                  <div className="flex gap-6">
+                     <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" checked={house==='Head Office'} onChange={()=>setHouse('Head Office')} /> HO</label>
+                     <label className="flex items-center gap-2 font-bold cursor-pointer"><input type="radio" checked={house==='Showroom'} onChange={()=>setHouse('Showroom')} /> Showroom</label>
+                  </div>
+               </div>
+             )}
               {isInHouse ? (
                 <div className="bg-red-50 p-4 rounded-2xl border border-red-100">
                   <label className="text-[10px] font-bold text-red-400 uppercase block mb-2">গন্তব্য হাউজ (Transfer To)</label>

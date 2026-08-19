@@ -95,8 +95,6 @@ const CustomDatePicker = ({ value, onChange }) => {
   const [paymentMethod, setPaymentMethod] = useState('Bank');
   const [isManualBill, setIsManualBill] = useState(true);
   const [manualBillNo, setManualBillNo] = useState('');
-  const [isManualChalan, setIsManualChalan] = useState(true);
-  const [manualChalanNo, setManualChalanNo] = useState('');
   const [manualDate, setManualDate] = useState(new Date().toISOString());
   const searchTimeoutRef = useRef(null);
 
@@ -199,7 +197,6 @@ setCart([...cart, {
     if (cart.length === 0) return alert('কার্টে মাল যোগ করুন!');
     if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');
     if (isManualBill && !manualBillNo.trim()) return alert('ম্যানুয়াল বিল নম্বর দিন!');
-    if (isManualChalan && !manualChalanNo.trim()) return alert('ম্যানুয়াল চালান নম্বর দিন!');
 
     setLoading(true);
     try {
@@ -242,7 +239,7 @@ setCart([...cart, {
       }
 
       const finalBillNo = isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
-      const chalanNo = isManualChalan && manualChalanNo.trim() !== '' ? manualChalanNo : `CHL-DIR-${Date.now().toString().slice(-6)}`;
+      const chalanNo = `CHL-DIR-${Date.now().toString().slice(-6)}`;
       const finalCreatedAt = manualDate ? new Date(manualDate).toISOString() : new Date().toISOString();
 
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
@@ -282,7 +279,7 @@ setCart([...cart, {
 
       setGeneratedData({ chalan: chalanData, customer: customerData, items: itemsForPrint });
       setShowSuccessModal(true);
-      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(true); setManualBillNo(''); setIsManualChalan(true); setManualChalanNo(''); setPaymentMethod('Bank'); setManualDate(new Date().toISOString());
+      setCart([]); setPhone(''); setName(''); setAddress(''); setIsManualBill(true); setManualBillNo(''); setPaymentMethod('Bank'); setManualDate(new Date().toISOString());
       fetchAvailableProducts();
     } catch (e) { alert("ত্রুটি হয়েছে!"); console.error(e); }
     
@@ -295,10 +292,10 @@ setCart([...cart, {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-red-600 p-6 rounded-3xl border shadow-sm text-white gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-           <h1 className="text-2xl font-black tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
-           <p className="text-xs text-red-200 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
+           <h1 className="text-2xl font-black text-red-600 tracking-tighter">🏪 নওয়াবপুর ডিরেক্ট বিলিং</h1>
+           <p className="text-xs text-slate-400 mt-1 uppercase tracking-widest">স্টক থেকে সরাসরি মাইনাস হবে</p>
         </div>
         <div className="w-full md:w-48">
               <CustomDatePicker value={manualDate} onChange={setManualDate} />
@@ -448,12 +445,6 @@ setCart([...cart, {
                     <span className="text-xs font-bold text-slate-700">ম্যানুয়াল বিল নম্বর?</span>
                  </div>
                  {isManualBill && <input type="text" value={manualBillNo} onChange={(e) => setManualBillNo(e.target.value)} placeholder="Bill No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
-
-                 <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={isManualChalan} onChange={(e) => setIsManualChalan(e.target.checked)} className="w-4 h-4 accent-red-600" />
-                    <span className="text-xs font-bold text-slate-700">ম্যানুয়াল চালান নম্বর?</span>
-                 </div>
-                 {isManualChalan && <input type="text" value={manualChalanNo} onChange={(e) => setManualChalanNo(e.target.value)} placeholder="Chalan No..." className="p-3 bg-white border border-slate-200 rounded-xl font-bold flex-1 text-xs text-slate-800 outline-none" />}
                </div>
 
               <div className="flex justify-between items-center">
