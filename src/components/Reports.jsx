@@ -120,7 +120,7 @@ const [invSerials, setInvSerials] = useState([]);
     });
   }, [reportData]);
 
-  // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন (হাউজ স্পেসিফিক আপডেট)
+  // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন (প্রকৃত ট্রানজেকশন ভিত্তিক ফরোয়ার্ড হিসাব)
   const getLedgerSummary = () => {
     const summaryMap = new Map();
 
@@ -133,13 +133,15 @@ const [invSerials, setInvSerials] = useState([]);
           brand: p.name ? p.name.trim() : '',
           model: p.model ? p.model.trim() : '',
           category: p.category ? p.category.trim() : '',
-          totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
-          hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
-          showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          // Past (Opening calculation before startDate)
+          pastHoIn: 0, pastHoOut: 0,
+          pastShowIn: 0, pastShowOut: 0,
+          // Period (Movement between startDate and endDate)
+          totalIn: 0, totalOut: 0,
+          hoIn: 0, hoOut: 0,
+          showIn: 0, showOut: 0,
           totalSold: 0, hoSold: 0, showSold: 0,
-          futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
-          stocks: { 'Head Office': 0, 'Showroom': 0 },
-          totalFirstTxDate: null, hoFirstTxDate: null, showFirstTxDate: null
+          stocks: { 'Head Office': 0, 'Showroom': 0 } 
         });
       }
       const houseName = p.house || 'Head Office';
@@ -156,13 +158,13 @@ const [invSerials, setInvSerials] = useState([]);
           brand: t.product.split(' - ')[0] ? t.product.split(' - ')[0].trim() : '',
           model: t.product.split(' - ')[1] ? t.product.split(' - ')[1].trim() : '',
           category: match && match.category ? match.category.trim() : '',
-          totalIn: 0, totalOut: 0, futureIn: 0, futureOut: 0, 
-          hoIn: 0, hoOut: 0, hoFutureIn: 0, hoFutureOut: 0,
-          showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
+          pastHoIn: 0, pastHoOut: 0,
+          pastShowIn: 0, pastShowOut: 0,
+          totalIn: 0, totalOut: 0,
+          hoIn: 0, hoOut: 0,
+          showIn: 0, showOut: 0,
           totalSold: 0, hoSold: 0, showSold: 0,
-          futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
-          stocks: { 'Head Office': 0, 'Showroom': 0 },
-          totalFirstTxDate: null, hoFirstTxDate: null, showFirstTxDate: null
+          stocks: { 'Head Office': 0, 'Showroom': 0 } 
         });
       }
       
@@ -170,49 +172,20 @@ const [invSerials, setInvSerials] = useState([]);
       const isShow = t.house === 'Showroom';
       const isSale = t.type === 'out' && t.id.startsWith('sale_');
 
-      // Track the date of the first transaction for each product
-      const txDateStr = t.date;
-      if (txDateStr) {
-        const itemSummary = summaryMap.get(key);
-        if (!itemSummary.totalFirstTxDate || txDateStr < itemSummary.totalFirstTxDate) {
-          itemSummary.totalFirstTxDate = txDateStr;
-        }
-        if (isHo) {
-          if (!itemSummary.hoFirstTxDate || txDateStr < itemSummary.hoFirstTxDate) {
-            itemSummary.hoFirstTxDate = txDateStr;
-          }
-        }
-        if (isShow) {
-          if (!itemSummary.showFirstTxDate || txDateStr < itemSummary.showFirstTxDate) {
-            itemSummary.showFirstTxDate = txDateStr;
-          }
-        }
-      }
-
-      if (t.isFuture) {
+      if (t.isPast) {
         if (t.type === 'in') {
-          summaryMap.get(key).futureIn += t.quantity;
-          if (isHo) summaryMap.get(key).hoFutureIn += t.quantity;
-          if (isShow) summaryMap.get(key).showFutureIn += t.quantity;
+          if (isHo) summaryMap.get(key).pastHoIn += t.quantity;
+          if (isShow) summaryMap.get(key).pastShowIn += t.quantity;
+        } else if (t.type === 'out') {
+          if (isHo) summaryMap.get(key).pastHoOut += t.quantity;
+          if (isShow) summaryMap.get(key).pastShowOut += t.quantity;
         }
-        if (t.type === 'out') {
-          summaryMap.get(key).futureOut += t.quantity;
-          if (isHo) summaryMap.get(key).hoFutureOut += t.quantity;
-          if (isShow) summaryMap.get(key).showFutureOut += t.quantity;
-          
-          if (isSale) {
-            summaryMap.get(key).futureSold += t.quantity;
-            if (isHo) summaryMap.get(key).hoFutureSold += t.quantity;
-            if (isShow) summaryMap.get(key).showFutureSold += t.quantity;
-          }
-        }
-      } else {
+      } else if (t.isPeriod) {
         if (t.type === 'in') {
           summaryMap.get(key).totalIn += t.quantity;
           if (isHo) summaryMap.get(key).hoIn += t.quantity;
           if (isShow) summaryMap.get(key).showIn += t.quantity;
-        }
-        if (t.type === 'out') {
+        } else if (t.type === 'out') {
           summaryMap.get(key).totalOut += t.quantity;
           if (isHo) summaryMap.get(key).hoOut += t.quantity;
           if (isShow) summaryMap.get(key).showOut += t.quantity;
@@ -227,27 +200,18 @@ const [invSerials, setInvSerials] = useState([]);
     });
 
     const list = Array.from(summaryMap.values()).map(item => {
-      // Total Stock
-      const currentStock = item.stocks['Head Office'] + item.stocks['Showroom'];
-      let openingStock = currentStock - item.totalIn + item.totalOut - item.futureIn + item.futureOut;
-      if (item.totalFirstTxDate && startDate < item.totalFirstTxDate) {
-        openingStock = 0;
-      }
-      const closingStock = openingStock + item.totalIn - item.totalOut;
+      // Showroom Stock
+      const showOpening = item.pastShowIn - item.pastShowOut;
+      const showClosing = showOpening + item.showIn - item.showOut;
 
       // HO Stock
-      let hoOpening = item.stocks['Head Office'] - item.hoIn + item.hoOut - item.hoFutureIn + item.hoFutureOut;
-      if (item.hoFirstTxDate && startDate < item.hoFirstTxDate) {
-        hoOpening = 0;
-      }
+      const hoOpening = item.pastHoIn - item.pastHoOut;
       const hoClosing = hoOpening + item.hoIn - item.hoOut;
 
-      // Showroom Stock
-      let showOpening = item.stocks['Showroom'] - item.showIn + item.showOut - item.showFutureIn + item.showFutureOut;
-      if (item.showFirstTxDate && startDate < item.showFirstTxDate) {
-        showOpening = 0;
-      }
-      const showClosing = showOpening + item.showIn - item.showOut;
+      // Total Stock
+      const currentStock = item.stocks['Head Office'] + item.stocks['Showroom'];
+      const openingStock = showOpening + hoOpening;
+      const closingStock = openingStock + item.totalIn - item.totalOut;
 
       return { 
         ...item, 
@@ -258,7 +222,7 @@ const [invSerials, setInvSerials] = useState([]);
     });
 
     return list
-      .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.openingStock > 0 || item.closingStock > 0 || item.hoOpening > 0 || item.showOpening > 0 || item.hoClosing > 0 || item.showClosing > 0)
+      .filter(item => item.totalIn > 0 || item.totalOut > 0 || item.openingStock !== 0 || item.closingStock !== 0 || item.hoOpening !== 0 || item.showOpening !== 0 || item.hoClosing !== 0 || item.showClosing !== 0)
       .sort((a, b) => {
         const catA = getCategoryOrder(a.category);
         const catB = getCategoryOrder(b.category);
@@ -297,7 +261,7 @@ const [invSerials, setInvSerials] = useState([]);
     if (!ledgerSearch) return [];
     const targetKey = getStandardKey(ledgerSearch);
     return allTransactions
-      .filter(t => !t.isFuture && getStandardKey(t.product) === targetKey) 
+      .filter(t => t.isPeriod && getStandardKey(t.product) === targetKey) 
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
   }, [allTransactions, ledgerSearch]);
 
@@ -396,210 +360,224 @@ const checkIsTransfer = (val) => {
 
     const generateReport = async () => {
       setLoading(true);
-     try {
-       let productsList = rawProducts;
-       if (productsList.length === 0) {
-         const { data: pData } = await supabase
-           .from('products')
-           .select('id, name, model, category, house, stock_quantity')
-           .order('name', { ascending: true });
-         if (pData) {
-           productsList = pData;
-           setRawProducts(pData);
-           const uniqueProds = [];
-           const keys = new Set();
-           pData.forEach(p => {
-             const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
-             if (!keys.has(fullName)) {
-               keys.add(fullName);
-               uniqueProds.push({ ...p, fullName });
-             }
-           });
-           setAllProducts(uniqueProds);
-         }
-       }
-      const { data: allChalans, error } = await supabase
-        .from('chalans')
-        .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`)
-        .gte('created_at', `${startDate}T00:00:00.000Z`);
-
-      if (error) throw error;
-      
-      const endDateTime = new Date(`${endDate}T23:59:59.999Z`).getTime();
-      const periodChalans = [];
-      const extractedTrans = [];
-      
-      if (allChalans) {
-        allChalans.forEach(ch => {
-          const isFuture = new Date(ch.created_at).getTime() > endDateTime;
-
-          if (!isFuture) periodChalans.push(ch);
-          if (!checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
-            ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
-              const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
-              if (ch.status === 'paid') {
-                extractedTrans.push({
-                  id: `sale_${ch.id}_${item.id}`,
-                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
-                  timestamp: ch.created_at,
-                  product: pName,
-                  type: 'out',
-                  house: ch.house || 'Head Office',
-                  quantity: item.quantity,
-                  source: `Sold to: ${cName}`,
-                  ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
-                  isFuture
-                });
-              } else if (ch.status === 'hold') {
-                extractedTrans.push({
-                  id: `sale_hold_${ch.id}_${item.id}`,
-                  date: ch.created_at ? ch.created_at.split('T')[0] : '',
-                  timestamp: ch.created_at,
-                  product: pName,
-                  type: 'out',
-                  house: ch.house || 'Head Office',
-                  quantity: item.quantity,
-                  source: `Challan Out: ${cName}`,
-                  ref: `Chl: #${ch.chalan_no}`,
-                  isFuture
-                });
+      try {
+        let productsList = rawProducts;
+        if (productsList.length === 0) {
+          const { data: pData } = await supabase
+            .from('products')
+            .select('id, name, model, category, house, stock_quantity')
+            .order('name', { ascending: true });
+          if (pData) {
+            productsList = pData;
+            setRawProducts(pData);
+            const uniqueProds = [];
+            const keys = new Set();
+            pData.forEach(p => {
+              const fullName = `${p.category || ''} ${p.model || ''} ${p.name || ''}`.trim();
+              if (!keys.has(fullName)) {
+                keys.add(fullName);
+                uniqueProds.push({ ...p, fullName });
               }
             });
+            setAllProducts(uniqueProds);
           }
-          if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status !== 'cancelled') {
-            ch.chalan_items.forEach(item => {
-              const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
-              extractedTrans.push({
-                id: `tr_out_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'out', house: ch.house, quantity: item.quantity, source: `Transfer Out (To ${ch.transfer_to})`, ref: `Chl: #${ch.chalan_no}`, isFuture
+        }
+
+        const { data: allChalans, error } = await supabase
+          .from('chalans')
+          .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`);
+
+        if (error) throw error;
+        
+        const startDateTime = new Date(`${startDate}T00:00:00.000Z`).getTime();
+        const endDateTime = new Date(`${endDate}T23:59:59.999Z`).getTime();
+        const periodChalans = [];
+        const extractedTrans = [];
+        
+        if (allChalans) {
+          allChalans.forEach(ch => {
+            const chTime = new Date(ch.created_at).getTime();
+            const isPast = chTime < startDateTime;
+            const isFuture = chTime > endDateTime;
+            const isPeriod = !isPast && !isFuture;
+
+            if (isPeriod) periodChalans.push(ch);
+            if (!checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
+              ch.chalan_items.forEach(item => {
+                const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+                const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
+                if (ch.status === 'paid') {
+                  extractedTrans.push({
+                    id: `sale_${ch.id}_${item.id}`,
+                    date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                    timestamp: ch.created_at,
+                    product: pName,
+                    type: 'out',
+                    house: ch.house || 'Head Office',
+                    quantity: item.quantity,
+                    source: `Sold to: ${cName}`,
+                    ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
+                    isPast,
+                    isFuture,
+                    isPeriod
+                  });
+                } else if (ch.status === 'hold') {
+                  extractedTrans.push({
+                    id: `sale_hold_${ch.id}_${item.id}`,
+                    date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                    timestamp: ch.created_at,
+                    product: pName,
+                    type: 'out',
+                    house: ch.house || 'Head Office',
+                    quantity: item.quantity,
+                    source: `Challan Out: ${cName}`,
+                    ref: `Chl: #${ch.chalan_no}`,
+                    isPast,
+                    isFuture,
+                    isPeriod
+                  });
+                }
               });
-              extractedTrans.push({
-                id: `tr_in_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'in', house: ch.transfer_to, quantity: item.quantity, source: `Transfer In (From ${ch.house})`, ref: `Chl: #${ch.chalan_no}`, isFuture
+            }
+            if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status !== 'cancelled') {
+              ch.chalan_items.forEach(item => {
+                const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+                extractedTrans.push({
+                  id: `tr_out_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'out', house: ch.house, quantity: item.quantity, source: `Transfer Out (To ${ch.transfer_to})`, ref: `Chl: #${ch.chalan_no}`, isPast, isFuture, isPeriod
+                });
+                extractedTrans.push({
+                  id: `tr_in_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'in', house: ch.transfer_to, quantity: item.quantity, source: `Transfer In (From ${ch.house})`, ref: `Chl: #${ch.chalan_no}`, isPast, isFuture, isPeriod
+                });
               });
-            });
-          }
-        });
-      }
-
-      processReportData(periodChalans); 
-
-      // Fetch manual additions from ledger (filter to 'in' type entries only)
-      const { data: allLedger, error: ledgerErr } = await supabase
-        .from('ledger')
-        .select('*')
-        .gte('date', startDate)
-        .order('date', { ascending: false });
-
-      if (!ledgerErr && allLedger) {
-        allLedger.forEach(l => {
-          if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
-          if (l.source && l.source.includes('Return from Cancelled')) return;
-          const isFuture = l.date > endDate;
-          let resolvedHouse = l.house;
-          if (!resolvedHouse) {
-            if (l.source) {
-              const srcLower = l.source.toLowerCase();
-              if (srcLower.includes('to: nawabpur') || srcLower.includes('to: showroom') || srcLower.includes('from: nawabpur') || srcLower.includes('from: showroom')) {
-                resolvedHouse = 'Showroom';
-              } else if (srcLower.includes('to: head office') || srcLower.includes('from: head office')) {
-                resolvedHouse = 'Head Office';
-              }
             }
-          }
-          if (!resolvedHouse && l.product) {
-            const targetKey = getStandardKey(l.product);
-            const matchingProducts = productsList.filter(p => {
-              const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
-              return getStandardKey(fullName) === targetKey;
-            });
-            if (matchingProducts.length > 0) {
-              const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
-              if (uniqueHouses.length === 1) {
-                resolvedHouse = uniqueHouses[0];
-              }
-            }
-          }
-          if (!resolvedHouse) {
-            resolvedHouse = 'Head Office';
-          }
-          extractedTrans.push({
-            id: `leg_${l.id}`,
-            dbId: l.id, 
-            dbTable: 'ledger',
-            date: l.date,
-            timestamp: l.in || l.date,
-            product: l.product,
-            type: l.type || 'in',
-            house: resolvedHouse,
-            quantity: parseInt(l.quantity) || 0,
-            source: l.source || 'Import / Manual Entry',
-            ref: 'Manual Entry',
-            isFuture
           });
-        });
-      }
+        }
 
-      // Fetch manual removals from stock_out
-      const { data: allStockOut, error: stockOutErr } = await supabase
-        .from('stock_out')
-        .select('*')
-        .gte('date', startDate);
+        processReportData(periodChalans); 
 
-      if (!stockOutErr && allStockOut) {
-        allStockOut.forEach(s => {
-          const isFuture = s.date > endDate;
-          let resolvedHouse = s.house;
-          if (!resolvedHouse) {
-            if (s.reason) {
-              const reasonLower = s.reason.toLowerCase();
-              if (reasonLower.includes('to: nawabpur') || reasonLower.includes('to: showroom') || reasonLower.includes('from: nawabpur') || reasonLower.includes('from: showroom')) {
-                resolvedHouse = 'Showroom';
-              } else if (reasonLower.includes('to: head office') || reasonLower.includes('from: head office')) {
-                resolvedHouse = 'Head Office';
+        // Fetch manual additions from ledger (filter to 'in' type entries only)
+        const { data: allLedger, error: ledgerErr } = await supabase
+          .from('ledger')
+          .select('*')
+          .order('date', { ascending: false });
+
+        if (!ledgerErr && allLedger) {
+          allLedger.forEach(l => {
+            if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
+            if (l.source && l.source.includes('Return from Cancelled')) return;
+            const isPast = l.date < startDate;
+            const isFuture = l.date > endDate;
+            const isPeriod = !isPast && !isFuture;
+            let resolvedHouse = l.house;
+            if (!resolvedHouse) {
+              if (l.source) {
+                const srcLower = l.source.toLowerCase();
+                if (srcLower.includes('to: nawabpur') || srcLower.includes('to: showroom') || srcLower.includes('from: nawabpur') || srcLower.includes('from: showroom')) {
+                  resolvedHouse = 'Showroom';
+                } else if (srcLower.includes('to: head office') || srcLower.includes('from: head office')) {
+                  resolvedHouse = 'Head Office';
+                }
               }
             }
-          }
-          if (!resolvedHouse && s.type && s.model) {
-            const targetKey = getStandardKey(`${s.type} - ${s.model}`);
-            const matchingProducts = productsList.filter(p => {
-              const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
-              return getStandardKey(fullName) === targetKey;
+            if (!resolvedHouse && l.product) {
+              const targetKey = getStandardKey(l.product);
+              const matchingProducts = productsList.filter(p => {
+                const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
+                return getStandardKey(fullName) === targetKey;
+              });
+              if (matchingProducts.length > 0) {
+                const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+                if (uniqueHouses.length === 1) {
+                  resolvedHouse = uniqueHouses[0];
+                }
+              }
+            }
+            if (!resolvedHouse) {
+              resolvedHouse = 'Head Office';
+            }
+            extractedTrans.push({
+              id: `leg_${l.id}`,
+              dbId: l.id, 
+              dbTable: 'ledger',
+              date: l.date,
+              timestamp: l.in || l.date,
+              product: l.product,
+              type: l.type || 'in',
+              house: resolvedHouse,
+              quantity: parseInt(l.quantity) || 0,
+              source: l.source || 'Import / Manual Entry',
+              ref: 'Manual Entry',
+              isPast,
+              isFuture,
+              isPeriod
             });
-            if (matchingProducts.length > 0) {
-              const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
-              if (uniqueHouses.length === 1) {
-                resolvedHouse = uniqueHouses[0];
+          });
+        }
+
+        // Fetch manual removals from stock_out
+        const { data: allStockOut, error: stockOutErr } = await supabase
+          .from('stock_out')
+          .select('*');
+
+        if (!stockOutErr && allStockOut) {
+          allStockOut.forEach(s => {
+            const isPast = s.date < startDate;
+            const isFuture = s.date > endDate;
+            const isPeriod = !isPast && !isFuture;
+            let resolvedHouse = s.house;
+            if (!resolvedHouse) {
+              if (s.reason) {
+                const reasonLower = s.reason.toLowerCase();
+                if (reasonLower.includes('to: nawabpur') || reasonLower.includes('to: showroom') || reasonLower.includes('from: nawabpur') || reasonLower.includes('from: showroom')) {
+                  resolvedHouse = 'Showroom';
+                } else if (reasonLower.includes('to: head office') || reasonLower.includes('from: head office')) {
+                  resolvedHouse = 'Head Office';
+                }
               }
             }
-          }
-          if (!resolvedHouse) {
-            resolvedHouse = 'Head Office';
-          }
-          extractedTrans.push({
-            id: `stout_${s.id}`,
-            dbId: s.id,
-            dbTable: 'stock_out',
-            date: s.date,
-            timestamp: s.date,
-            product: `${s.type} - ${s.model}`,
-            type: 'out',
-            house: resolvedHouse,
-            quantity: parseInt(s.amount) || 0,
-            source: s.reason || 'Manual Removal',
-            ref: 'Manual Removal',
-            isFuture
+            if (!resolvedHouse && s.type && s.model) {
+              const targetKey = getStandardKey(`${s.type} - ${s.model}`);
+              const matchingProducts = productsList.filter(p => {
+                const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
+                return getStandardKey(fullName) === targetKey;
+              });
+              if (matchingProducts.length > 0) {
+                const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+                if (uniqueHouses.length === 1) {
+                  resolvedHouse = uniqueHouses[0];
+                }
+              }
+            }
+            if (!resolvedHouse) {
+              resolvedHouse = 'Head Office';
+            }
+            extractedTrans.push({
+              id: `stout_${s.id}`,
+              dbId: s.id,
+              dbTable: 'stock_out',
+              date: s.date,
+              timestamp: s.date,
+              product: `${s.type} - ${s.model}`,
+              type: 'out',
+              house: resolvedHouse,
+              quantity: parseInt(s.amount) || 0,
+              source: s.reason || 'Manual Removal',
+              ref: 'Manual Removal',
+              isPast,
+              isFuture,
+              isPeriod
+            });
           });
-        });
+        }
+
+        setAllTransactions(extractedTrans);
+
+      } catch (error) {
+        console.error(error);
+        alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
       }
-
-      setAllTransactions(extractedTrans);
-
-    } catch (error) {
-      console.error(error);
-      alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
-    }
-    setLoading(false);
-  };
+      setLoading(false);
+    };
 
   const processReportData = (chalans) => {
     const data = {
