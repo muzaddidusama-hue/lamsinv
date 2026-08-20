@@ -171,8 +171,13 @@ const [invSerials, setInvSerials] = useState([]);
       const isHo = t.house === 'Head Office';
       const isShow = t.house === 'Showroom';
       const isSale = t.type === 'out' && t.id.startsWith('sale_');
+      const txDate = t.date ? t.date.split('T')[0] : (t.timestamp ? t.timestamp.split('T')[0] : '');
 
-      if (t.isPast) {
+      const isPast = txDate < startDate;
+      const isFuture = txDate > endDate;
+      const isPeriod = !isPast && !isFuture;
+
+      if (isPast) {
         if (t.type === 'in') {
           if (isHo) summaryMap.get(key).pastHoIn += t.quantity;
           if (isShow) summaryMap.get(key).pastShowIn += t.quantity;
@@ -180,7 +185,7 @@ const [invSerials, setInvSerials] = useState([]);
           if (isHo) summaryMap.get(key).pastHoOut += t.quantity;
           if (isShow) summaryMap.get(key).pastShowOut += t.quantity;
         }
-      } else if (t.isPeriod) {
+      } else if (isPeriod) {
         if (t.type === 'in') {
           summaryMap.get(key).totalIn += t.quantity;
           if (isHo) summaryMap.get(key).hoIn += t.quantity;
@@ -241,7 +246,7 @@ const [invSerials, setInvSerials] = useState([]);
 
   const ledgerSummaryList = useMemo(() => {
     return getLedgerSummary();
-  }, [rawProducts, allTransactions]);
+  }, [rawProducts, allTransactions, startDate, endDate]);
 
   const uniqueBrands = useMemo(() => {
     const brands = rawProducts.map(p => p.name).filter(Boolean);
@@ -261,9 +266,13 @@ const [invSerials, setInvSerials] = useState([]);
     if (!ledgerSearch) return [];
     const targetKey = getStandardKey(ledgerSearch);
     return allTransactions
-      .filter(t => t.isPeriod && getStandardKey(t.product) === targetKey) 
+      .filter(t => {
+        if (getStandardKey(t.product) !== targetKey) return false;
+        const txDate = t.date ? t.date.split('T')[0] : (t.timestamp ? t.timestamp.split('T')[0] : '');
+        return txDate >= startDate && txDate <= endDate;
+      }) 
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  }, [allTransactions, ledgerSearch]);
+  }, [allTransactions, ledgerSearch, startDate, endDate]);
 
   // 🔴 বর্তমান সাব-ট্যাব অনুযায়ী ডাটা ফিল্টার
   const filteredLedgerHistory = useMemo(() => {
