@@ -138,7 +138,8 @@ const [invSerials, setInvSerials] = useState([]);
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
           totalSold: 0, hoSold: 0, showSold: 0,
           futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
-          stocks: { 'Head Office': 0, 'Showroom': 0 } 
+          stocks: { 'Head Office': 0, 'Showroom': 0 },
+          totalFirstTxDate: null, hoFirstTxDate: null, showFirstTxDate: null
         });
       }
       const houseName = p.house || 'Head Office';
@@ -160,13 +161,33 @@ const [invSerials, setInvSerials] = useState([]);
           showIn: 0, showOut: 0, showFutureIn: 0, showFutureOut: 0,
           totalSold: 0, hoSold: 0, showSold: 0,
           futureSold: 0, hoFutureSold: 0, showFutureSold: 0,
-          stocks: { 'Head Office': 0, 'Showroom': 0 } 
+          stocks: { 'Head Office': 0, 'Showroom': 0 },
+          totalFirstTxDate: null, hoFirstTxDate: null, showFirstTxDate: null
         });
       }
       
       const isHo = t.house === 'Head Office';
       const isShow = t.house === 'Showroom';
       const isSale = t.type === 'out' && t.id.startsWith('sale_');
+
+      // Track the date of the first transaction for each product
+      const txDateStr = t.date;
+      if (txDateStr) {
+        const itemSummary = summaryMap.get(key);
+        if (!itemSummary.totalFirstTxDate || txDateStr < itemSummary.totalFirstTxDate) {
+          itemSummary.totalFirstTxDate = txDateStr;
+        }
+        if (isHo) {
+          if (!itemSummary.hoFirstTxDate || txDateStr < itemSummary.hoFirstTxDate) {
+            itemSummary.hoFirstTxDate = txDateStr;
+          }
+        }
+        if (isShow) {
+          if (!itemSummary.showFirstTxDate || txDateStr < itemSummary.showFirstTxDate) {
+            itemSummary.showFirstTxDate = txDateStr;
+          }
+        }
+      }
 
       if (t.isFuture) {
         if (t.type === 'in') {
@@ -208,15 +229,24 @@ const [invSerials, setInvSerials] = useState([]);
     const list = Array.from(summaryMap.values()).map(item => {
       // Total Stock
       const currentStock = item.stocks['Head Office'] + item.stocks['Showroom'];
-      const openingStock = currentStock - item.totalIn + item.totalOut - item.futureIn + item.futureOut;
+      let openingStock = currentStock - item.totalIn + item.totalOut - item.futureIn + item.futureOut;
+      if (item.totalFirstTxDate && startDate < item.totalFirstTxDate) {
+        openingStock = 0;
+      }
       const closingStock = openingStock + item.totalIn - item.totalOut;
 
       // HO Stock
-      const hoOpening = item.stocks['Head Office'] - item.hoIn + item.hoOut - item.hoFutureIn + item.hoFutureOut;
+      let hoOpening = item.stocks['Head Office'] - item.hoIn + item.hoOut - item.hoFutureIn + item.hoFutureOut;
+      if (item.hoFirstTxDate && startDate < item.hoFirstTxDate) {
+        hoOpening = 0;
+      }
       const hoClosing = hoOpening + item.hoIn - item.hoOut;
 
       // Showroom Stock
-      const showOpening = item.stocks['Showroom'] - item.showIn + item.showOut - item.showFutureIn + item.showFutureOut;
+      let showOpening = item.stocks['Showroom'] - item.showIn + item.showOut - item.showFutureIn + item.showFutureOut;
+      if (item.showFirstTxDate && startDate < item.showFirstTxDate) {
+        showOpening = 0;
+      }
       const showClosing = showOpening + item.showIn - item.showOut;
 
       return { 
