@@ -309,13 +309,13 @@ setCart([...cart, {
                              <div className="relative">
                                <input 
                                  type="text" 
-                                 placeholder="মোবাইল" 
-                                 value={phone} 
-                                 onChange={e => handlePhoneChange(e.target.value)} 
+                                 placeholder="নাম" 
+                                 value={name} 
+                                 onChange={e => handleNameChange(e.target.value)} 
                                  onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
                                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                />
-                               {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
+                               {activeSearchField === 'name' && customerSuggestions.length > 0 && (
                                  <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                    {customerSuggestions.map(c => (
                                      <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
@@ -325,17 +325,17 @@ setCart([...cart, {
                                  </div>
                                )}
                              </div>
-             
+
                              <div className="relative">
                                <input 
                                  type="text" 
-                                 placeholder="নাম" 
-                                 value={name} 
-                                 onChange={e => handleNameChange(e.target.value)} 
+                                 placeholder="মোবাইল" 
+                                 value={phone} 
+                                 onChange={e => handlePhoneChange(e.target.value)} 
                                  onBlur={() => setTimeout(() => setActiveSearchField(''), 200)}
                                  className="w-full p-3 bg-slate-50 border rounded-xl font-bold outline-none focus:ring-2 focus:ring-red-600 text-slate-800" 
                                />
-                               {activeSearchField === 'name' && customerSuggestions.length > 0 && (
+                               {activeSearchField === 'phone' && customerSuggestions.length > 0 && (
                                  <div className="absolute top-full left-0 w-full z-50 bg-white border rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
                                    {customerSuggestions.map(c => (
                                      <div key={c.id} onClick={() => selectCustomer(c)} className="p-3 border-b hover:bg-red-50 cursor-pointer font-bold text-xs text-slate-800">
