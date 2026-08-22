@@ -194,8 +194,9 @@ const ReturnManager = () => {
               throw new Error(`আইটেম মুছতে সমস্যা হয়েছে: ${deleteErr.message}`);
             }
           } else {
-            const newTotal = newQty * item.unit_price;
-            const { error: updateErr } = await supabase.from('chalan_items').update({ quantity: newQty, total: newTotal }).eq('id', item.id);
+            const unitPrice = parseFloat(item.unit_price) || 0;
+            const newTotal = newQty * unitPrice;
+            const { error: updateErr } = await supabase.from('chalan_items').update({ quantity: newQty, total_price: newTotal }).eq('id', item.id);
             if (updateErr) {
               console.error("Update chalan_item error:", updateErr);
               throw new Error(`আইটেম আপডেট করতে সমস্যা হয়েছে: ${updateErr.message}`);
