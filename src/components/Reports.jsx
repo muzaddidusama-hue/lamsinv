@@ -473,7 +473,7 @@ const checkIsTransfer = (val) => {
         if (!ledgerErr && allLedger) {
           allLedger.forEach(l => {
             if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
-            if (l.source && l.source.includes('Return from Cancelled')) return;
+            if (l.source && (l.source.includes('Return from') || l.source.includes('Return from Cancelled') || l.source.toLowerCase().startsWith('return'))) return;
             const isPast = l.date < startDate;
             const isFuture = l.date > endDate;
             const isPeriod = !isPast && !isFuture;
