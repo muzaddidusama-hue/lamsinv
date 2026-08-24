@@ -18,6 +18,21 @@ const Dashboard = ({ setView }) => {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [billNo, setBillNo] = useState('');
 
+  // 🔍 Search states for log sections
+  const [challanSearch, setChallanSearch] = useState('');
+  const [billSearch, setBillSearch] = useState('');
+  const [pendingSearch, setPendingSearch] = useState('');
+
+  const formatItemDate = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
   useEffect(() => {
     fetchDashboardData(true);
 
@@ -571,12 +586,48 @@ const Dashboard = ({ setView }) => {
           <div className="flex justify-between items-center px-1">
             <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Pending Verification</h3>
             <span className="text-[10px] font-black bg-[#ea3838]/10 text-[#ea3838] px-2 py-0.5 rounded-full uppercase">
-              {holdChalans.length} Action Needed
+              {pendingSearch.trim() ? `${holdChalans.filter(c => {
+                const term = pendingSearch.toLowerCase().trim();
+                const no = (c.chalan_no || '').toLowerCase();
+                const cust = (c.customer_name || c.customers?.name || '').toLowerCase();
+                const house = (c.house || '').toLowerCase();
+                const transferTo = (c.transfer_to || '').toLowerCase();
+                const dateStr = formatItemDate(c.created_at).toLowerCase();
+                return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || dateStr.includes(term);
+              }).length} / ${holdChalans.length}` : `${holdChalans.length} Action Needed`}
             </span>
           </div>
 
-          <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
-            {holdChalans.map(c => (
+          {/* Small Search Bar */}
+          <div className="relative">
+            <input 
+              type="text" 
+              placeholder="🔍 চালান, কাস্টমার, তারিখ খুঁজুন..." 
+              value={pendingSearch} 
+              onChange={(e) => setPendingSearch(e.target.value)} 
+              className="w-full pl-3 pr-8 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#ea3838] transition-all placeholder:text-slate-400 placeholder:font-medium shadow-sm"
+            />
+            {pendingSearch && (
+              <button 
+                onClick={() => setPendingSearch('')} 
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs p-0.5"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
+            {holdChalans.filter(c => {
+              if (!pendingSearch.trim()) return true;
+              const term = pendingSearch.toLowerCase().trim();
+              const no = (c.chalan_no || '').toLowerCase();
+              const cust = (c.customer_name || c.customers?.name || '').toLowerCase();
+              const house = (c.house || '').toLowerCase();
+              const transferTo = (c.transfer_to || '').toLowerCase();
+              const dateStr = formatItemDate(c.created_at).toLowerCase();
+              return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || dateStr.includes(term);
+            }).map(c => (
               <div 
                 key={c.id} 
                 onClick={() => handleViewDetails(c, 'chalan')} 
@@ -586,8 +637,8 @@ const Dashboard = ({ setView }) => {
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${checkIsTransfer(c.is_in_house) ? 'bg-slate-100 text-slate-700 border border-blue-100' : 'bg-[#ea3838]/5 text-[#ea3838] border border-[#ea3838]/10'}`}>
                     {checkIsTransfer(c.is_in_house) ? 'Transfer' : 'Sales'}
                   </span>
-                  <span className="text-[10px] font-bold text-slate-400">
-                    {new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                    <span>📅</span> {formatItemDate(c.created_at)} • {new Date(c.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                   </span>
                 </div>
                 <h4 className="font-black text-slate-800 text-base">{c.chalan_no}</h4>
@@ -607,6 +658,19 @@ const Dashboard = ({ setView }) => {
                 No pending challans or actions.
               </div>
             )}
+            {holdChalans.length > 0 && holdChalans.filter(c => {
+              const term = pendingSearch.toLowerCase().trim();
+              const no = (c.chalan_no || '').toLowerCase();
+              const cust = (c.customer_name || c.customers?.name || '').toLowerCase();
+              const house = (c.house || '').toLowerCase();
+              const transferTo = (c.transfer_to || '').toLowerCase();
+              const dateStr = formatItemDate(c.created_at).toLowerCase();
+              return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || dateStr.includes(term);
+            }).length === 0 && (
+              <div className="bg-white border border-dashed border-slate-200 p-8 rounded-2xl text-center text-slate-400 font-semibold italic text-xs">
+                কোনো মিল পাওয়া যায়নি।
+              </div>
+            )}
           </div>
         </div>
 
@@ -615,27 +679,72 @@ const Dashboard = ({ setView }) => {
           
           {/* Monthly Challan Log */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px]">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+            <div className="flex justify-between items-center pb-3">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Challan Log</h3>
               <span className="text-[10px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                {todayChalans.length} Chalans
+                {challanSearch.trim() ? `${todayChalans.filter(tc => {
+                  const term = challanSearch.toLowerCase().trim();
+                  const no = (tc.chalan_no || '').toLowerCase();
+                  const cust = (tc.customer_name || tc.customers?.name || '').toLowerCase();
+                  const house = (tc.house || '').toLowerCase();
+                  const transferTo = (tc.transfer_to || '').toLowerCase();
+                  const status = (tc.status || '').toLowerCase();
+                  const amount = (tc.total_amount || '').toString();
+                  const dateStr = formatItemDate(tc.created_at).toLowerCase();
+                  return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || status.includes(term) || amount.includes(term) || dateStr.includes(term);
+                }).length} / ${todayChalans.length} Chalans` : `${todayChalans.length} Chalans`}
               </span>
             </div>
 
+            {/* Small Search Bar */}
+            <div className="relative mb-3">
+              <input 
+                type="text" 
+                placeholder="🔍 সার্চ চালান নং, কাস্টমার, তারিখ..." 
+                value={challanSearch} 
+                onChange={(e) => setChallanSearch(e.target.value)} 
+                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#ea3838] focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-medium shadow-none"
+              />
+              {challanSearch && (
+                <button 
+                  onClick={() => setChallanSearch('')} 
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs p-0.5"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
             <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
-              {todayChalans.map(tc => (
+              {todayChalans.filter(tc => {
+                if (!challanSearch.trim()) return true;
+                const term = challanSearch.toLowerCase().trim();
+                const no = (tc.chalan_no || '').toLowerCase();
+                const cust = (tc.customer_name || tc.customers?.name || '').toLowerCase();
+                const house = (tc.house || '').toLowerCase();
+                const transferTo = (tc.transfer_to || '').toLowerCase();
+                const status = (tc.status || '').toLowerCase();
+                const amount = (tc.total_amount || '').toString();
+                const dateStr = formatItemDate(tc.created_at).toLowerCase();
+                return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || status.includes(term) || amount.includes(term) || dateStr.includes(term);
+              }).map(tc => (
                 <div 
                   key={tc.id} 
                   onClick={() => handleViewDetails(tc, 'chalan')} 
-                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-[#ea3838]/5 hover:border-[#ea3838]/10 cursor-pointer transition-all flex items-center justify-between"
+                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-[#ea3838]/5 hover:border-[#ea3838]/10 cursor-pointer transition-all flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <p className="font-black text-slate-850 text-xs">{tc.chalan_no}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[150px]">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-slate-850 text-xs truncate">{tc.chalan_no}</p>
+                      <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                        <span>📅</span> {formatItemDate(tc.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate">
                       {checkIsTransfer(tc.is_in_house) ? `${tc.house} ➔ ${tc.transfer_to}` : (tc.customer_name || tc.customers?.name || 'Walk-in')}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] font-black text-slate-800">{tc.total_amount.toLocaleString()} ৳</span>
                     <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${
                       tc.status === 'paid' ? 'bg-green-50 text-green-600 border border-green-100' : 
@@ -652,32 +761,90 @@ const Dashboard = ({ setView }) => {
                   No challans created this month.
                 </div>
               )}
+              {todayChalans.length > 0 && todayChalans.filter(tc => {
+                const term = challanSearch.toLowerCase().trim();
+                const no = (tc.chalan_no || '').toLowerCase();
+                const cust = (tc.customer_name || tc.customers?.name || '').toLowerCase();
+                const house = (tc.house || '').toLowerCase();
+                const transferTo = (tc.transfer_to || '').toLowerCase();
+                const status = (tc.status || '').toLowerCase();
+                const amount = (tc.total_amount || '').toString();
+                const dateStr = formatItemDate(tc.created_at).toLowerCase();
+                return no.includes(term) || cust.includes(term) || house.includes(term) || transferTo.includes(term) || status.includes(term) || amount.includes(term) || dateStr.includes(term);
+              }).length === 0 && (
+                <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                  কোনো মিল পাওয়া যায়নি।
+                </div>
+              )}
             </div>
           </div>
 
           {/* Monthly Bill Log */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200/60 shadow-sm flex flex-col h-[540px]">
-            <div className="flex justify-between items-center border-b border-slate-100 pb-4 mb-4">
+            <div className="flex justify-between items-center pb-3">
               <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Monthly Bill Log</h3>
               <span className="text-[10px] font-black bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full">
-                {todayBills.length} Bills
+                {billSearch.trim() ? `${todayBills.filter(tb => {
+                  const term = billSearch.toLowerCase().trim();
+                  const bNo = (tb.bill_no || '').toLowerCase();
+                  const cNo = (tb.chalan_no || '').toLowerCase();
+                  const cust = (tb.customer_name || tb.customers?.name || '').toLowerCase();
+                  const pay = (tb.payment_method || '').toLowerCase();
+                  const amount = (tb.total_amount || '').toString();
+                  const dateStr = formatItemDate(tb.created_at).toLowerCase();
+                  return bNo.includes(term) || cNo.includes(term) || cust.includes(term) || pay.includes(term) || amount.includes(term) || dateStr.includes(term);
+                }).length} / ${todayBills.length} Bills` : `${todayBills.length} Bills`}
               </span>
             </div>
 
+            {/* Small Search Bar */}
+            <div className="relative mb-3">
+              <input 
+                type="text" 
+                placeholder="🔍 সার্চ বিল নং, কাস্টমার, তারিখ..." 
+                value={billSearch} 
+                onChange={(e) => setBillSearch(e.target.value)} 
+                className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-emerald-500 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-medium shadow-none"
+              />
+              {billSearch && (
+                <button 
+                  onClick={() => setBillSearch('')} 
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold text-xs p-0.5"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
             <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 custom-scrollbar">
-              {todayBills.map(tb => (
+              {todayBills.filter(tb => {
+                if (!billSearch.trim()) return true;
+                const term = billSearch.toLowerCase().trim();
+                const bNo = (tb.bill_no || '').toLowerCase();
+                const cNo = (tb.chalan_no || '').toLowerCase();
+                const cust = (tb.customer_name || tb.customers?.name || '').toLowerCase();
+                const pay = (tb.payment_method || '').toLowerCase();
+                const amount = (tb.total_amount || '').toString();
+                const dateStr = formatItemDate(tb.created_at).toLowerCase();
+                return bNo.includes(term) || cNo.includes(term) || cust.includes(term) || pay.includes(term) || amount.includes(term) || dateStr.includes(term);
+              }).map(tb => (
                 <div 
                   key={tb.id} 
                   onClick={() => handleViewDetails(tb, 'bill')} 
-                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-green-50/20 hover:border-green-150 cursor-pointer transition-all flex items-center justify-between"
+                  className="p-3.5 rounded-xl border border-slate-100 bg-[#fafbfe] hover:bg-green-50/20 hover:border-green-150 cursor-pointer transition-all flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <p className="font-black text-slate-855 text-xs">#{tb.bill_no || 'N/A'}</p>
-                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate max-w-[150px]">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-black text-slate-855 text-xs truncate">#{tb.bill_no || 'N/A'}</p>
+                      <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1 shrink-0">
+                        <span>📅</span> {formatItemDate(tb.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-0.5 truncate">
                       {tb.customer_name || tb.customers?.name || 'Walk-in'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[11px] font-black text-slate-800">{tb.total_amount.toLocaleString()} ৳</span>
                     <span className="text-[8px] font-black bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-0.5 rounded uppercase tracking-wider">
                       {tb.payment_method}
@@ -688,6 +855,20 @@ const Dashboard = ({ setView }) => {
               {todayBills.length === 0 && (
                 <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
                   No bills issued this month.
+                </div>
+              )}
+              {todayBills.length > 0 && todayBills.filter(tb => {
+                const term = billSearch.toLowerCase().trim();
+                const bNo = (tb.bill_no || '').toLowerCase();
+                const cNo = (tb.chalan_no || '').toLowerCase();
+                const cust = (tb.customer_name || tb.customers?.name || '').toLowerCase();
+                const pay = (tb.payment_method || '').toLowerCase();
+                const amount = (tb.total_amount || '').toString();
+                const dateStr = formatItemDate(tb.created_at).toLowerCase();
+                return bNo.includes(term) || cNo.includes(term) || cust.includes(term) || pay.includes(term) || amount.includes(term) || dateStr.includes(term);
+              }).length === 0 && (
+                <div className="text-center py-16 text-slate-400 font-bold italic text-xs">
+                  কোনো মিল পাওয়া যায়নি।
                 </div>
               )}
             </div>
