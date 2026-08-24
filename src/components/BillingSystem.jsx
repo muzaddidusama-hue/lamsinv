@@ -75,6 +75,14 @@ const CustomDatePicker = ({ value, onChange }) => {
   );
 };
 
+const getTodayFormatted = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
    const BillingSystem = () => {
      const [house, setHouse] = useState('Head Office');
   const [isInHouse, setIsInHouse] = useState(false); 
@@ -89,9 +97,19 @@ const CustomDatePicker = ({ value, onChange }) => {
   const [activeSearchField, setActiveSearchField] = useState('');
   
   const [products, setProducts] = useState([]);
+  const [allHouseProducts, setAllHouseProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [productSearchText, setProductSearchText] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+
+  // 🔴 আউট পারচেস (Out Purchase) স্টেট
+  const [isOutPurchase, setIsOutPurchase] = useState(false);
+  const [outPurchaseProduct, setOutPurchaseProduct] = useState(null);
+  const [outPurchaseSearchText, setOutPurchaseSearchText] = useState('');
+  const [showOutPurchaseDropdown, setShowOutPurchaseDropdown] = useState(false);
+  const [outPurchaseQty, setOutPurchaseQty] = useState('');
+  const [outPurchaseDate, setOutPurchaseDate] = useState(getTodayFormatted());
+  const [outPurchaseLoading, setOutPurchaseLoading] = useState(false);
 
   const [qty, setQty] = useState('');
   const [cart, setCart] = useState([]);
@@ -112,7 +130,84 @@ const CustomDatePicker = ({ value, onChange }) => {
     };
   }, []);
 
-  useEffect(() => { fetchAvailableProducts(); }, [house]);
+  useEffect(() => { 
+    fetchAvailableProducts(); 
+  }, [house]);
+
+  const fetchAvailableProducts = async () => {
+    const { data } = await supabase.from('products').select('*').eq('house', house);
+    if (data) {
+      const sortedData = data.sort((a, b) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        const modelA = (a.model || '').toLowerCase();
+        const modelB = (b.model || '').toLowerCase();
+        return modelA.localeCompare(modelB, undefined, { numeric: true });
+      });
+      setAllHouseProducts(sortedData);
+      setProducts(sortedData.filter(p => (p.stock_quantity || 0) > 0));
+    }
+  };
+
+  const handleSaveOutPurchase = async () => {
+    if (!outPurchaseProduct) return alert('দয়া করে আউট পারচেসের জন্য প্রোডাক্ট নির্বাচন করুন!');
+    const parsedQty = parseInt(outPurchaseQty);
+    if (isNaN(parsedQty) || parsedQty <= 0) return alert('সঠিক পরিমাণ (০ এর বেশি) লিখুন!');
+    if (!outPurchaseDate) return alert('দয়া করে তারিখ নির্বাচন করুন!');
+
+    setOutPurchaseLoading(true);
+    try {
+      // ১. products টেবিলে স্টক যোগ করা
+      const newStock = (outPurchaseProduct.stock_quantity || 0) + parsedQty;
+      const { error: prodErr } = await supabase
+        .from('products')
+        .update({ stock_quantity: newStock })
+        .eq('id', outPurchaseProduct.id);
+
+      if (prodErr) throw prodErr;
+
+      // ২. ledger টেবিলে এন্ট্রি দেওয়া
+      const currentTime = new Date().toTimeString().split(' ')[0];
+      const finalTimestamp = `${outPurchaseDate}T${currentTime}.000Z`;
+      const houseLabel = house === 'Showroom' ? 'Nawabpur' : 'Head Office';
+
+      const { error: ledgerErr } = await supabase.from('ledger').insert([
+        {
+          product: `${outPurchaseProduct.name} - ${outPurchaseProduct.model}`,
+          quantity: parsedQty,
+          date: outPurchaseDate,
+          in: finalTimestamp,
+          source: `Out Purchase (To: ${houseLabel})`
+        }
+      ]);
+
+      if (ledgerErr) {
+        console.error("Ledger sync error:", ledgerErr);
+        alert("⚠️ স্টক আপডেট হয়েছে কিন্তু লেজার এন্ট্রিতে ত্রুটি হয়েছে: " + ledgerErr.message);
+      }
+
+      alert(`✅ আউট পারচেস সফলভাবে যোগ হয়েছে! (${outPurchaseProduct.name} - ${outPurchaseProduct.model} +${parsedQty} পিস)`);
+
+      // ৩. প্রোডাক্ট রিফ্রেশ এবং বিলিং ফর্মে অটো-সিলেক্ট
+      await fetchAvailableProducts();
+      setSelectedProduct(outPurchaseProduct.id);
+      setProductSearchText(`${outPurchaseProduct.name} - ${outPurchaseProduct.model} [স্টক: ${newStock}]`);
+      setQty(parsedQty.toString());
+
+      // রিসেট আউট পারচেস ফর্ম
+      setOutPurchaseQty('');
+      setOutPurchaseProduct(null);
+      setOutPurchaseSearchText('');
+      setIsOutPurchase(false);
+    } catch (err) {
+      console.error(err);
+      alert('আউট পারচেস সেভ করতে সমস্যা হয়েছে: ' + err.message);
+    } finally {
+      setOutPurchaseLoading(false);
+    }
+  };
 
 useEffect(() => {
 const handleGlobalShortcuts = (e) => {
@@ -133,21 +228,6 @@ const handleGlobalShortcuts = (e) => {
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
   }, [cart, isInHouse]); // ডিপেন্ডেন্সিগুলো দিতে হবে
 
-  const fetchAvailableProducts = async () => {
-    const { data } = await supabase.from('products').select('*').eq('house', house).gt('stock_quantity', 0);
-    if (data) {
-      const sortedData = data.sort((a, b) => {
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        const modelA = (a.model || '').toLowerCase();
-        const modelB = (b.model || '').toLowerCase();
-        return modelA.localeCompare(modelB, undefined, { numeric: true });
-      });
-      setProducts(sortedData);
-    }
-  };
   const handlePhoneChange = (val) => {
     setPhone(val);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
@@ -375,6 +455,10 @@ const handleQuickBillConfirm = async () => {
     `${p.name} ${p.model}`.toLowerCase().includes(productSearchText.toLowerCase())
   );
 
+  const displayedOutPurchaseProducts = allHouseProducts.filter(p => 
+    `${p.name} ${p.model}`.toLowerCase().includes(outPurchaseSearchText.toLowerCase())
+  );
+
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 pb-12 p-4" style={{fontFamily: "'Inter', 'Hind Siliguri', sans-serif"}}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -477,8 +561,118 @@ const handleQuickBillConfirm = async () => {
           </div>
           
           <div className="bg-white p-6 rounded-3xl border shadow-sm space-y-4">
-            <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
-            
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+              <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">২. প্রোডাক্ট নির্বাচন</h2>
+              <label className="flex items-center gap-2 cursor-pointer bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded-xl transition-all select-none">
+                <input 
+                  type="checkbox" 
+                  checked={isOutPurchase} 
+                  onChange={(e) => {
+                    setIsOutPurchase(e.target.checked);
+                    if (e.target.checked && !outPurchaseDate) {
+                      setOutPurchaseDate(manualDate ? manualDate.split('T')[0] : getTodayFormatted());
+                    }
+                  }} 
+                  className="w-4 h-4 accent-orange-600 rounded cursor-pointer"
+                />
+                <span className="text-xs font-black text-orange-700">📦 আউট পারচেস (Out Purchase)</span>
+              </label>
+            </div>
+
+            {/* 🔴 আউট পারচেস ফর্ম সেকশন */}
+            {isOutPurchase && (
+              <div className="p-4 bg-orange-50/70 border-2 border-orange-200 rounded-2xl space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between border-b border-orange-200 pb-2">
+                  <span className="text-xs font-black text-orange-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🛒</span> আউট পারচেস স্টক এন্ট্রি
+                  </span>
+                  <span className="text-[10px] font-black px-2.5 py-0.5 bg-orange-200 text-orange-900 rounded-lg">
+                    {house === 'Showroom' ? '🏪 শোরুম (Nawabpur)' : '🏢 হেড অফিস'}
+                  </span>
+                </div>
+
+                {/* প্রোডাক্ট সিলেক্টর */}
+                <div className="relative">
+                  <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest block mb-1">প্রোডাক্ট সিলেক্ট করুন</label>
+                  <input 
+                    type="text" 
+                    placeholder="প্রোডাক্ট নাম বা মডেল সার্চ করুন..."
+                    value={outPurchaseSearchText}
+                    onChange={(e) => {
+                      setOutPurchaseSearchText(e.target.value);
+                      setShowOutPurchaseDropdown(true);
+                      setOutPurchaseProduct(null);
+                    }}
+                    onFocus={() => setShowOutPurchaseDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowOutPurchaseDropdown(false), 200)}
+                    className="w-full p-3 bg-white border border-orange-200 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500 text-slate-800"
+                  />
+                  {showOutPurchaseDropdown && (
+                    <div className="absolute w-full mt-1 bg-white border border-orange-200 rounded-xl shadow-2xl z-[110] max-h-48 overflow-y-auto custom-scrollbar">
+                      {displayedOutPurchaseProducts.length > 0 ? displayedOutPurchaseProducts.map(p => (
+                        <div 
+                          key={p.id} 
+                          onClick={() => {
+                            setOutPurchaseProduct(p);
+                            setOutPurchaseSearchText(`${p.name} - ${p.model}`);
+                            setShowOutPurchaseDropdown(false);
+                          }}
+                          className="p-2.5 border-b border-orange-50 hover:bg-orange-100 cursor-pointer font-bold text-xs text-slate-800"
+                        >
+                          📦 {p.name} - {p.model} <span className="text-slate-500 ml-1 font-semibold">(বর্তমান স্টক: {p.stock_quantity || 0})</span>
+                        </div>
+                      )) : (
+                        <div className="p-3 text-center text-slate-400 text-xs font-bold">কোনো প্রোডাক্ট পাওয়া যায়নি</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* তারিখ ও পরিমাণ */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest block mb-1">তারিখ (Date)</label>
+                    <input 
+                      type="date" 
+                      value={outPurchaseDate}
+                      onChange={(e) => setOutPurchaseDate(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-orange-200 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500 text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest block mb-1">পরিমাণ (Qty)</label>
+                    <input 
+                      type="number" 
+                      value={outPurchaseQty}
+                      onChange={(e) => setOutPurchaseQty(e.target.value)}
+                      placeholder="পিস..."
+                      className="w-full p-2.5 bg-white border border-orange-200 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-orange-500 text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* অটো সিলেক্টেড হাউজ */}
+                <div>
+                  <label className="text-[10px] font-black text-orange-900 uppercase tracking-widest block mb-1">হাউজ (House - Auto Selected)</label>
+                  <input 
+                    type="text" 
+                    readOnly 
+                    value={house === 'Showroom' ? 'Showroom (Nawabpur)' : 'Head Office'}
+                    className="w-full p-2.5 bg-orange-100/70 border border-orange-200 rounded-xl font-bold text-xs text-orange-950 cursor-not-allowed"
+                  />
+                </div>
+
+                <button 
+                  type="button"
+                  onClick={handleSaveOutPurchase}
+                  disabled={outPurchaseLoading}
+                  className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  {outPurchaseLoading ? 'যোগ হচ্ছে...' : '➕ স্টকে যোগ ও সিলেক্ট করুন'}
+                </button>
+              </div>
+            )}
+
             <div className="relative w-full">
               <input 
                 type="text" 

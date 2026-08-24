@@ -19,7 +19,7 @@ const Dashboard = ({ setView }) => {
   const [billNo, setBillNo] = useState('');
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchDashboardData(true);
 
     const chalansChannel = supabase
       .channel('dashboard-chalans-realtime')
@@ -27,7 +27,7 @@ const Dashboard = ({ setView }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'chalans' },
         () => {
-          fetchDashboardData();
+          fetchDashboardData(false);
         }
       )
       .subscribe();
@@ -38,7 +38,7 @@ const Dashboard = ({ setView }) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
         () => {
-          fetchDashboardData();
+          fetchDashboardData(false);
         }
       )
       .subscribe();
@@ -49,8 +49,8 @@ const Dashboard = ({ setView }) => {
     };
   }, []);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (isInitial = false) => {
+    if (isInitial) setLoading(true);
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
@@ -66,7 +66,7 @@ const Dashboard = ({ setView }) => {
       setTodayBills(tBills || []);
       setLowStockProducts(stock || []);
     } catch (error) { console.error(error); }
-    setLoading(false);
+    if (isInitial) setLoading(false);
   };
 
   const handleOpenLowStockWindow = () => {
@@ -254,12 +254,13 @@ const Dashboard = ({ setView }) => {
       
       alert('✅ সফল হয়েছে!'); 
       setSelectedItem(null); 
-      fetchDashboardData();
+      fetchDashboardData(false);
     } catch (e) { 
       alert(e.message || 'ত্রুটি হয়েছে'); 
       console.error(e); 
+    } finally {
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   const getCustomerData = (item) => {
