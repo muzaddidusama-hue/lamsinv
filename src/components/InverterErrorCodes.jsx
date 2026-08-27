@@ -5,11 +5,187 @@ import { supabase } from '../supabaseClient';
 
 export const INVERTER_ERRORS = [
   {
+    code: 'E00',
+    searchKeys: ['e00', 'e0', 'ac voltage low', 'গ্রিড', 'ভোল্টেজ লো', 'পিডিবি', 'আরইবি', 'voltage low'],
+    name: 'AC Voltage Low',
+    category: 'grid',
+    severity: 'warning', // 'info' | 'warning' | 'danger' | 'reserved'
+    cause: 'গ্রিড (পিডিবি/আরইবি) ভোল্টেজ ইনভার্টারের নির্ধারিত সীমার চেয়ে কমে গেছে। এলাকায় ভোল্টেজ ড্রপ বা এসি ক্যাবল অনেক লম্বা ও চিকন হলে এমন হয়।',
+    solution: 'গ্রিড ভোল্টেজ মাপুন। এসি ক্যাবলের সাইজ ঠিক আছে কি না চেক করুন। গ্রিড ভোল্টেজ স্বাভাবিক হলে অটোমেটিক সমাধান হবে।',
+    urgency: 'গ্রিড ভোল্টেজ পর্যবেক্ষণ',
+    icon: '🔌'
+  },
+  {
+    code: 'E01',
+    searchKeys: ['e01', 'e1', 'ac voltage high', 'গ্রিড', 'ভোল্টেজ হাই', 'ট্রান্সফরমার', 'overvoltage', 'voltage high'],
+    name: 'AC Voltage High',
+    category: 'grid',
+    severity: 'warning',
+    cause: 'গ্রিড ভোল্টেজ ইনভার্টারের ম্যাক্সিমাম লিমিট (সাধারণত 270V+) পার হয়ে গেছে। ট্রান্সফরমারের কাছাকাছি সাইট হলে এই সমস্যা বেশি হয়।',
+    solution: 'গ্রিডের ওভার-ভোল্টেজ চেক করুন। ইনভার্টারের সেটিংসে গিয়ে AC Voltage-এর আপার লিমিট কিছুটা বাড়িয়ে দেওয়া যেতে পারে।',
+    urgency: 'সেটিংস অ্যাডজাস্টমেন্ট',
+    icon: '⚡'
+  },
+  {
+    code: 'E02',
+    searchKeys: ['e02', 'e2', 'ac freq low', 'ফ্রিকোয়েন্সি', 'frequency low', '50hz', 'জেনারেটর'],
+    name: 'AC Freq Low',
+    category: 'grid',
+    severity: 'warning',
+    cause: 'গ্রিডের ফ্রিকোয়েন্সি স্ট্যান্ডার্ড (50Hz) থেকে অনেক কমে গেছে। মূলত গ্রিডের জেনারেটরে বড় কোনো ফল্ট হলে এমন হয়।',
+    solution: 'ইনভার্টারের সেটিংসে ফ্রিকোয়েন্সি রেঞ্জ চেক করুন। এটি সাধারণত গ্রিড স্ট্যাবল হলে নিজে থেকেই ঠিক হয়ে যায়।',
+    urgency: 'স্বয়ংক্রিয় রিকভারি',
+    icon: '〰️'
+  },
+  {
+    code: 'E03',
+    searchKeys: ['e03', 'e3', 'ac freq high', 'ফ্রিকোয়েন্সি', 'frequency high', 'grid frequency'],
+    name: 'AC Freq High',
+    category: 'grid',
+    severity: 'warning',
+    cause: 'গ্রিডের ফ্রিকোয়েন্সি অনেক বেড়ে গেছে।',
+    solution: 'সেটিংসে ফ্রিকোয়েন্সি রেঞ্জ চেক করুন। গ্রিড স্ট্যাবল হওয়ার জন্য অপেক্ষা করুন।',
+    urgency: 'স্বয়ংক্রিয় রিকভারি',
+    icon: '〰️'
+  },
+  {
+    code: 'E04',
+    searchKeys: ['e04', 'e4', 'bus volt low', 'বাস ভোল্টেজ', 'ক্যাপাসিটর', 'dc bus', 'voltage drop'],
+    name: 'Bus Volt Low',
+    category: 'power',
+    severity: 'warning',
+    cause: 'ইনভার্টারের ভেতরের ডিসি বাস ক্যাপাসিটরে চার্জ কমে গেছে। সোলার প্যানেল থেকে হঠাৎ ভোল্টেজ ড্রপ করলে বা গ্রিড ফল্ট হলে এমন হয়।',
+    solution: 'ডিসি সুইচ (DC Switch) অফ করে কয়েক মিনিট পর ইনভার্টার রিস্টার্ট করুন।',
+    urgency: 'রিস্টার্ট ও ডিসি চেক',
+    icon: '🔋'
+  },
+  {
+    code: 'E05',
+    searchKeys: ['e05', 'e5', 'bus volt high', 'বাস ভোল্টেজ হাই', 'স্পাইক', 'মাদারবোর্ড', 'dc bus high'],
+    name: 'Bus Volt High',
+    category: 'danger',
+    severity: 'danger',
+    cause: 'ভেতরের বাস ক্যাপাসিটরে ভোল্টেজ মাত্রাতিরিক্ত বেড়ে গেছে। হঠাৎ লোড বন্ধ হয়ে গেলে বা গ্রিড থেকে স্পাইক আসলে এটি হয়।',
+    solution: 'ডিসি সুইচ অফ করে ইনভার্টার রিস্টার্ট করুন। বারবার হলে মাদারবোর্ড চেক করতে হবে।',
+    urgency: 'উচ্চ ভোল্টেজ ঝুঁকি',
+    icon: '💥'
+  },
+  {
+    code: 'E06',
+    searchKeys: ['e06', 'e6', 'imbalance bus', 'বাস ব্যালেন্স', 'ক্যাপাসিটর', 'hardware fault'],
+    name: 'Imbalance Bus',
+    category: 'hardware',
+    severity: 'warning',
+    cause: 'ইনভার্টারের ভেতরের পজিটিভ এবং নেগেটিভ বাস ক্যাপাসিটরের ভোল্টেজ ব্যালেন্স হারিয়েছে। এটি সাধারণত হার্ডওয়্যার ফেইলিওর নির্দেশ করে।',
+    solution: 'ইনভার্টার রিস্টার্ট করে দেখুন। ঠিক না হলে ম্যানুফ্যাকচারারের সার্ভিসে পাঠাতে হবে।',
+    urgency: 'সার্ভিস সেন্টারে যোগাযোগ',
+    icon: '⚖️'
+  },
+  {
+    code: 'E07',
+    searchKeys: ['e07', 'e7', 'iso low', 'ইনসুলেশন', 'mc4', 'আর্থিং লিকেজ', 'insulation', 'leakage'],
+    name: 'ISO Low',
+    category: 'danger',
+    severity: 'danger',
+    cause: 'ইনসুলেশন রেজিস্ট্যান্স ফল্ট। সোলার প্যানেলের তারের কভার লিক হয়ে বডির সাথে লেগে গেলে বা বৃষ্টিতে কানেক্টরে পানি ঢুকলে আর্থিং লিকেজ হয়।',
+    solution: 'মাল্টিমিটার দিয়ে প্যানেলের পজিটিভ/নেগেটিভ এবং আর্থিংয়ের মাঝের রেজিস্ট্যান্স মাপুন। লিক হওয়া তার বা MC4 কানেক্টর পরিবর্তন করুন।',
+    urgency: 'জরুরি তার/MC4 পরিবর্তন',
+    icon: '🌧️'
+  },
+  {
+    code: 'E08',
+    searchKeys: ['e08', 'e8', 'dc curr high', 'অ্যাম্পিয়ার', 'current high', 'প্যারালাল', 'শর্ট সার্কিট'],
+    name: 'DC Curr High',
+    category: 'danger',
+    severity: 'danger',
+    cause: 'সোলার প্যানেল থেকে আসা অ্যাম্পিয়ার (Current) ইনভার্টারের লিমিট ক্রস করেছে অথবা ভেতরে শর্ট সার্কিট হয়েছে।',
+    solution: 'স্ট্রিংয়ে ভুল করে বেশি অ্যাম্পিয়ারের প্যানেল প্যারালাল করা হয়েছে কি না চেক করুন।',
+    urgency: 'প্যানেল কনফিগারেশন চেক',
+    icon: '📈'
+  },
+  {
+    code: 'E09',
+    searchKeys: ['e09', 'e9', 'high hw invert', 'igbt', 'আইজিবিটি', 'পাওয়ার ব্রিজ', 'hardware'],
+    name: 'High Hw Invert',
+    category: 'hardware',
+    severity: 'warning',
+    cause: 'ইনভার্টারের ভেতরের আইজিবিটি (IGBT) বা পাওয়ার ব্রিজে হার্ডওয়্যার লেভেলে অতিরিক্ত কারেন্ট ফ্লো হয়েছে।',
+    solution: 'রিস্টার্ট করে দেখুন। সমাধান না হলে হার্ডওয়্যার রিপেয়ার প্রয়োজন।',
+    urgency: 'হার্ডওয়্যার সার্ভিসিং',
+    icon: '⚙️'
+  },
+  {
+    code: 'E10',
+    searchKeys: ['e10', 'invert i high', 'ওভারলোড', 'শর্ট সার্কিট', 'output current', 'overload'],
+    name: 'Invert I High',
+    category: 'power',
+    severity: 'warning',
+    cause: 'ইনভার্টার থেকে আউটপুটে অতিরিক্ত কারেন্ট যাচ্ছে (এসি ওভারলোড বা শর্ট সার্কিট)।',
+    solution: 'এসি লাইনে কোনো শর্ট সার্কিট আছে কি না চেক করুন। অতিরিক্ত লোড কমান।',
+    urgency: 'লোড ও শর্ট সার্কিট চেক',
+    icon: '⚠️'
+  },
+  {
+    code: 'E11',
+    searchKeys: ['e11', 'invert dci high', 'dc leak', 'ফিল্টার', 'কারেন্ট সেন্সর', 'dci'],
+    name: 'Invert DCI High',
+    category: 'hardware',
+    severity: 'warning',
+    cause: 'এসি লাইনে ডাইরেক্ট কারেন্ট (DC) লিক হয়ে চলে যাচ্ছে। ইনভার্টারের ভেতরের ফিল্টার বা কারেন্ট সেন্সর নষ্ট হলে এমন হয়।',
+    solution: 'এটি হার্ডওয়্যার ইস্যু, ম্যানুফ্যাকচারারের সাথে যোগাযোগ করুন।',
+    urgency: 'ম্যানুফ্যাকচারার সাপোর্ট',
+    icon: '🛠️'
+  },
+  {
+    code: 'E12',
+    searchKeys: ['e12', 'env t high', 'তাপমাত্রা', 'temperature', 'গরম', 'overheat', 'cooling'],
+    name: 'Env T High',
+    category: 'temperature',
+    severity: 'warning',
+    cause: 'পরিবেশের তাপমাত্রা বা ইনভার্টারের চারপাশের তাপমাত্রা অনেক বেশি (সাধারণত ৬০° সে. এর উপরে)।',
+    solution: 'ইনভার্টারের চারপাশে বাতাস চলাচলের ব্যবস্থা করুন। সরাসরি রোদে থাকলে ছায়ায় স্থাপন করুন।',
+    urgency: 'ভেন্টিলেশন ব্যবস্থা করুন',
+    icon: '☀️'
+  },
+  {
+    code: 'E13',
+    searchKeys: ['e13', 'radiator heat', 'হিটসিংক', 'কুলিং ফ্যান', 'fan', 'heatsink', 'ধুলো'],
+    name: 'Radiator Heat',
+    category: 'temperature',
+    severity: 'warning',
+    cause: 'হিটসিংক অতিরিক্ত গরম হয়ে গেছে। কুলিং ফ্যান নষ্ট হলে বা ফ্যানে প্রচুর ধুলো জমলে এটি হয়।',
+    solution: 'ইনভার্টারের পেছনের হিটসিংক পরিষ্কার করুন এবং কুলিং ফ্যান ঘুরছে কি না চেক করুন।',
+    urgency: 'ফ্যান ও হিটসিংক ক্লিন করুন',
+    icon: '🌡️'
+  },
+  {
+    code: 'E14',
+    searchKeys: ['e14', 'ac relay err', 'রিলে', 'relay', 'কন্টাক্ট পয়েন্ট', 'মাদারবোর্ড'],
+    name: 'AC Relay Err',
+    category: 'hardware',
+    severity: 'warning',
+    cause: 'ভেতরের এসি রিলে ঠিকমতো অন/অফ হতে পারছে না, বা রিলের কন্টাক্ট পয়েন্ট পুড়ে আটকে গেছে।',
+    solution: 'রিস্টার্ট করার পরও এই এরর থাকলে মাদারবোর্ডের রিলে পরিবর্তন করতে হবে।',
+    urgency: 'রিলে পরিবর্তন প্রয়োজন',
+    icon: '🔄'
+  },
+  {
+    code: 'E15',
+    searchKeys: ['e15', 'pv voltage low', 'প্যানেল ভোল্টেজ', 'রোদ কম', 'স্টার্টিং ভোল্টেজ', 'voltage low'],
+    name: 'PV Voltage Low',
+    category: 'power',
+    severity: 'info',
+    cause: 'প্যানেল থেকে পর্যাপ্ত ভোল্টেজ আসছে না। রোদ খুব কম থাকলে বা সিরিজে প্যানেল সংখ্যা কম হলে এটি দেখায়।',
+    solution: 'স্ট্রিং ভোল্টেজ চেক করুন। এটি ইনভার্টারের স্টার্টিং ভোল্টেজের চেয়ে বেশি হতে হবে।',
+    urgency: 'স্বাভাবিক (রোদ বাড়লে ঠিক হবে)',
+    icon: '⛅'
+  },
+  {
     code: 'E16',
     searchKeys: ['e16', 'remote off', 'রিমোট', 'অ্যাপ', 'command', 'remote'],
     name: 'Remote Off',
     category: 'system',
-    severity: 'info', // 'info' | 'warning' | 'danger' | 'reserved'
+    severity: 'info',
     cause: 'ইনভার্টারে রিমোট কন্ট্রোল, ডাটা লগার বা অ্যাপ থেকে কমান্ড দিয়ে বন্ধ করে রাখা হয়েছে।',
     solution: 'অ্যাপ বা ওয়েব পোর্টাল থেকে কমান্ড চেক করে ইনভার্টারটি অন করুন।',
     urgency: 'স্বাভাবিক (Normal)',
@@ -210,7 +386,7 @@ const InverterErrorCodes = () => {
 
       if (!q) return true;
 
-      // Match code exactly or partially (e.g. "e16", "16", "e24", "e27")
+      // Match code exactly or partially (e.g. "e00", "00", "e16", "16", "e24", "e27")
       const matchesCode = item.code.toLowerCase().includes(q) || 
                           item.searchKeys.some(key => key.includes(q));
       
@@ -337,7 +513,7 @@ const InverterErrorCodes = () => {
           </h1>
           
           <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl mx-auto">
-            আপনার ইনভার্টারের ডিসপ্লেতে প্রদর্শিত এরর কোডটি (যেমন: E16, E20, E27 ইত্যাদি) সার্চ করুন। কারণ এবং দ্রুত সমাধান জেনে নিন।
+            আপনার ইনভার্টারের ডিসপ্লেতে প্রদর্শিত এরর কোডটি (যেমন: E00, E01, E07, E16, E20, E27 ইত্যাদি) সার্চ করুন। কারণ এবং দ্রুত সমাধান জেনে নিন।
           </p>
 
           {/* Interactive Search Bar */}
@@ -348,7 +524,7 @@ const InverterErrorCodes = () => {
                 type="text"
                 value={searchQuery}
                 onChange={handleSearchChange}
-                placeholder="এরর কোড বা কীওয়ার্ড লিখুন (যেমন: E16, E27, GFCI, ভোল্টেজ)..."
+                placeholder="এরর কোড বা কীওয়ার্ড লিখুন (যেমন: E00, E07, E16, E27, GFCI, ভোল্টেজ)..."
                 className="w-full py-3.5 sm:py-4 px-2 text-sm sm:text-base font-bold text-slate-800 outline-none bg-transparent placeholder-slate-400"
                 autoFocus
               />
@@ -365,7 +541,7 @@ const InverterErrorCodes = () => {
             {/* Quick Suggestions Chips */}
             <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 mt-3 pt-1">
               <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">জনপ্রিয় সার্চ:</span>
-              {['E16', 'E18', 'E20', 'E21', 'E22', 'E23', 'E26', 'E27', 'E32'].map(code => (
+              {['E00', 'E01', 'E04', 'E07', 'E08', 'E12', 'E15', 'E16', 'E20', 'E27', 'E32'].map(code => (
                 <button
                   key={code}
                   onClick={() => handleQuickCodeSelect(code)}
@@ -400,7 +576,7 @@ const InverterErrorCodes = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
           <div>
             <h2 className="text-lg font-black text-slate-900 flex items-center gap-2">
-              <span>{hasSearch ? '🔍 সার্চ ফলাফল' : '📋 ইনভার্টার এরর কোড তালিকা'}</span>
+              <span>{hasSearch ? '🔍 সার্চ ফলাফল' : '📋 ইনভার্টার এরর কোড তালিকা (E00 - E32)'}</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-bold">
                 {filteredErrors.length} টি আইটেম
               </span>
@@ -416,8 +592,12 @@ const InverterErrorCodes = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 custom-scrollbar">
             {[
               { id: 'all', label: 'সবগুলো' },
+              { id: 'grid', label: '🔌 গ্রিড ও এসি' },
+              { id: 'power', label: '🔋 পাওয়ার ও ডিসি' },
               { id: 'danger', label: '⚠️ বিপদজনক' },
+              { id: 'hardware', label: '⚙️ হার্ডওয়্যার' },
               { id: 'sensor', label: '🔍 সেন্সর ফল্ট' },
+              { id: 'temperature', label: '🌡️ তাপমাত্রা' },
               { id: 'communication', label: '⚡ কমিউনিকেশন' },
               { id: 'reserved', label: '🔒 রিজার্ভড' }
             ].map(tab => (
@@ -539,7 +719,7 @@ const InverterErrorCodes = () => {
                 ))}
               </div>
             ) : (
-              /* No search results found state (e.g. searching E00) */
+              /* No search results found state (e.g. searching invalid code) */
               <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-5 shadow-sm max-w-xl mx-auto">
                 <div className="w-16 h-16 rounded-full bg-red-50 text-[#ea3838] flex items-center justify-center text-3xl mx-auto">
                   🔍
@@ -549,7 +729,7 @@ const InverterErrorCodes = () => {
                     কোনো এরর তথ্য পাওয়া যায়নি
                   </h3>
                   <p className="text-xs sm:text-sm text-slate-500 font-medium">
-                    "<span className="font-bold text-slate-800">{searchQuery}</span>" কোড বা বিবরণটি পাওয়া যায়নি। সঠিক কোড (যেমন: E16, E20, E27) লিখুন অথবা নিচের বোতামে ক্লিক করে সম্পূর্ণ তালিকা দেখুন।
+                    "<span className="font-bold text-slate-800">{searchQuery}</span>" কোড বা বিবরণটি পাওয়া যায়নি। সঠিক কোড (যেমন: E00, E01, E07, E16, E20, E27) লিখুন অথবা নিচের বোতামে ক্লিক করে সম্পূর্ণ তালিকা দেখুন।
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
@@ -571,7 +751,7 @@ const InverterErrorCodes = () => {
           <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/50">
             <div>
               <h3 className="text-base font-black text-slate-800">
-                {hasSearch ? 'সারসংক্ষেপ টেবিল ভিউ' : 'সম্পূর্ণ ইনভার্টার এরর কোড তালিকা'}
+                {hasSearch ? 'সারসংক্ষেপ টেবিল ভিউ' : 'সম্পূর্ণ ইনভার্টার এরর কোড তালিকা (ক্রমিক E00 - E32)'}
               </h3>
               <p className="text-xs text-slate-400 font-medium">
                 যেকোনো সারিতে ক্লিক করে বিস্তারিত সমাধান ও নির্দেশনা দেখতে পারেন
