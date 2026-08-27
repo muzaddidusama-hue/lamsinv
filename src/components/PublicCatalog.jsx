@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import lamsLogo from '../assets/lams-logo.webp';
 import solarOnInverter from '../assets/solar-on-inverter.webp';
@@ -101,6 +102,7 @@ const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
 };
 
 const PublicCatalog = ({ onAdminClick }) => {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [siteSettings, setSiteSettings] = useState({});
   const [currentSliderIdx, setCurrentSliderIdx] = useState(0);
@@ -1841,6 +1843,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-555">
             <button onClick={() => setActiveTab('home')} className="hover:text-white transition-colors">Home</button>
             <button onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} className="hover:text-white transition-colors">Store</button>
+            <button onClick={() => navigate('/error-codes')} className="hover:text-white transition-colors">Error Guide</button>
             <button onClick={() => setActiveTab('contact')} className="hover:text-white transition-colors">Contact</button>
             <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838]">Portal</button>
           </div>

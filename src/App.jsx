@@ -25,6 +25,7 @@ const LabelPrint = lazy(() => import('./components/LabelPrint'));
 const BrokenManager = lazy(() => import('./components/BrokenManager'));
 const ResellerOfferPublic = lazy(() => import('./components/ResellerOfferPublic'));
 const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'));
+const InverterErrorCodes = lazy(() => import('./components/InverterErrorCodes'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
 const PublicCatalogWrapper = () => {
@@ -203,6 +204,26 @@ function App() {
           {/* Public Page Route */}
           <Route path="/" element={<PublicCatalogWrapper />} />
           <Route path="/reseller-offer" element={<ResellerOfferPublic />} />
+          <Route path="/error-codes" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Error Guide...</p>
+              </div>
+            }>
+              <InverterErrorCodes />
+            </Suspense>
+          } />
+          <Route path="/inverter-errors" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Error Guide...</p>
+              </div>
+            }>
+              <InverterErrorCodes />
+            </Suspense>
+          } />
 
           {/* Login Route */}
           <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} isAdmin={isAdmin} />} />

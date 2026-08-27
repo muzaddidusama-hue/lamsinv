@@ -40,6 +40,12 @@ const UserIcon = () => (
   </svg>
 );
 
+const ErrorGuideIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+);
+
 const LogoutIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" />
@@ -186,6 +192,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       ]
     },
     { id: 'reports', label: 'রিপোর্ট ও খতিয়ান', path: '/reports', icon: <ReportsIcon />, isDropdown: false },
+    { id: 'error_codes', label: 'ইনভার্টার এরর কোড গাইড', path: '/error-codes', icon: <ErrorGuideIcon />, isDropdown: false },
     { id: 'frontend_custom', label: 'পাবলিক পেজ এডিট', path: '/frontend-custom', icon: <SettingsIcon />, isDropdown: false },
     { id: 'reseller_offer_admin', label: 'রিসেলার অফার', path: '/reseller-offer-admin', icon: <SettingsIcon />, isDropdown: false },
     { id: 'user_management', label: 'ইউজার ম্যানেজমেন্ট', path: '/user-management', icon: <UserIcon />, isDropdown: false },
