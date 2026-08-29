@@ -448,7 +448,7 @@ const checkIsTransfer = (val) => {
                 }
               });
             }
-            if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status !== 'cancelled') {
+            if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status === 'completed') {
               ch.chalan_items.forEach(item => {
                 const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
                 extractedTrans.push({
