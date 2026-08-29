@@ -26,6 +26,7 @@ const BrokenManager = lazy(() => import('./components/BrokenManager'));
 const ResellerOfferPublic = lazy(() => import('./components/ResellerOfferPublic'));
 const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'));
 const InverterErrorCodes = lazy(() => import('./components/InverterErrorCodes'));
+const SolarCal = lazy(() => import('./components/SolarCal'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
 const PublicCatalogWrapper = () => {
@@ -222,6 +223,36 @@ function App() {
               </div>
             }>
               <InverterErrorCodes />
+            </Suspense>
+          } />
+          <Route path="/solarcal" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Solar Calculator...</p>
+              </div>
+            }>
+              <SolarCal />
+            </Suspense>
+          } />
+          <Route path="/solacal" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Solar Calculator...</p>
+              </div>
+            }>
+              <SolarCal />
+            </Suspense>
+          } />
+          <Route path="/solar-calculator" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading Solar Calculator...</p>
+              </div>
+            }>
+              <SolarCal />
             </Suspense>
           } />
 

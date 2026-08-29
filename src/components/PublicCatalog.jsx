@@ -904,7 +904,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-2.5 sm:gap-8 md:gap-12 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
+          <nav className="flex items-center gap-2 sm:gap-6 md:gap-8 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
             <button 
               onClick={() => setActiveTab('home')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
@@ -917,6 +917,14 @@ const PublicCatalog = ({ onAdminClick }) => {
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'products' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
             >
               Products
+            </button>
+            <span className="text-slate-300 font-normal">|</span>
+            <button 
+              onClick={() => navigate('/solarcal')} 
+              className="bg-gradient-to-r from-red-500 to-amber-500 hover:from-[#ea3838] hover:to-orange-600 text-white px-3 py-1.5 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-1.5 animate-pulse hover:animate-none"
+            >
+              <span>☀️</span>
+              <span>Solar Calculator</span>
             </button>
             <span className="text-slate-300 font-normal">|</span>
             <button 
@@ -1840,9 +1848,10 @@ const PublicCatalog = ({ onAdminClick }) => {
             </p>
           </div>
 
-          <div className="flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-slate-555">
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 sm:gap-8 text-xs font-bold uppercase tracking-widest text-slate-555">
             <button onClick={() => setActiveTab('home')} className="hover:text-white transition-colors">Home</button>
             <button onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} className="hover:text-white transition-colors">Store</button>
+            <button onClick={() => navigate('/solarcal')} className="text-[#ea3838] font-black hover:text-white transition-colors flex items-center gap-1">☀️ Solar Calculator</button>
             <button onClick={() => navigate('/error-codes')} className="hover:text-white transition-colors">Error Guide</button>
             <button onClick={() => setActiveTab('contact')} className="hover:text-white transition-colors">Contact</button>
             <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838]">Portal</button>

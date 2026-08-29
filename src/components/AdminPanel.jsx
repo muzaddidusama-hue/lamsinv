@@ -46,6 +46,12 @@ const ErrorGuideIcon = () => (
   </svg>
 );
 
+const SolarCalIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+  </svg>
+);
+
 const LogoutIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" />
@@ -192,6 +198,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
       ]
     },
     { id: 'reports', label: 'রিপোর্ট ও খতিয়ান', path: '/reports', icon: <ReportsIcon />, isDropdown: false },
+    { id: 'solar_calculator', label: 'সোলার ক্যালকুলেটর', path: '/solarcal', icon: <SolarCalIcon />, isDropdown: false, isHighlighted: true },
     { id: 'error_codes', label: 'ইনভার্টার এরর কোড গাইড', path: '/error-codes', icon: <ErrorGuideIcon />, isDropdown: false },
     { id: 'frontend_custom', label: 'পাবলিক পেজ এডিট', path: '/frontend-custom', icon: <SettingsIcon />, isDropdown: false },
     { id: 'reseller_offer_admin', label: 'রিসেলার অফার', path: '/reseller-offer-admin', icon: <SettingsIcon />, isDropdown: false },
@@ -297,6 +304,11 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                       </span>
                       <span className="text-sm font-semibold">{item.label}</span>
                     </div>
+                    {item.isHighlighted && (
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-gradient-to-r from-red-500 to-amber-500 text-white font-black uppercase tracking-wider shadow-xs animate-pulse">
+                        HOT
+                      </span>
+                    )}
                     {item.isDropdown && (
                       <span className={`text-[9px] transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-[#ea3838]' : 'text-slate-400'}`}>▼</span>
                     )}
@@ -576,6 +588,11 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                       <span className="text-xl">{item.icon}</span>
                       <span className="text-sm">{item.label}</span>
                     </div>
+                    {item.isHighlighted && (
+                      <span className="text-[9px] px-2 py-0.5 rounded-full bg-gradient-to-r from-red-500 to-amber-500 text-white font-black uppercase tracking-wider shadow-xs animate-pulse">
+                        HOT
+                      </span>
+                    )}
                     {item.isDropdown && (
                       <span className={`text-xs text-slate-400 transition-transform duration-300 ${isSubOpen ? 'rotate-180 text-[#ea3838]' : ''}`}>▼</span>
                     )}
