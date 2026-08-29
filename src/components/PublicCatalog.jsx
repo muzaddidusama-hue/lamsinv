@@ -904,7 +904,7 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-2 sm:gap-6 md:gap-8 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
+          <nav className="flex items-center gap-2.5 sm:gap-6 md:gap-8 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
             <button 
               onClick={() => setActiveTab('home')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
@@ -920,18 +920,18 @@ const PublicCatalog = ({ onAdminClick }) => {
             </button>
             <span className="text-slate-300 font-normal">|</span>
             <button 
-              onClick={() => navigate('/solarcal')} 
-              className="bg-gradient-to-r from-red-500 to-amber-500 hover:from-[#ea3838] hover:to-orange-600 text-white px-3 py-1.5 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-1.5 animate-pulse hover:animate-none"
-            >
-              <span>☀️</span>
-              <span>Solar Calculator</span>
-            </button>
-            <span className="text-slate-300 font-normal">|</span>
-            <button 
               onClick={() => setActiveTab('contact')} 
               className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'contact' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
             >
               Contact Us
+            </button>
+            <span className="text-slate-300 font-normal">|</span>
+            <button 
+              onClick={() => navigate('/solarcal')} 
+              className="bg-gradient-to-r from-[#ea3838] to-orange-500 hover:from-red-600 hover:to-orange-600 text-white px-3.5 py-1.5 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-1.5"
+            >
+              <span>☀️</span>
+              <span>Solar Calculator</span>
             </button>
           </nav>
 

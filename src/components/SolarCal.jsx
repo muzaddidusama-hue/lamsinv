@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import lamsLogo from '../assets/lams-logo.webp';
 import { supabase } from '../supabaseClient';
 
-// Inverter Table with specific Model Suggestions as requested
+// Inverter Table with specific Model Suggestions
 export const INVERTER_TABLE = [
   { va: 900,  load: 450,  panel: 500,  model: 'Talegent SunMate-900',  brand: 'Talegent' },
   { va: 1150, load: 800,  panel: 800,  model: 'SolarOn SunMate-1150', brand: 'SolarOn' },
@@ -22,98 +22,88 @@ export const PRESETS = [
   { key: 'light', watt: 20, en: 'Light', bn: 'লাইট' },
   { key: 'fan', watt: 100, en: 'Fan', bn: 'ফ্যান' },
   { key: 'wifi', watt: 20, en: 'WiFi Router', bn: 'ওয়াইফাই রাউটার' },
-  { key: 'tv', watt: 50, en: 'TV', bn: 'টিভি', noteEn: 'Standard size 32-inch estimated load', noteBn: 'স্ট্যান্ডার্ড সাইজ ৩২ ইঞ্চি আনুমানিক লোড' },
+  { key: 'tv', watt: 50, en: 'TV (32")', bn: 'টিভি (৩২")', noteEn: 'Standard size 32-inch estimated load', noteBn: '৩২ ইঞ্চি টিভি আনুমানিক লোড' },
   { key: 'custom', watt: 0, en: 'Custom Appliance', bn: 'কাস্টম যন্ত্রপাতি' }
 ];
 
 const TRANSLATIONS = {
   en: {
-    title: 'Solar Load Calculator - SolarCal',
+    title: 'Solar Load Calculator',
     subtitle: 'Accurate sizing for Solar Panels, Inverters, and Batteries',
-    lang_label: 'Language',
-    role: 'Guest',
-    appliances_title: 'Connected Appliances',
-    appliances_info: 'Add appliances with rated wattage and quantities used during day and night.',
+    appliances_title: 'Appliances',
     col_appliance: 'Appliance',
-    col_load: 'Load (W)',
+    col_load: 'Watt (W)',
     col_qty_day: 'Day Qty',
     col_qty_night: 'Night Qty',
     add_appliance: '+ Add Appliance',
-    clear_all: 'Clear All',
-    total_load_label: 'Total Connected Load:',
-    system_settings: 'System Configuration',
-    backup_hours_label: 'Backup Hours (for Off-grid / Night)',
-    backup_hours_note: 'Required battery backup time in hours',
+    clear_all: 'Clear',
+    total_load_label: 'Total Load:',
+    system_settings: 'System Settings',
+    backup_hours_label: 'Backup Hours (Off-grid)',
+    backup_hours_note: 'Required battery backup in hours',
     system_voltage: 'System Voltage',
-    system_voltage_note: 'Battery capacity (Ah) calculated for selected voltage',
-    hybrid_mode: 'Operation Mode',
+    system_voltage_note: 'Battery Ah based on system voltage',
     day: 'Daytime only',
     night: 'Night-only',
     daynight: 'Day + Night',
-    results_title: 'Calculated System Requirements',
+    results_title: 'Calculation Summary',
     day_load_label: 'Daytime Load',
     night_load_label: 'Nighttime Load',
     total_connected_load: 'Total Connected Load',
     solar_panel_required: 'Solar Panel Required',
-    battery_li: 'Battery (Lithium-ion)',
+    battery_li: 'Battery (Li-ion)',
     battery_lead: 'Battery (Lead-acid)',
-    recommended_inverter: 'Recommended Inverter Capacity',
+    recommended_inverter: 'Recommended Inverter',
     suggested_model: 'Suggested Inverter Model',
-    custom_name_placeholder: 'Custom name',
-    qty_placeholder: 'Qty',
-    no_appliances: 'No appliances added. Click "+ Add Appliance" to get started.',
-    copy_summary: 'Copy Estimate',
+    custom_name_placeholder: 'Appliance name',
+    qty_placeholder: '0',
+    no_appliances: 'No appliances added. Click "+ Add Appliance" to begin.',
+    copy_summary: 'Copy',
     copied: 'Copied!',
-    print_sheet: 'Print Estimate',
-    back_to_home: 'Homepage',
-    back_to_dashboard: 'Back to Dashboard',
-    modes_summary: 'Choose your desired usage mode to get customized sizing recommendations.',
+    print_sheet: 'Print',
+    back_to_home: 'Home',
+    back_to_dashboard: 'Dashboard',
     whatsapp_share: 'Inquire on WhatsApp',
-    spec_summary: 'Estimated Summary'
+    spec_chart: 'Sizing Reference Chart'
   },
   bn: {
-    title: 'সোলার লোড ক্যালকুলেটর - সোলারক্যাল',
+    title: 'সোলার লোড ক্যালকুলেটর',
     subtitle: 'সোলার প্যানেল, ইনভার্টার মডেল এবং ব্যাটারি সাইজিংয়ের সহজ সমাধান',
-    lang_label: 'ভাষা',
-    role: 'অতিথি',
-    appliances_title: 'যন্ত্রপাতির তালিকা ও লোড',
-    appliances_info: 'যন্ত্রপাতির ওয়াট এবং দিনে ও রাতে ব্যবহারের পরিমাণ যোগ করুন।',
+    appliances_title: 'যন্ত্রপাতির তালিকা',
     col_appliance: 'যন্ত্রপাতি',
-    col_load: 'লোড (W)',
-    col_qty_day: 'দিনে ব্যবহারের সংখ্যা',
-    col_qty_night: 'রাতে ব্যবহারের সংখ্যা',
-    add_appliance: '+ যন্ত্রপাতি যোগ করুন',
-    clear_all: 'সব মুছুন',
-    total_load_label: 'সর্বমোট কানেক্টেড লোড:',
-    system_settings: 'সিস্টেম কনফিগারেশন',
-    backup_hours_label: 'ব্যাকআপ সময় (অফ-গ্রিড / রাতের জন্য)',
-    backup_hours_note: 'কত ঘন্টা ব্যাটারি ব্যাকআপ প্রয়োজন? (ঘন্টায়)',
+    col_load: 'ওয়াট (W)',
+    col_qty_day: 'দিনের সংখ্যা',
+    col_qty_night: 'রাতের সংখ্যা',
+    add_appliance: '+ যোগ করুন',
+    clear_all: 'মুছুন',
+    total_load_label: 'মোট লোড:',
+    system_settings: 'সিস্টেম সেটিংস',
+    backup_hours_label: 'ব্যাকআপ সময় (ঘন্টা)',
+    backup_hours_note: 'কত ঘন্টা ব্যাটারি ব্যাকআপ চান',
     system_voltage: 'সিস্টেম ভোল্টেজ',
-    system_voltage_note: 'ব্যাটারি অ্যাম্পিয়ার-আওয়ার (Ah) সিস্টেম ভোল্টেজের ভিত্তিতে নির্ধারিত',
-    hybrid_mode: 'ব্যবহারের সময়কাল / মোড',
-    day: 'শুধুমাত্র দিনে (Day only)',
-    night: 'শুধুমাত্র রাতে (Night only)',
-    daynight: 'দিন + রাত (Day + Night)',
-    results_title: 'প্রয়োজনীয় সিস্টেম সাইজিং ও ফলাফল',
+    system_voltage_note: 'নির্বাচিত ভোল্টেজের ভিত্তিতে ব্যাটারি Ah',
+    day: 'শুধুমাত্র দিনে',
+    night: 'শুধুমাত্র রাতে',
+    daynight: 'দিন + রাত',
+    results_title: 'ক্যালকুলেশন ফলাফল',
     day_load_label: 'দিনের লোড',
     night_load_label: 'রাতের লোড',
     total_connected_load: 'মোট সংযুক্ত লোড',
     solar_panel_required: 'সোলার প্যানেল প্রয়োজন',
     battery_li: 'ব্যাটারি (লিথিয়াম-আয়ন)',
     battery_lead: 'ব্যাটারি (লিড-অ্যাসিড)',
-    recommended_inverter: 'প্রস্তাবিত ইনভার্টার ক্যাপাসিটি',
+    recommended_inverter: 'প্রস্তাবিত ইনভার্টার',
     suggested_model: 'প্রস্তাবিত ইনভার্টার মডেল',
     custom_name_placeholder: 'যন্ত্রপাতির নাম',
-    qty_placeholder: 'পরিমাণ',
-    no_appliances: 'কোনো যন্ত্রপাতি যোগ করা হয়নি। "+ যন্ত্রপাতি যোগ করুন" বোতামে চাপুন।',
-    copy_summary: 'ক্যালকুলেশন কপি করুন',
+    qty_placeholder: '০',
+    no_appliances: 'কোনো যন্ত্রপাতি নেই। "+ যোগ করুন" এ চাপুন।',
+    copy_summary: 'কপি',
     copied: 'কপি হয়েছে!',
-    print_sheet: 'প্রিন্ট এস্টিমেট',
-    back_to_home: 'হোমপেজ',
-    back_to_dashboard: 'ড্যাশবোর্ডে ফিরে যান',
-    modes_summary: 'আপনার পছন্দসই ব্যবহারের মোড বেছে নিন যাতে নির্ভুল রিকমেন্ডেশন পাওয়া যায়।',
+    print_sheet: 'প্রিন্ট',
+    back_to_home: 'হোম',
+    back_to_dashboard: 'ড্যাশবোর্ড',
     whatsapp_share: 'হোয়াটসঅ্যাপে ইনকোয়ারি',
-    spec_summary: 'এস্টিমেট সারাংশ'
+    spec_chart: 'ইনভার্টার সাইজিং চার্ট'
   }
 };
 
@@ -122,6 +112,7 @@ const SolarCal = () => {
   const [lang, setLang] = useState('bn');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showChart, setShowChart] = useState(false);
 
   // Core Calculator States
   const [mode, setMode] = useState('daynight'); // 'day' | 'night' | 'daynight'
@@ -131,7 +122,7 @@ const SolarCal = () => {
   const [appliances, setAppliances] = useState([
     { id: 1, presetKey: 'light', name: 'লাইট', watt: 20, qtyDay: 1, qtyNight: 1 },
     { id: 2, presetKey: 'fan', name: 'ফ্যান', watt: 100, qtyDay: 1, qtyNight: 1 },
-    { id: 3, presetKey: 'tv', name: 'টিভি', watt: 50, qtyDay: 1, qtyNight: 1 },
+    { id: 3, presetKey: 'tv', name: 'টিভি (৩২")', watt: 50, qtyDay: 1, qtyNight: 1 },
     { id: 4, presetKey: 'wifi', name: 'ওয়াইফাই রাউটার', watt: 20, qtyDay: 1, qtyNight: 1 }
   ]);
 
@@ -158,7 +149,6 @@ const SolarCal = () => {
     }));
   };
 
-  // Add new appliance row
   const handleAddAppliance = () => {
     const newId = Date.now();
     setAppliances(prev => [
@@ -167,19 +157,16 @@ const SolarCal = () => {
     ]);
   };
 
-  // Remove appliance
   const handleRemoveAppliance = (id) => {
     setAppliances(prev => prev.filter(a => a.id !== id));
   };
 
-  // Clear all
   const handleClearAll = () => {
-    if (window.confirm(lang === 'bn' ? 'আপনি কি সব যন্ত্রপাতি মুছে ফেলতে চান?' : 'Are you sure you want to clear all appliances?')) {
+    if (window.confirm(lang === 'bn' ? 'সব যন্ত্রপাতি মুছে ফেলতে চান?' : 'Clear all appliances?')) {
       setAppliances([]);
     }
   };
 
-  // Change preset selection
   const handlePresetChange = (id, presetKey) => {
     const preset = PRESETS.find(p => p.key === presetKey);
     if (!preset) return;
@@ -200,7 +187,6 @@ const SolarCal = () => {
     }));
   };
 
-  // Update field value
   const handleUpdateAppliance = (id, field, value) => {
     setAppliances(prev => prev.map(a => {
       if (a.id === id) {
@@ -211,7 +197,7 @@ const SolarCal = () => {
   };
 
   // ----------------------------------------------------
-  // CALCULATION LOGIC (Matching exact user specifications)
+  // CALCULATION LOGIC
   // ----------------------------------------------------
   const calculations = useMemo(() => {
     const rawDayLoad = appliances.reduce((sum, a) => sum + (Number(a.watt || 0) * (Number(a.qtyDay) || 0)), 0);
@@ -246,7 +232,6 @@ const SolarCal = () => {
     const battLiAh = baseAh === 0 ? 0 : Number((baseAh * 1.15).toFixed(1));
     const battLeadAh = baseAh === 0 ? 0 : Number((baseAh * 2.0).toFixed(1));
 
-    // Match inverter from table
     let suggestedInverter = null;
     if (panelRequired > 0) {
       suggestedInverter = INVERTER_TABLE.find(e => panelRequired <= e.panel) || INVERTER_TABLE[INVERTER_TABLE.length - 1];
@@ -263,83 +248,70 @@ const SolarCal = () => {
     };
   }, [appliances, mode, backupHours, systemVoltage]);
 
-  // Copy calculations to clipboard
   const handleCopySummary = () => {
     const text = `☀️ LAMS POWER SOLAR LOAD ESTIMATE (${mode.toUpperCase()})
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔹 মোট কানেক্টেড লোড: ${calculations.totalLoad} W
-🔹 দিনের লোড: ${calculations.dayLoad} W
-🔹 রাতের লোড: ${calculations.nightLoad} W
-🔹 ব্যাকআপ সময়: ${backupHours} ঘণ্টা (${systemVoltage}V System)
+🔹 মোট লোড: ${calculations.totalLoad} W (দিন: ${calculations.dayLoad}W, রাত: ${calculations.nightLoad}W)
+🔹 ব্যাকআপ: ${backupHours} ঘণ্টা (${systemVoltage}V)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ প্রয়োজনীয় সোলার প্যানেল: ${calculations.panelRequired} W
-🔋 ব্যাটারি (Li-ion): ${calculations.battLiAh} Ah
-🔋 ব্যাটারি (Lead-acid): ${calculations.battLeadAh} Ah
+⚡ সোলার প্যানেল: ${calculations.panelRequired} W
+🔋 ব্যাটারি (Li-ion): ${calculations.battLiAh} Ah | (Lead-acid): ${calculations.battLeadAh} Ah
 🔌 প্রস্তাবিত ইনভার্টার: ${calculations.suggestedInverter ? `${calculations.suggestedInverter.va} VA (${calculations.suggestedInverter.model})` : '0 VA'}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━
 🌐 www.lamspower.pro.bd`;
 
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setTimeout(() => setCopied(false), 2000);
     });
   };
 
   const handleWhatsAppShare = () => {
     const text = encodeURIComponent(
-      `Hello Lams Power, I used your Solar Calculator. My required panel is ${calculations.panelRequired}W and suggested inverter is ${calculations.suggestedInverter?.model || 'N/A'}. Please provide a quotation.`
+      `Hello Lams Power, my required solar panel is ${calculations.panelRequired}W and suggested inverter is ${calculations.suggestedInverter?.model || 'N/A'}. Please share a quotation.`
     );
     window.open(`https://wa.me/8801700000000?text=${text}`, '_blank');
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col font-['Inter',_'Hind_Siliguri',_sans-serif]">
+    <div className="min-h-screen bg-[#f9fafb] text-slate-800 flex flex-col font-['Inter',_'Hind_Siliguri',_sans-serif]">
       
-      {/* Top Navbar */}
-      <header className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-slate-200/80 z-40 shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      {/* Minimal Top Header */}
+      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-40">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           
-          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => navigate('/')}>
-            <img 
-              src={lamsLogo} 
-              alt="Lams Power" 
-              className="h-9 sm:h-10 w-auto object-contain" 
-            />
-            <div>
-              <span className="text-xl font-black text-slate-900 tracking-tighter uppercase font-['Outfit']">
-                Lams<span className="text-[#ea3838]">Power</span>
-              </span>
-              <span className="hidden sm:inline-block ml-2 text-[10px] font-black uppercase tracking-widest bg-red-50 text-[#ea3838] border border-red-100 px-2 py-0.5 rounded-md">
-                Solar Calculator
-              </span>
-            </div>
+          <div className="flex items-center gap-2.5 cursor-pointer select-none" onClick={() => navigate('/')}>
+            <img src={lamsLogo} alt="Lams Power" className="h-8 w-auto object-contain" />
+            <span className="text-base font-black text-slate-900 tracking-tight uppercase font-['Outfit']">
+              Lams<span className="text-[#ea3838]">Power</span>
+            </span>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Language switch */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+            {/* Clean Language Segmented Switch */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-semibold">
               <button
                 onClick={() => handleLangChange('bn')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
-                  lang === 'bn' ? 'bg-[#ea3838] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 py-0.5 rounded-md transition-all ${
+                  lang === 'bn' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
                 বাংলা
               </button>
               <button
                 onClick={() => handleLangChange('en')}
-                className={`px-2.5 py-1 rounded-lg transition-all ${
-                  lang === 'en' ? 'bg-[#ea3838] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                className={`px-2 py-0.5 rounded-md transition-all ${
+                  lang === 'en' ? 'bg-white text-slate-900 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-900'
                 }`}
               >
-                English
+                EN
               </button>
             </div>
 
             {isLoggedIn ? (
               <button 
                 onClick={() => navigate('/dashboard')}
-                className="px-4 py-2 bg-slate-900 hover:bg-[#ea3838] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+                className="px-3 py-1.5 bg-slate-900 hover:bg-[#ea3838] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1"
               >
                 <span>📊</span>
                 <span>{t('back_to_dashboard')}</span>
@@ -347,7 +319,7 @@ const SolarCal = () => {
             ) : (
               <button 
                 onClick={() => navigate('/')}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 active:scale-95"
+                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-all flex items-center gap-1"
               >
                 <span>🏠</span>
                 <span>{t('back_to_home')}</span>
@@ -356,177 +328,141 @@ const SolarCal = () => {
 
             <button 
               onClick={() => window.print()}
-              title="Print Calculation Sheet"
-              className="px-3 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold transition-all hidden md:flex items-center gap-1.5"
+              title="Print"
+              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all hidden sm:flex"
             >
-              <span>🖨️</span>
-              <span>{t('print_sheet')}</span>
+              🖨️
             </button>
           </div>
 
         </div>
       </header>
 
-      {/* Hero Header */}
-      <section className="bg-gradient-to-b from-white to-slate-100/60 border-b border-slate-200/60 py-8 sm:py-10 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center space-y-3">
-          
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-red-50 border border-red-200 text-[#ea3838] text-xs font-black uppercase tracking-wider shadow-xs animate-pulse">
-            <span>☀️</span>
-            <span>সোলার সিস্টেম সাইজিং ইঞ্জিন</span>
-          </div>
-
-          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight font-['Outfit']">
-            সোলার লোড <span className="text-[#ea3838]">ক্যালকুলেটর</span>
-          </h1>
-          
-          <p className="text-xs sm:text-sm text-slate-500 font-medium max-w-2xl mx-auto">
-            {t('subtitle')}
-          </p>
-
-          {/* Mode Selector Cards */}
-          <div className="pt-3 max-w-2xl mx-auto">
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">
-              {t('hybrid_mode')}
+      {/* Main Container */}
+      <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        
+        {/* Title & Mode Switcher Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <span>☀️</span>
+              <span>{t('title')}</span>
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              {t('subtitle')}
             </p>
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              {[
-                { id: 'day', label: t('day'), icon: '☀️', desc: 'Day only' },
-                { id: 'night', label: t('night'), icon: '🌙', desc: 'Night only' },
-                { id: 'daynight', label: t('daynight'), icon: '🌓', desc: 'Day + Night' }
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setMode(m.id)}
-                  className={`p-3 sm:p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-1 text-center group ${
-                    mode === m.id
-                      ? 'border-[#ea3838] bg-red-50/70 text-[#ea3838] shadow-md shadow-red-500/10 scale-[1.02]'
-                      : 'border-slate-200 bg-white hover:border-slate-300 text-slate-650'
-                  }`}
-                >
-                  <span className="text-xl sm:text-2xl">{m.icon}</span>
-                  <span className="text-xs sm:text-sm font-black">{m.label}</span>
-                </button>
-              ))}
-            </div>
           </div>
 
+          {/* Minimalist Segmented Mode Selector */}
+          <div className="flex items-center bg-slate-200/70 p-1 rounded-xl gap-1 text-xs font-bold self-start sm:self-auto">
+            {[
+              { id: 'day', label: t('day'), icon: '☀️' },
+              { id: 'night', label: t('night'), icon: '🌙' },
+              { id: 'daynight', label: t('daynight'), icon: '🌓' }
+            ].map((m) => (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                  mode === m.id
+                    ? 'bg-white text-[#ea3838] shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>{m.icon}</span>
+                <span>{m.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </section>
 
-      {/* Main Workspace Layout */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Workspace 2-Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          {/* Left Column: Appliance Input List & Settings (7 cols) */}
-          <div className="lg:col-span-7 space-y-6">
+          {/* Left Column: Appliances & Settings (7 cols) */}
+          <div className="lg:col-span-7 space-y-4">
             
-            {/* System Configuration Card (When night or daynight is active) */}
+            {/* System Settings (Clean inline row when night or daynight is selected) */}
             {mode !== 'day' && (
-              <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-300">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                  <span className="text-lg">⚙️</span>
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
-                    {t('system_settings')}
-                  </h3>
+              <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row gap-4 animate-in fade-in duration-200 text-xs">
+                
+                {/* Backup Hours */}
+                <div className="flex-1 space-y-1">
+                  <label className="font-bold text-slate-600 block">
+                    ⏱️ {t('backup_hours_label')}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      max="24"
+                      value={backupHours}
+                      onChange={(e) => setBackupHours(Math.max(0, Number(e.target.value) || 0))}
+                      className="w-24 p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 outline-none focus:border-[#ea3838]"
+                    />
+                    <span className="text-slate-400 font-semibold">{lang === 'bn' ? 'ঘণ্টা' : 'Hours'}</span>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  
-                  {/* Backup Hours Input */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 block">
-                      {t('backup_hours_label')}
-                    </label>
-                    <div className="relative flex items-center">
-                      <input 
-                        type="number"
-                        min="0.5"
-                        step="0.5"
-                        max="24"
-                        value={backupHours}
-                        onChange={(e) => setBackupHours(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:border-[#ea3838] focus:ring-2 focus:ring-red-100"
-                      />
-                      <span className="absolute right-3 text-xs font-bold text-slate-400">ঘণ্টা (Hours)</span>
-                    </div>
-                    <p className="text-[10px] text-slate-400 font-semibold">{t('backup_hours_note')}</p>
-                  </div>
-
-                  {/* System Voltage */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-600 block">
-                      {t('system_voltage')}
-                    </label>
-                    <select
-                      value={systemVoltage}
-                      onChange={(e) => setSystemVoltage(Number(e.target.value) || 24)}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none focus:border-[#ea3838] focus:ring-2 focus:ring-red-100 cursor-pointer"
-                    >
-                      <option value="12">12 Volt (DC System)</option>
-                      <option value="24">24 Volt (Standard Hybrid)</option>
-                      <option value="48">48 Volt (High Capacity)</option>
-                    </select>
-                    <p className="text-[10px] text-slate-400 font-semibold">{t('system_voltage_note')}</p>
-                  </div>
-
+                {/* System Voltage */}
+                <div className="flex-1 space-y-1">
+                  <label className="font-bold text-slate-600 block">
+                    ⚡ {t('system_voltage')}
+                  </label>
+                  <select
+                    value={systemVoltage}
+                    onChange={(e) => setSystemVoltage(Number(e.target.value) || 24)}
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-800 outline-none focus:border-[#ea3838] cursor-pointer"
+                  >
+                    <option value="12">12 Volt</option>
+                    <option value="24">24 Volt (Standard)</option>
+                    <option value="48">48 Volt</option>
+                  </select>
                 </div>
+
               </div>
             )}
 
-            {/* Appliances Table Card */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    {t('appliances_title')}
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">
-                    {t('appliances_info')}
-                  </p>
+            {/* Appliances Box */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-sm text-slate-800">{t('appliances_title')}</span>
+                  <span className="text-[11px] px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full font-bold">
+                    {appliances.length}
+                  </span>
                 </div>
 
-                <div className="text-right">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    {t('total_load_label')}
-                  </span>
-                  <span className="text-lg font-black text-[#ea3838] font-['Outfit']">
-                    {calculations.totalLoad} W
-                  </span>
+                <div className="text-xs">
+                  <span className="text-slate-400 font-semibold">{t('total_load_label')}</span>
+                  <strong className="text-slate-900 ml-1 font-['Outfit'] text-sm">{calculations.totalLoad}W</strong>
                 </div>
               </div>
 
-              {/* Header Columns */}
-              <div className={`grid gap-2 text-[11px] font-black text-slate-400 uppercase tracking-wider px-2 py-1 bg-slate-50 rounded-xl ${
-                mode === 'day' 
-                  ? 'grid-cols-12' 
-                  : mode === 'night' 
-                  ? 'grid-cols-12' 
-                  : 'grid-cols-12'
-              }`}>
+              {/* Table Column Headers */}
+              <div className="grid grid-cols-12 gap-2 text-[10px] font-black text-slate-400 uppercase tracking-wider px-4 py-2 border-b border-slate-100 bg-slate-50/30">
                 <div className="col-span-5 sm:col-span-5">{t('col_appliance')}</div>
                 <div className="col-span-3 sm:col-span-3 text-center">{t('col_load')}</div>
                 {mode !== 'night' && <div className={mode === 'day' ? 'col-span-3 text-center' : 'col-span-2 text-center'}>{t('col_qty_day')}</div>}
                 {mode !== 'day' && <div className={mode === 'night' ? 'col-span-3 text-center' : 'col-span-2 text-center'}>{t('col_qty_night')}</div>}
-                <div className="col-span-1 text-right sm:pr-2"></div>
+                <div className="col-span-1"></div>
               </div>
 
-              {/* Appliance Rows */}
-              <div className="space-y-2.5">
+              {/* Rows */}
+              <div className="divide-y divide-slate-100 text-xs">
                 {appliances.length > 0 ? (
                   appliances.map((app) => (
-                    <div 
-                      key={app.id}
-                      className="p-3 bg-slate-50/70 hover:bg-slate-50 border border-slate-200/80 rounded-2xl transition-all space-y-2 group"
-                    >
+                    <div key={app.id} className="p-3 hover:bg-slate-50/60 transition-colors">
                       <div className="grid grid-cols-12 gap-2 items-center">
                         
-                        {/* Appliance Preset & Name Input */}
-                        <div className="col-span-5 sm:col-span-5 flex flex-col sm:flex-row gap-1.5">
+                        {/* Appliance Preset / Name */}
+                        <div className="col-span-5 sm:col-span-5 flex flex-col sm:flex-row gap-1">
                           <select
                             value={app.presetKey || 'custom'}
                             onChange={(e) => handlePresetChange(app.id, e.target.value)}
-                            className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:border-[#ea3838]"
+                            className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 outline-none focus:border-[#ea3838]"
                           >
                             {PRESETS.map((p) => (
                               <option key={p.key} value={p.key}>
@@ -541,27 +477,24 @@ const SolarCal = () => {
                               placeholder={t('custom_name_placeholder')}
                               value={app.name}
                               onChange={(e) => handleUpdateAppliance(app.id, 'name', e.target.value)}
-                              className="p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 outline-none focus:border-[#ea3838] flex-1"
+                              className="p-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:border-[#ea3838] flex-1"
                             />
                           )}
                         </div>
 
-                        {/* Watt Input */}
+                        {/* Wattage */}
                         <div className="col-span-3 sm:col-span-3">
-                          <div className="relative flex items-center">
-                            <input
-                              type="number"
-                              min="0"
-                              step="1"
-                              value={app.watt}
-                              onChange={(e) => handleUpdateAppliance(app.id, 'watt', Math.max(0, Number(e.target.value) || 0))}
-                              className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
-                            />
-                            <span className="absolute right-2 text-[10px] text-slate-400 font-bold hidden sm:inline">W</span>
-                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={app.watt}
+                            onChange={(e) => handleUpdateAppliance(app.id, 'watt', Math.max(0, Number(e.target.value) || 0))}
+                            className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
+                          />
                         </div>
 
-                        {/* Day Quantity */}
+                        {/* Day Qty */}
                         {mode !== 'night' && (
                           <div className={mode === 'day' ? 'col-span-3' : 'col-span-2'}>
                             <input
@@ -571,12 +504,12 @@ const SolarCal = () => {
                               placeholder="0"
                               value={app.qtyDay}
                               onChange={(e) => handleUpdateAppliance(app.id, 'qtyDay', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-                              className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
+                              className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
                             />
                           </div>
                         )}
 
-                        {/* Night Quantity */}
+                        {/* Night Qty */}
                         {mode !== 'day' && (
                           <div className={mode === 'night' ? 'col-span-3' : 'col-span-2'}>
                             <input
@@ -586,16 +519,16 @@ const SolarCal = () => {
                               placeholder="0"
                               value={app.qtyNight}
                               onChange={(e) => handleUpdateAppliance(app.id, 'qtyNight', e.target.value === '' ? '' : Math.max(0, Math.floor(Number(e.target.value) || 0)))}
-                              className="w-full p-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
+                              className="w-full p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-800 outline-none focus:border-[#ea3838]"
                             />
                           </div>
                         )}
 
-                        {/* Remove Button */}
+                        {/* Delete Button */}
                         <div className="col-span-1 text-right">
                           <button
                             onClick={() => handleRemoveAppliance(app.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors text-sm font-black"
+                            className="p-1 text-slate-400 hover:text-red-500 rounded transition-colors"
                             title="Remove"
                           >
                             ✕
@@ -606,218 +539,181 @@ const SolarCal = () => {
 
                       {/* TV Note Helper */}
                       {app.presetKey === 'tv' && (
-                        <div className="text-[11px] font-semibold text-slate-500 bg-amber-50/70 border-l-2 border-amber-400 px-3 py-1 rounded-r-lg">
-                          💡 {lang === 'bn' ? PRESETS.find(p => p.key === 'tv').noteBn : PRESETS.find(p => p.key === 'tv').noteEn}
-                        </div>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1 pl-1">
+                          ℹ️ {lang === 'bn' ? PRESETS.find(p => p.key === 'tv').noteBn : PRESETS.find(p => p.key === 'tv').noteEn}
+                        </p>
                       )}
                     </div>
                   ))
                 ) : (
-                  <div className="py-8 text-center text-slate-400 text-xs italic bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                  <div className="p-6 text-center text-slate-400 text-xs italic">
                     {t('no_appliances')}
                   </div>
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleAddAppliance}
-                    className="px-4 py-2.5 bg-[#ea3838] hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all shadow-sm active:scale-95 flex items-center gap-1.5"
-                  >
-                    <span>➕</span>
-                    <span>{t('add_appliance')}</span>
-                  </button>
+              {/* Bottom Row Actions */}
+              <div className="p-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/40">
+                <button
+                  onClick={handleAddAppliance}
+                  className="px-3 py-1.5 bg-slate-900 hover:bg-[#ea3838] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1 active:scale-95"
+                >
+                  <span>{t('add_appliance')}</span>
+                </button>
 
+                {appliances.length > 0 && (
                   <button
                     onClick={handleClearAll}
-                    className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all active:scale-95"
+                    className="text-xs text-slate-400 hover:text-red-600 font-semibold"
                   >
                     {t('clear_all')}
                   </button>
-                </div>
-
-                <div className="text-xs font-bold text-slate-500">
-                  <span>মোট আইটেম: <strong>{appliances.length}</strong> টি</span>
-                </div>
+                )}
               </div>
 
             </div>
 
           </div>
 
-          {/* Right Column: Calculations & Inverter Suggestions (5 cols) */}
-          <div className="lg:col-span-5 space-y-6">
+          {/* Right Column: Minimal Results & Inverter Suggestion (5 cols) */}
+          <div className="lg:col-span-5 space-y-4">
             
-            {/* Primary Results Card */}
-            <div className="bg-white rounded-3xl p-6 sm:p-7 border-2 border-slate-200 shadow-xl space-y-6 relative overflow-hidden">
+            {/* Primary Calculation Summary Card */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-5">
               
-              <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#ea3838] to-red-600" />
-
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3 pt-1">
-                <div>
-                  <h3 className="text-lg font-black text-slate-900 font-['Outfit'] flex items-center gap-2">
-                    <span>⚡</span>
-                    <span>{t('results_title')}</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 font-medium">
-                    {t('spec_summary')}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                  {t('results_title')}
+                </h3>
 
                 <button
                   onClick={handleCopySummary}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all flex items-center gap-1"
+                  className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-all"
                 >
                   {copied ? '✅ ' + t('copied') : '📋 ' + t('copy_summary')}
                 </button>
               </div>
 
-              {/* Load Metrics */}
+              {/* 2 Main Metrics: Total Load & Panel Required */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                     {t('total_connected_load')}
                   </span>
-                  <span className="text-xl font-black text-slate-900 font-['Outfit']">
-                    {calculations.totalLoad} <span className="text-xs font-bold text-slate-500">W</span>
-                  </span>
+                  <p className="text-xl font-black text-slate-900 font-['Outfit'] mt-0.5">
+                    {calculations.totalLoad} <span className="text-xs font-normal text-slate-500">W</span>
+                  </p>
                 </div>
 
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/70 space-y-1">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                <div className="p-3 bg-red-50/60 rounded-xl border border-red-100">
+                  <span className="text-[10px] font-bold text-red-600 uppercase tracking-wider block">
                     {t('solar_panel_required')}
                   </span>
-                  <span className="text-xl font-black text-[#ea3838] font-['Outfit']">
-                    {calculations.panelRequired} <span className="text-xs font-bold text-slate-500">W</span>
-                  </span>
+                  <p className="text-xl font-black text-[#ea3838] font-['Outfit'] mt-0.5">
+                    {calculations.panelRequired} <span className="text-xs font-normal text-red-500">W</span>
+                  </p>
                 </div>
               </div>
 
               {/* Day / Night Breakdown */}
-              <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200/70 space-y-2.5 text-xs">
+              <div className="space-y-1.5 text-xs font-semibold text-slate-600 pt-1 border-t border-slate-100">
                 {mode !== 'night' && (
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-slate-600 flex items-center gap-1.5">
-                      <span>☀️</span> {t('day_load_label')}:
-                    </span>
-                    <span className="text-slate-900 font-black">{calculations.dayLoad} W</span>
+                  <div className="flex justify-between">
+                    <span>☀️ {t('day_load_label')}:</span>
+                    <strong className="text-slate-900">{calculations.dayLoad} W</strong>
                   </div>
                 )}
-
                 {mode !== 'day' && (
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-slate-600 flex items-center gap-1.5">
-                      <span>🌙</span> {t('night_load_label')}:
-                    </span>
-                    <span className="text-slate-900 font-black">{calculations.nightLoad} W</span>
+                  <div className="flex justify-between">
+                    <span>🌙 {t('night_load_label')}:</span>
+                    <strong className="text-slate-900">{calculations.nightLoad} W</strong>
                   </div>
                 )}
               </div>
 
-              {/* Battery Requirements (Hidden in Day mode) */}
+              {/* Battery Ah Requirements (Only when Night/Daynight mode) */}
               {mode !== 'day' && (
-                <div className="space-y-3">
-                  <span className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
-                    🔋 প্রয়োজনীয় ব্যাটারি ক্যাপাসিটি ({systemVoltage}V)
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                    🔋 ব্যাটারি ব্যাকআপ ({systemVoltage}V)
                   </span>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-4 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-black text-emerald-700 uppercase tracking-wider block">
-                        {t('battery_li')}
-                      </span>
-                      <p className="text-2xl font-black text-emerald-950 font-['Outfit']">
-                        {calculations.battLiAh} <span className="text-xs font-bold text-emerald-700">Ah</span>
-                      </p>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2.5 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                      <span className="text-[10px] font-bold text-emerald-700 block">{t('battery_li')}</span>
+                      <strong className="text-base font-black text-emerald-950 font-['Outfit']">{calculations.battLiAh} Ah</strong>
                     </div>
 
-                    <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl space-y-1">
-                      <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block">
-                        {t('battery_lead')}
-                      </span>
-                      <p className="text-2xl font-black text-amber-950 font-['Outfit']">
-                        {calculations.battLeadAh} <span className="text-xs font-bold text-amber-700">Ah</span>
-                      </p>
+                    <div className="p-2.5 bg-amber-50/60 rounded-xl border border-amber-100">
+                      <span className="text-[10px] font-bold text-amber-700 block">{t('battery_lead')}</span>
+                      <strong className="text-base font-black text-amber-950 font-['Outfit']">{calculations.battLeadAh} Ah</strong>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* 🌟 INVERTER RECOMMENDATION SECTION WITH SPECIFIC MODEL */}
-              <div className="bg-gradient-to-br from-slate-900 to-slate-950 text-white rounded-3xl p-5 sm:p-6 space-y-4 shadow-xl">
-                
-                <div className="flex items-center justify-between">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 text-[#ea3838] border border-red-500/30 text-[10px] font-black uppercase tracking-wider">
-                    <span>⚡</span>
-                    <span>সুপারিশকৃত ইনভার্টার</span>
-                  </div>
-                  <span className="text-xs font-bold text-slate-400">
-                    {calculations.suggestedInverter ? `${calculations.suggestedInverter.va} VA` : '0 VA'}
-                  </span>
+              {/* Inverter Suggestion Box */}
+              <div className="bg-slate-900 text-white rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase">
+                  <span>{t('recommended_inverter')}</span>
+                  <span>{calculations.suggestedInverter ? `${calculations.suggestedInverter.va} VA` : '0 VA'}</span>
                 </div>
 
                 <div>
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  <span className="text-[10px] text-red-400 font-semibold block uppercase">
                     {t('suggested_model')}
                   </span>
-                  <h4 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5">
-                    {calculations.suggestedInverter ? calculations.suggestedInverter.model : 'কোনো লোড নেই'}
+                  <h4 className="text-base sm:text-lg font-black text-white">
+                    {calculations.suggestedInverter ? calculations.suggestedInverter.model : '—'}
                   </h4>
-                  {calculations.suggestedInverter && (
-                    <p className="text-xs text-slate-400 font-semibold mt-1">
-                      ব্র্যান্ড: <strong className="text-white">{calculations.suggestedInverter.brand}</strong> | ম্যাক্স লোড: <strong className="text-slate-200">{calculations.suggestedInverter.load}W</strong>
-                    </p>
-                  )}
                 </div>
 
-                <div className="pt-2 flex flex-col sm:flex-row gap-2">
-                  <button
-                    onClick={handleWhatsAppShare}
-                    className="w-full py-3 bg-[#ea3838] hover:bg-red-600 text-white rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <span>💬</span>
-                    <span>{t('whatsapp_share')}</span>
-                  </button>
-                </div>
-
+                <button
+                  onClick={handleWhatsAppShare}
+                  className="w-full py-2 bg-[#ea3838] hover:bg-red-600 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 pt-1 mt-1"
+                >
+                  <span>💬</span>
+                  <span>{t('whatsapp_share')}</span>
+                </button>
               </div>
 
             </div>
 
-            {/* Inverter Capacity Reference Table */}
-            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm space-y-3">
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                📊 ইনভার্টার ও সোলার প্যানেল সাইজিং গাইড চার্ট
-              </h4>
-              
-              <div className="max-h-60 overflow-y-auto custom-scrollbar border border-slate-100 rounded-2xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-100 text-slate-600 font-bold sticky top-0">
-                    <tr>
-                      <th className="p-2.5">VA Rating</th>
-                      <th className="p-2.5">Max Panel</th>
-                      <th className="p-2.5">প্রস্তাবিত মডেল</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {INVERTER_TABLE.map((inv) => {
-                      const isSelected = calculations.suggestedInverter?.va === inv.va;
-                      return (
-                        <tr 
-                          key={inv.va}
-                          className={isSelected ? 'bg-red-50/80 font-black text-[#ea3838]' : 'hover:bg-slate-50'}
-                        >
-                          <td className="p-2.5">{inv.va} VA</td>
-                          <td className="p-2.5">{inv.panel} W</td>
-                          <td className="p-2.5">{inv.model}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            {/* Inverter Sizing Guide Accordion / Table */}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <button 
+                onClick={() => setShowChart(!showChart)}
+                className="w-full p-3 text-xs font-bold text-slate-700 flex items-center justify-between hover:bg-slate-50 transition-colors"
+              >
+                <span>📊 {t('spec_chart')}</span>
+                <span className="text-slate-400">{showChart ? '▲' : '▼'}</span>
+              </button>
+
+              {showChart && (
+                <div className="border-t border-slate-100 p-2 max-h-52 overflow-y-auto custom-scrollbar text-xs">
+                  <table className="w-full text-left">
+                    <thead className="text-[10px] text-slate-400 uppercase font-black bg-slate-50">
+                      <tr>
+                        <th className="p-2">VA</th>
+                        <th className="p-2">Max Panel</th>
+                        <th className="p-2">Suggested Model</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {INVERTER_TABLE.map((inv) => {
+                        const isMatch = calculations.suggestedInverter?.va === inv.va;
+                        return (
+                          <tr key={inv.va} className={isMatch ? 'bg-red-50 font-bold text-[#ea3838]' : ''}>
+                            <td className="p-2">{inv.va} VA</td>
+                            <td className="p-2">{inv.panel} W</td>
+                            <td className="p-2">{inv.model}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
           </div>
@@ -825,14 +721,12 @@ const SolarCal = () => {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-slate-950 text-slate-400 py-8 border-t border-slate-900 text-center text-xs mt-auto">
-        <div className="max-w-6xl mx-auto px-4 space-y-2">
-          <p className="font-bold text-slate-300">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
-          <p className="text-[11px] text-slate-500">
-            Developed by <a href="https://facebook.com/usama.muzaddid" target="_blank" rel="noopener noreferrer" className="text-[#ea3838] font-bold hover:underline">Usama Bin Hasan</a>
-          </p>
-        </div>
+      {/* Clean Minimal Footer */}
+      <footer className="bg-white border-t border-slate-200/60 py-6 text-center text-xs text-slate-400 mt-auto">
+        <p className="font-semibold text-slate-500">© {new Date().getFullYear()} Lams Power. All Rights Reserved.</p>
+        <p className="text-[11px] text-slate-400 mt-1">
+          Developed by <a href="https://facebook.com/usama.muzaddid" target="_blank" rel="noopener noreferrer" className="text-[#ea3838] font-bold hover:underline">Usama Bin Hasan</a>
+        </p>
       </footer>
 
     </div>
