@@ -162,6 +162,8 @@ const ReturnManager = () => {
       for (let item of selectedInvoice.chalan_items) {
         const rq = qtysToReturn[item.id] || 0;
         if (rq > 0) {
+          const isInHouse = selectedInvoice.is_in_house === true || String(selectedInvoice.is_in_house).toLowerCase() === 'true';
+
           // স্টক আপডেট (RPC ব্যবহার করে, যা RLS বাইপাস করে এবং অ্যাটমিক)
           const { error: rpcErr } = await supabase.rpc('update_product_stock', { 
             prod_id: item.product_id, 
@@ -170,6 +172,24 @@ const ReturnManager = () => {
           if (rpcErr) {
             console.error("RPC Error updating product stock:", rpcErr);
             throw new Error(`স্টক আপডেট করতে সমস্যা হয়েছে: ${rpcErr.message}`);
+          }
+
+          // ইন-হাউস ট্রান্সফারের ক্ষেত্রে গন্তব্য ওয়্যারহাউজ (Destination House) থেকেও স্টক মাইনাস করা
+          if (isInHouse) {
+            const destHouse = selectedInvoice.transfer_to || 'Showroom';
+            const { data: destProducts } = await supabase
+              .from('products')
+              .select('id')
+              .eq('name', item.products?.name)
+              .eq('model', item.products?.model)
+              .eq('house', destHouse);
+
+            if (destProducts && destProducts.length > 0) {
+              await supabase.rpc('update_product_stock', {
+                prod_id: destProducts[0].id,
+                qty_change: -rq
+              });
+            }
           }
 
           // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
