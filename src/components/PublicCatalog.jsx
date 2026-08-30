@@ -174,11 +174,12 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: prodData } = await supabase
+      const { data: prodData, error: prodError } = await supabase
         .from('products')
-        .select('id, name, model, category, watt, volt, image_url, description, price, house, is_hidden, stock_quantity, availability')
+        .select('*')
         .or('is_hidden.is.null,is_hidden.eq.false')
         .in('house', ['Head Office', 'Showroom']);
+      if (prodError) console.error("Error fetching products:", prodError);
       setProducts(prodData || []);
       
       const { data: settingsData } = await supabase.from('site_settings').select('*').single();
