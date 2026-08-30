@@ -889,8 +889,8 @@ const PublicCatalog = ({ onAdminClick }) => {
   return (
     <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
-      {/* 🏛| PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
-      <header className="bg-[#f3f4f6]/70 backdrop-blur-xl py-4.5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/50">
+      {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
+      <header className="bg-[#f3f4f6]/85 backdrop-blur-xl py-4 sm:py-5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/60 shadow-xs">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
             <img 
