@@ -67,21 +67,22 @@ const getProductWattageVal = (p) => {
 };
 
 const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
-  const [count, setCount] = useState(0);
+  const [count, setCount] = useState(target || 0);
 
   useEffect(() => {
-    if (!trigger) {
-      setCount(0);
-      return;
-    }
-    let start = 0;
     const end = parseInt(target, 10);
-    if (isNaN(end) || end === 0) {
+    if (isNaN(end) || end <= 0) {
       setCount(0);
       return;
     }
     
-    const totalSteps = 50;
+    if (!trigger) {
+      setCount(end);
+      return;
+    }
+
+    let start = 0;
+    const totalSteps = 40;
     const stepTime = duration / totalSteps;
     const increment = end / totalSteps;
 
@@ -98,7 +99,7 @@ const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
     return () => clearInterval(timer);
   }, [target, duration, trigger]);
 
-  return <span>{count}</span>;
+  return <span>{count || target || 0}</span>;
 };
 
 const PublicCatalog = ({ onAdminClick }) => {
@@ -389,9 +390,33 @@ const PublicCatalog = ({ onAdminClick }) => {
     })).sort((a, b) => a.brandName.localeCompare(b.brandName));
   };
 
+  // Pure category products for Home page showcases (unaffected by catalog live search/filter inputs)
+  const getCategoryShowcaseList = (cat) => {
+    return deDuplicatedProducts.filter(p => {
+      const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
+      if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
+
+      const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
+      const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
+
+      if (cat === 'Solar Panel - 12 Volt') {
+        return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+      } else if (cat === 'Solar Panel - 24 Volt') {
+        return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+      } else {
+        return p.category === cat;
+      }
+    }).sort((a, b) => {
+      if (a.name !== b.name) return (a.name || '').localeCompare(b.name || '');
+      const capA = parseFloat(a.model.match(/([\d.]+)/)?.[1] || 0);
+      const capB = parseFloat(b.model.match(/([\d.]+)/)?.[1] || 0);
+      return capA - capB;
+    });
+  };
+
   // Get active product details for the interactive portfolio specs card
   const getShowcaseProduct = (categoryName) => {
-    const catProds = getSortedProductsList(categoryName);
+    const catProds = getCategoryShowcaseList(categoryName);
     if (catProds.length > 0) {
       return catProds[0];
     }
@@ -492,16 +517,15 @@ const PublicCatalog = ({ onAdminClick }) => {
     return finalModels;
   };
 
-  // Initialize showcaseQueue once products are fetched
+  // Initialize showcaseQueue once products or fallbacks are available
   useEffect(() => {
-    if (products.length === 0) return;
     const pool = getShowcaseModelsList();
     if (pool.length >= 5) {
       setShowcaseQueue(pool.slice(0, 5));
-    } else {
+    } else if (pool.length > 0) {
       setShowcaseQueue(pool);
     }
-  }, [products]);
+  }, [deDuplicatedProducts]);
 
   // Autoplay conveyor-belt effect (Shifts out top model, appends a new brand model at the 5th position)
   useEffect(() => {
@@ -554,13 +578,13 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   // Autoplay conveyor-belt effect for Regular Use Collections
   useEffect(() => {
-    if (products.length === 0 || isRegularUseHovered) return;
+    if (deDuplicatedProducts.length === 0 || isRegularUseHovered) return;
 
     const interval = setInterval(() => {
       setRegularUseIndices(prev => {
         const next = { ...prev };
         categories.forEach(c => {
-          const list = getSortedProductsList(c);
+          const list = getCategoryShowcaseList(c);
           const len = list.length;
           if (len > 1) {
             next[c] = (prev[c] + 1) % len;
@@ -573,10 +597,10 @@ const PublicCatalog = ({ onAdminClick }) => {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [products, isRegularUseHovered]);
+  }, [deDuplicatedProducts, isRegularUseHovered]);
 
   const getRegularUseShowcaseProduct = (categoryName) => {
-    const list = getSortedProductsList(categoryName);
+    const list = getCategoryShowcaseList(categoryName);
     if (list.length > 0) {
       const idx = regularUseIndices[categoryName] || 0;
       const activeIdx = idx < list.length ? idx : 0;
@@ -990,14 +1014,14 @@ const PublicCatalog = ({ onAdminClick }) => {
               <div className="absolute top-0 right-0 w-[45%] h-full bg-slate-300/20 rounded-[3rem] -skew-x-12 origin-top pointer-events-none" />
               
               {/* Image Showcase Column - Placed first (on top) in mobile, second in desktop */}
-              <div className="relative z-10 flex items-center justify-center w-full lg:w-1/2 min-h-[300px] order-1 lg:order-2">
+              <div className="relative z-10 flex items-center justify-center w-full lg:w-1/2 min-h-[300px] order-1 lg:order-2 py-2">
                 <div className="w-80 h-80 md:w-96 md:h-96 rounded-full bg-slate-300/40 absolute blur-2xl opacity-60 z-0 animate-pulse" />
-                <OptimizedImage 
-                  src={solarOn3600.image_url} 
+                <img 
+                  src={solarOn3600.image_url || solarOn3600Img} 
                   alt="SolarOn 3600VA Inverter" 
-                  className="max-h-[340px] md:max-h-[440px] w-auto object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700 cursor-pointer" 
+                  className="max-h-[300px] md:max-h-[410px] w-auto max-w-full object-contain z-10 animate-float drop-shadow-[0_25px_35px_rgba(0,0,0,0.15)] hover:scale-[1.03] transition-all duration-700 cursor-pointer select-none" 
                   onClick={() => setSelectedModalProduct(solarOn3600)}
-                  width={500}
+                  decoding="async"
                 />
               </div>
 
