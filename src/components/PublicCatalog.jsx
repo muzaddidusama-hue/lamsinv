@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import lamsLogo from '../assets/lams-logo.webp';
@@ -134,6 +134,14 @@ const PublicCatalog = ({ onAdminClick }) => {
   const [activeTab, setActiveTab] = useState('home');
   // Category selection under products tab: 'All' or specific categories
   const [productCategoryFilter, setProductCategoryFilter] = useState('All');
+
+  const handleTabSwitch = (tab, categoryFilter = null) => {
+    setActiveTab(tab);
+    if (categoryFilter !== null) {
+      setProductCategoryFilter(categoryFilter);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   // Catalog Live Search state
   const [productSearch, setProductSearch] = useState('');
   const [selectedBrands, setSelectedBrands] = useState([]);
@@ -168,7 +176,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     const fetchData = async () => {
       const { data: prodData } = await supabase
         .from('products')
-        .select('*')
+        .select('id, name, model, category, watt, volt, image_url, description, price, house, is_hidden, stock_quantity, availability')
         .or('is_hidden.is.null,is_hidden.eq.false')
         .in('house', ['Head Office', 'Showroom']);
       setProducts(prodData || []);
@@ -252,11 +260,13 @@ const PublicCatalog = ({ onAdminClick }) => {
   
   const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
 
-  // De-duplicate products by category + name + model, summing their stock quantity
-  const getDeDuplicatedProductsList = (rawProducts) => {
+  const deferredProductSearch = useDeferredValue(productSearch);
+
+  // De-duplicate products by category + name + model, summing their stock quantity (Memoized)
+  const deDuplicatedProducts = useMemo(() => {
     const map = {};
 
-    rawProducts.forEach(p => {
+    products.forEach(p => {
       if (p.is_hidden || (p.house !== 'Head Office' && p.house !== 'Showroom')) return;
       
       const cat = p.category ? p.category.trim() : '';
@@ -301,13 +311,11 @@ const PublicCatalog = ({ onAdminClick }) => {
         availability: finalAvailability
       };
     });
-  };
+  }, [products]);
 
   // Filter individual models with stock quantity >= 10 and no duplicates
   const getFilteredProductsList = (cat) => {
-    const deDuplicated = getDeDuplicatedProductsList(products);
-
-    return deDuplicated.filter(p => {
+    return deDuplicatedProducts.filter(p => {
       // Stock quantity check: Must have at least 10 pcs in stock across all houses (except Jarrett in Hybrid Inverter)
       const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
       if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
@@ -316,9 +324,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
       // Live search filter matching name, model, category, volt, or watt
-      if (productSearch) {
+      if (deferredProductSearch) {
         const searchStr = `${p.name} ${p.model} ${p.category} ${p.volt || ''} ${p.watt || ''}`.toLowerCase();
-        if (!searchStr.includes(productSearch.toLowerCase())) return false;
+        if (!searchStr.includes(deferredProductSearch.toLowerCase())) return false;
       }
 
       // 1. Category check
@@ -424,9 +432,6 @@ const PublicCatalog = ({ onAdminClick }) => {
       description: 'LAMS premium technology designed for high durability and performance.'
     };
   };
-
-  // Extract de-duplicated list once for featured SolarOn items lookup
-  const deDuplicatedProducts = getDeDuplicatedProductsList(products);
 
   const solarOn3600 = deDuplicatedProducts.find(p => p.name?.toLowerCase().includes('solaron') && p.model?.includes('3600')) || {
     name: 'SolarOn',
@@ -589,9 +594,8 @@ const PublicCatalog = ({ onAdminClick }) => {
 
   // Helper to get all brands available in the selected category
   const getAvailableBrandsForCategory = () => {
-    const deDuplicated = getDeDuplicatedProductsList(products);
     // Filter by stock and category (but NOT by brand or wattage range)
-    const filtered = deDuplicated.filter(p => {
+    const filtered = deDuplicatedProducts.filter(p => {
       const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
       if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
 
@@ -599,9 +603,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
       // Live search filter matching name, model, category, volt, or watt
-      if (productSearch) {
+      if (deferredProductSearch) {
         const searchStr = `${p.name} ${p.model} ${p.category} ${p.volt || ''} ${p.watt || ''}`.toLowerCase();
-        if (!searchStr.includes(productSearch.toLowerCase())) return false;
+        if (!searchStr.includes(deferredProductSearch.toLowerCase())) return false;
       }
 
       // Category check
@@ -626,8 +630,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   };
 
   const getBrandCount = (brandName) => {
-    const deDuplicated = getDeDuplicatedProductsList(products);
-    return deDuplicated.filter(p => {
+    return deDuplicatedProducts.filter(p => {
       // Stock quantity check
       const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
       if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
@@ -723,7 +726,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             >
               <span>All Categories</span>
               <span className="text-[9px] opacity-75 font-bold">
-                {getDeDuplicatedProductsList(products).filter(p => {
+                {deDuplicatedProducts.filter(p => {
                   const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
                   return isJarrettHybrid || Number(p.stock_quantity) >= 10;
                 }).length}
@@ -732,7 +735,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             {categories.map((cat) => {
               const displayCat = getDisplayCategoryName(cat);
               const isActive = productCategoryFilter === cat;
-              const catCount = getDeDuplicatedProductsList(products).filter(p => {
+              const catCount = deDuplicatedProducts.filter(p => {
                 const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
                 if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
                 const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
@@ -890,9 +893,9 @@ const PublicCatalog = ({ onAdminClick }) => {
     <div className="min-h-screen bg-[#f3f4f6] text-[#374151] flex flex-col antialiased selection:bg-[#ea3838]/10 selection:text-[#ea3838]" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>
       
       {/* 🏛️ PREMIUM BLUR NAVIGATION HEADER WITH SUPABASE SITE LOGO */}
-      <header className="bg-[#f3f4f6]/85 backdrop-blur-xl py-4 sm:py-5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/60 shadow-xs">
+      <header className="bg-[#f3f4f6]/85 backdrop-blur-xl pt-4 sm:pt-5 pb-2 sm:pb-2.5 px-6 md:px-12 sticky top-0 z-50 transition-all border-b border-slate-200/60 shadow-xs">
         <div className="max-w-[1400px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => setActiveTab('home')}>
+          <div className="flex items-center gap-3 cursor-pointer select-none" onClick={() => handleTabSwitch('home')}>
             <img 
               src={lamsLogo} 
               alt="Lams Power Logo" 
@@ -903,29 +906,56 @@ const PublicCatalog = ({ onAdminClick }) => {
             </h1>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="flex items-center gap-2.5 sm:gap-6 md:gap-8 font-bold text-[10px] sm:text-xs uppercase tracking-widest text-slate-500 ml-auto sm:mx-auto">
+          {/* Navigation Links with Minimal Icons */}
+          <nav className="flex items-center gap-1 sm:gap-2 font-bold text-xs tracking-wider ml-auto sm:mx-auto">
             <button 
-              onClick={() => setActiveTab('home')} 
-              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'home' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+              onClick={() => handleTabSwitch('home')} 
+              title="Home"
+              className={`p-2.5 rounded-full transition-all duration-200 flex items-center justify-center ${
+                activeTab === 'home' 
+                  ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/80 scale-105' 
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+              }`}
             >
-              Home
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
             </button>
-            <span className="text-slate-300 font-normal">|</span>
+
             <button 
-              onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
-              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'products' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+              onClick={() => handleTabSwitch('products', 'All')} 
+              title="Products Catalog"
+              className={`p-2.5 rounded-full transition-all duration-200 flex items-center justify-center ${
+                activeTab === 'products' 
+                  ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/80 scale-105' 
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+              }`}
             >
-              Products
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
             </button>
-            <span className="text-slate-300 font-normal">|</span>
+
             <button 
-              onClick={() => setActiveTab('contact')} 
-              className={`hover:text-[#ea3838] transition-colors pb-1 border-b-2 font-black ${activeTab === 'contact' ? 'text-[#0f172a] border-[#ea3838]' : 'border-transparent'}`}
+              onClick={() => handleTabSwitch('contact')} 
+              title="Contact Us"
+              className={`p-2.5 rounded-full transition-all duration-200 flex items-center justify-center ${
+                activeTab === 'contact' 
+                  ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/80 scale-105' 
+                  : 'text-slate-500 hover:text-slate-900 hover:bg-white/60'
+              }`}
             >
-              Contact Us
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
             </button>
-            <span className="text-slate-300 font-normal">|</span>
+
+            <span className="text-slate-300 font-normal mx-0.5 sm:mx-1">|</span>
+
             <button 
               onClick={() => navigate('/solarcal')} 
               className="bg-gradient-to-r from-[#ea3838] to-orange-500 hover:from-red-600 hover:to-orange-600 text-white px-3.5 py-1.5 rounded-full font-black text-[10px] sm:text-xs uppercase tracking-wider transition-all shadow-md shadow-red-500/20 active:scale-95 flex items-center gap-1.5"
@@ -1031,14 +1061,16 @@ const PublicCatalog = ({ onAdminClick }) => {
                 </div>
 
                 {/* Explore Action button */}
-                <div className="flex items-center gap-4 pt-2">
+                <div className="pt-2">
                   <button 
-                    onClick={() => { setActiveTab('products'); setProductCategoryFilter('Hybrid Inverter'); }} 
-                    className="w-13 h-13 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-lg font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95"
+                    onClick={() => handleTabSwitch('products', 'Hybrid Inverter')} 
+                    className="inline-flex items-center gap-3.5 bg-gradient-to-r from-[#ea3838] to-orange-500 hover:from-red-600 hover:to-orange-600 text-white px-7 py-3.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-500/25 hover:shadow-2xl hover:shadow-red-500/35 hover:scale-[1.02] active:scale-95 cursor-pointer font-['Outfit']"
                   >
-                    →
+                    <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-sm font-black">
+                      →
+                    </span>
+                    <span>Explore Hybrid Series</span>
                   </button>
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-widest">Explore Hybrid Series</span>
                 </div>
               </div>
 
@@ -1174,10 +1206,13 @@ const PublicCatalog = ({ onAdminClick }) => {
               
               <div className="pt-2">
                 <button 
-                  onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }}
-                  className="w-14 h-14 rounded-full bg-[#ea3838] hover:bg-[#d62828] text-white flex items-center justify-center text-xl font-black shadow-xl shadow-[#ea3838]/20 transition-all hover:scale-105 active:scale-95 duration-300"
+                  onClick={() => handleTabSwitch('products', 'All')}
+                  className="inline-flex items-center gap-3.5 bg-gradient-to-r from-[#ea3838] to-orange-500 hover:from-red-600 hover:to-orange-600 text-white px-7 py-3.5 rounded-full font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-red-500/25 hover:shadow-2xl hover:shadow-red-500/35 hover:scale-[1.02] active:scale-95 duration-300 font-['Outfit'] cursor-pointer"
                 >
-                  →
+                  <span className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-sm font-black">
+                    →
+                  </span>
+                  <span>Explore Product Catalog</span>
                 </button>
               </div>
             </div>
@@ -1381,8 +1416,8 @@ const PublicCatalog = ({ onAdminClick }) => {
 
               {/* Pill Badge equivalent to red circle link */}
               <button 
-                onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} 
-                className="bg-[#ea3838] hover:bg-[#d62828] text-white px-7 py-3 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-200 shadow-md"
+                onClick={() => handleTabSwitch('products', 'All')} 
+                className="bg-[#ea3838] hover:bg-[#d62828] text-white px-7 py-3 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all duration-200 shadow-md cursor-pointer"
               >
                 View Full Catalog
               </button>
@@ -1551,13 +1586,13 @@ const PublicCatalog = ({ onAdminClick }) => {
                                       <div 
                                         key={idx}
                                         onClick={() => setSelectedModalProduct(prod)}
-                                        className={`bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-3 sm:p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
+                                        className={`catalog-card-contain bg-white rounded-[1.5rem] sm:rounded-[2.5rem] p-3 sm:p-5 border shadow-sm hover:shadow-xl hover:border-slate-350 transition-all duration-300 cursor-pointer flex flex-col justify-between group hover:-translate-y-1.5 ${
                                           is12V ? 'border-orange-100/50 hover:border-orange-350/60' : 'border-slate-200/50'
                                         }`}
                                       >
                                         <div>
                                           {/* Aspect 4/3 image wrapper with scale/rotation animation */}
-                                          <div className="w-full bg-[#f3f4f6]/60 rounded-[1.25rem] sm:rounded-[2rem] aspect-[4/3] mb-3 sm:mb-4.5 flex items-center justify-center p-2 sm:p-4 overflow-hidden border border-slate-100/50 relative">
+                                          <div className="w-full bg-[#f3f4f6]/60 rounded-[1.25rem] sm:rounded-[2rem] aspect-[4/3] mb-3 sm:mb-4 flex items-center justify-center p-2 sm:p-4 overflow-hidden border border-slate-100/50 relative">
                                             
                                             {/* Availability/Stock badge */}
                                             <span className={`absolute top-2 sm:top-3.5 left-2 sm:left-3.5 text-[7px] sm:text-[8px] font-black px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-full uppercase tracking-wider z-10 shadow-sm ${
@@ -1849,12 +1884,12 @@ const PublicCatalog = ({ onAdminClick }) => {
           </div>
 
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-6 sm:gap-8 text-xs font-bold uppercase tracking-widest text-slate-555">
-            <button onClick={() => setActiveTab('home')} className="hover:text-white transition-colors">Home</button>
-            <button onClick={() => { setActiveTab('products'); setProductCategoryFilter('All'); }} className="hover:text-white transition-colors">Store</button>
-            <button onClick={() => navigate('/solarcal')} className="text-[#ea3838] font-black hover:text-white transition-colors flex items-center gap-1">☀️ Solar Calculator</button>
-            <button onClick={() => navigate('/error-codes')} className="hover:text-white transition-colors">Error Guide</button>
-            <button onClick={() => setActiveTab('contact')} className="hover:text-white transition-colors">Contact</button>
-            <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838]">Portal</button>
+            <button onClick={() => handleTabSwitch('home')} className="hover:text-white transition-colors cursor-pointer">Home</button>
+            <button onClick={() => handleTabSwitch('products', 'All')} className="hover:text-white transition-colors cursor-pointer">Store</button>
+            <button onClick={() => handleTabSwitch('contact')} className="hover:text-white transition-colors cursor-pointer">Contact</button>
+            <button onClick={() => navigate('/solarcal')} className="text-[#ea3838] font-black hover:text-white transition-colors flex items-center gap-1 cursor-pointer">☀️ Solar Calculator</button>
+            <button onClick={() => navigate('/error-codes')} className="hover:text-white transition-colors cursor-pointer">Error Guide</button>
+            <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838] cursor-pointer">Portal</button>
           </div>
 
           {landingConfig.actual_footer_image && (

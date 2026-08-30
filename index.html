@@ -41,16 +41,33 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800;900&family=Inter:wght@300;400;500;600;700;800;900&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <script src="/tailwind.js"></script>
     <script src="/sweetalert2.js"></script>
 
     <style>
-      /* গ্লোবাল ফন্ট ফ্যামিলি সেটআপ */
-      * {
+      /* গ্লোবাল ফন্ট ফ্যামিলি এবং স্মুথ রেন্ডারিং সেটআপ */
+      html {
+        scroll-behavior: smooth;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      body, input, select, textarea, button {
         font-family: 'Hind Siliguri', sans-serif;
-        transition: background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* ইন্টারেক্টিভ এলিমেন্টে স্মুথ ট্রানজিশন (সকল এলিমেন্টে নয়) */
+      button, a, input, select, textarea, .hover-scale, .interactive-btn {
+        transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      /* অফস্ক্রিন ক্যাটালগ কার্ড পারফরম্যান্স কন্টেইনমেন্ট */
+      .catalog-card-contain {
+        content-visibility: auto;
+        contain-intrinsic-size: 0 340px;
       }
 
       /* স্ক্রলবার মডার্ন লুক দেওয়ার জন্য */

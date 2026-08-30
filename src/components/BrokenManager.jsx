@@ -493,7 +493,7 @@ const BrokenManager = () => {
               id="deductStockOpt"
               checked={deductFromStock}
               onChange={(e) => setDeductFromStock(e.target.checked)}
-              className="w-4.5 h-4.5 text-[#ea3838] border-slate-300 rounded focus:ring-[#ea3838]/20 cursor-pointer"
+              className="w-4 h-4 text-[#ea3838] border-slate-300 rounded focus:ring-[#ea3838]/20 cursor-pointer"
             />
             <label htmlFor="deductStockOpt" className="text-xs font-bold text-slate-600 select-none cursor-pointer">
               কমানো হবে স্টক থেকে (Deduct from main stock)
