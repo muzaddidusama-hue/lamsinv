@@ -931,8 +931,8 @@ const PublicCatalog = ({ onAdminClick }) => {
             </h1>
           </div>
 
-          {/* Navigation Links with Minimal Icons */}
-          <nav className="flex items-center gap-1 sm:gap-2 font-bold text-xs tracking-wider ml-auto sm:mx-auto">
+          {/* Navigation Links with Minimal Icons - Right Aligned */}
+          <nav className="flex items-center gap-1 sm:gap-2 font-bold text-xs tracking-wider ml-auto mr-3 sm:mr-4">
             <button 
               onClick={() => handleTabSwitch('home')} 
               title="Home"
@@ -950,7 +950,7 @@ const PublicCatalog = ({ onAdminClick }) => {
 
             <button 
               onClick={() => handleTabSwitch('products', 'All')} 
-              title="Products Catalog"
+              title="Store"
               className={`p-2.5 rounded-full transition-all duration-200 flex items-center justify-center ${
                 activeTab === 'products' 
                   ? 'bg-white text-[#ea3838] shadow-sm border border-slate-200/80 scale-105' 
@@ -958,10 +958,10 @@ const PublicCatalog = ({ onAdminClick }) => {
               }`}
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7"></rect>
-                <rect x="14" y="3" width="7" height="7"></rect>
-                <rect x="14" y="14" width="7" height="7"></rect>
-                <rect x="3" y="14" width="7" height="7"></rect>
+                <path d="M3 9l1-5h16l1 5"></path>
+                <path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"></path>
+                <path d="M4 14v7h16v-7"></path>
+                <path d="M9 21v-5h6v5"></path>
               </svg>
             </button>
 
