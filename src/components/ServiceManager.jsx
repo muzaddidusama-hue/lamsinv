@@ -35,9 +35,86 @@ const ServiceManager = () => {
     date: '', problem: '', amount: '', remarks: ''
   });
 
+// Helper to identify if a product is an Inverter (handles JFY, Solaron, Inhenergy, and all inverter variants)
+const isInverterProduct = (product) => {
+  if (!product) return false;
+  const category = (product.category || '').toLowerCase().trim();
+  const name = (product.name || '').toLowerCase().trim();
+  const model = (product.model || '').toLowerCase().trim();
+  const desc = (product.description || '').toLowerCase().trim();
+
+  // Exclude solar panels, batteries, and pure accessories
+  if (
+    category.includes('solar panel') || 
+    category.includes('panel 12v') || 
+    category.includes('panel 24v') ||
+    category.includes('battery') || 
+    category.includes('lithium')
+  ) {
+    return false;
+  }
+
+  if (
+    (category.includes('accessories') || category.includes('accessory') || category.includes('cable') || category.includes('structure')) &&
+    !category.includes('inverter') && !name.includes('inverter')
+  ) {
+    return false;
+  }
+
+  // 1. Inverter keywords in category, name, model, or description
+  const inverterKeywords = [
+    'inverter', 'hybrid', 'on-grid', 'on grid', 'ongrid', 
+    'off-grid', 'off grid', 'offgrid', 'grid-tie', 'grid tie', 
+    'grid tied', 'ips', 'ups', 'vfd'
+  ];
+  if (inverterKeywords.some(kw => category.includes(kw) || name.includes(kw) || model.includes(kw) || desc.includes(kw))) {
+    return true;
+  }
+
+  // 2. Known inverter brands (JFY, Solaron, Inhenergy, Growatt, Must, SRNE, etc.)
+  const inverterBrands = [
+    'jfy', 'solaron', 'inhenergy', 'growatt', 'must', 'srne', 
+    'felicity', 'deye', 'huawei', 'solis', 'voltronic', 'goodwe', 
+    'sma', 'sofar', 'jarrett', 'luminous', 'microtek', 'mictek', 
+    'sukam', 'su-kam', 'schneider'
+  ];
+  if (inverterBrands.some(brand => name.includes(brand) || model.includes(brand))) {
+    return true;
+  }
+
+  return false;
+};
+
+// Helper to determine Inverter Type (On-Grid vs Hybrid)
+const getInverterType = (product) => {
+  if (!product) return 'Hybrid';
+  const category = (product.category || '').toLowerCase().trim();
+  const name = (product.name || '').toLowerCase().trim();
+  const model = (product.model || '').toLowerCase().trim();
+
+  const isOnGrid = (
+    category.includes('on-grid') || 
+    category.includes('on grid') || 
+    category.includes('ongrid') || 
+    category.includes('grid-tie') || 
+    category.includes('grid tie') || 
+    category.includes('grid tied') ||
+    name.includes('on-grid') || 
+    name.includes('on grid') || 
+    name.includes('ongrid') ||
+    name.includes('jfy') || 
+    name.includes('inhenergy') ||
+    model.includes('tl') ||
+    model.includes('on-grid')
+  );
+
+  return isOnGrid ? 'On-Grid' : 'Hybrid';
+};
+
   const handleAllInOneSearch = async (e) => {
     e.preventDefault();
-    const queryText = searchNo.trim().toUpperCase();
+    const rawQuery = searchNo.trim();
+    const queryText = rawQuery.toUpperCase();
     if (!queryText) return alert("বিল, চালান অথবা সিরিয়াল নম্বর দিন!");
 
     setLoading(true);
@@ -45,7 +122,12 @@ const ServiceManager = () => {
     resetServiceForm();
 
     try {
-      const { data: slData } = await supabase.from('inv_sl').select('*').eq('sl_no', queryText).maybeSingle();
+      // ১. সিরিয়াল নম্বর দিয়ে inv_sl টেবিলে খোঁজা
+      const { data: slData } = await supabase
+        .from('inv_sl')
+        .select('*')
+        .or(`sl_no.eq.${queryText},sl_no.ilike.${rawQuery}`)
+        .maybeSingle();
       
       let targetChalanNo = queryText;
       let targetBillNo = queryText;
@@ -53,15 +135,32 @@ const ServiceManager = () => {
       if (slData) {
         setDbRowData(slData);
         determineNextAvailableSlot(slData);
-        targetChalanNo = slData.chalan_no;
-        targetBillNo = slData.bill_no;
+        if (slData.chalan_no && slData.chalan_no !== 'N/A') targetChalanNo = slData.chalan_no;
+        if (slData.bill_no && slData.bill_no !== 'N/A') targetBillNo = slData.bill_no;
       }
 
-      const { data: mainData } = await supabase
+      // ২. চালান অথবা বিল নম্বর দিয়ে chalans টেবিলে খোঁজা (শোরুম ও হেড অফিস উভয় বিলের জন্য)
+      const chalanFilters = [
+        `chalan_no.eq.${targetChalanNo}`,
+        `chalan_no.ilike.${targetChalanNo}`,
+        `bill_no.eq.${targetBillNo}`,
+        `bill_no.ilike.${targetBillNo}`
+      ];
+      if (rawQuery !== targetChalanNo && rawQuery !== targetBillNo) {
+        chalanFilters.push(`chalan_no.eq.${rawQuery}`, `chalan_no.ilike.${rawQuery}`, `bill_no.eq.${rawQuery}`, `bill_no.ilike.${rawQuery}`);
+      }
+
+      let mainData = null;
+      const { data: chalansList, error: chalanErr } = await supabase
         .from('chalans')
         .select(`*, customers (*)`)
-        .or(`chalan_no.eq.${targetChalanNo},bill_no.eq.${targetBillNo}`)
-        .maybeSingle();
+        .or(chalanFilters.join(','))
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (!chalanErr && chalansList && chalansList.length > 0) {
+        mainData = chalansList[0];
+      }
 
       if (mainData) {
         setRecord(mainData);
@@ -69,25 +168,40 @@ const ServiceManager = () => {
 
         const { data: itemData } = await supabase.from('chalan_items').select(`*, products (*)`).eq('chalan_id', mainData.id);
         
-        // 🔴 ফিক্স: find() এর বদলে filter() ব্যবহার করা হলো যাতে সব ইনভার্টার আসে
-        const inverters = itemData?.filter(item => 
-          item.products?.category?.toLowerCase().includes('inverter') || 
-          item.products?.name?.toLowerCase().includes('inverter')
-        );
+        // 🔴 ফিক্স: JFY, Solaron, Inhenergy সহ সকল ইনভার্টার ফিল্টার করার উন্নত লজিক
+        const inverters = itemData?.filter(item => isInverterProduct(item.products)) || [];
 
-        if (inverters && inverters.length > 0) {
+        if (inverters.length > 0) {
           setInverterItems(inverters);
           
-          const { data: existingSerials } = await supabase.from('inv_sl').select('sl_no').eq('chalan_no', mainData.chalan_no);
-          const dbSerials = existingSerials ? existingSerials.map(s => s.sl_no.toUpperCase()) : [];
+          const orSlQuery = [];
+          if (mainData.chalan_no && mainData.chalan_no !== 'N/A') {
+            orSlQuery.push(`chalan_no.eq.${mainData.chalan_no}`);
+            orSlQuery.push(`chalan_no.ilike.${mainData.chalan_no}`);
+          }
+          if (mainData.bill_no && mainData.bill_no !== 'N/A') {
+            orSlQuery.push(`bill_no.eq.${mainData.bill_no}`);
+            orSlQuery.push(`bill_no.ilike.${mainData.bill_no}`);
+          }
+
+          let dbSerials = [];
+          if (orSlQuery.length > 0) {
+            const { data: existingSerials } = await supabase.from('inv_sl').select('sl_no').or(orSlQuery.join(','));
+            if (existingSerials) {
+              dbSerials = existingSerials.map(s => s.sl_no.toUpperCase());
+            }
+          }
           setSavedSerials(dbSerials); 
           
           // 🔴 ফিক্স: সকল ইনভার্টারের মোট কোয়ান্টিটি হিসাব করা
           let totalQty = 0;
-          inverters.forEach(inv => totalQty += inv.quantity);
+          inverters.forEach(inv => totalQty += (Number(inv.quantity) || 0));
 
           const mergedSerials = Array.from({ length: totalQty }, (_, index) => dbSerials[index] || "");
           setSerialNumbers(mergedSerials);
+        } else {
+          setInverterItems([]);
+          setSerialNumbers([]);
         }
       } else {
         if (slData) {
@@ -110,7 +224,7 @@ const ServiceManager = () => {
     let accumulatedQty = 0;
     let targetInverter = null;
     for (let inv of inverterItems) {
-      accumulatedQty += inv.quantity;
+      accumulatedQty += (Number(inv.quantity) || 0);
       if (index < accumulatedQty) {
         targetInverter = inv;
         break;
@@ -129,14 +243,18 @@ const ServiceManager = () => {
         determineNextAvailableSlot(data);
         alert(`ℹ️ সিরিয়াল নম্বর ${currentSerial}-এর তথ্য লোড হয়েছে।`);
       } else {
+        const invType = getInverterType(targetInverter?.products);
+        const customerName = record?.customers?.name || record?.customer_name || 'Walk-in';
+        const customerAddress = record?.customers?.address || record?.address || 'N/A';
+
         const freshRow = {
           bill_no: record?.bill_no || 'N/A',
           chalan_no: record?.chalan_no || 'N/A',
-          inv_type: targetInverter?.products?.name?.toLowerCase().includes('on-grid') ? 'On-Grid' : 'Hybrid',
-          inv_model: targetInverter?.products?.model || 'N/A',
+          inv_type: invType,
+          inv_model: targetInverter?.products?.model || targetInverter?.products?.name || 'N/A',
           sl_no: currentSerial,
-          customer_name: record?.customers?.name || 'Walk-in',
-          address: record?.customers?.address || 'N/A'
+          customer_name: customerName,
+          address: customerAddress
         };
         const { error: insertErr } = await supabase.from('inv_sl').insert([freshRow]);
         if (insertErr) throw insertErr;
@@ -349,11 +467,11 @@ const ServiceManager = () => {
                   <div><span className="text-slate-400 block">ওয়ারেন্টি কাল</span><span className="font-black text-slate-700 text-sm">{inverterItems[0]?.products?.warranty || '১ বছর'}</span></div>
                   <div className="pt-2 border-t col-span-2">
                     <span className="text-slate-400 block">গ্রাহকের নাম</span>
-                    <span className="font-black text-slate-800">{record?.customers?.name || dbRowData?.customer_name || 'Walk-in'}</span>
+                    <span className="font-black text-slate-800">{record?.customers?.name || record?.customer_name || dbRowData?.customer_name || 'Walk-in'}</span>
                   </div>
                   <div className="pt-2 border-t col-span-2">
                     <span className="text-slate-400 block">📍 ঠিকানা</span>
-                    <span className="font-bold text-slate-600 text-xs">{record?.customers?.address || dbRowData?.address || 'N/A'}</span>
+                    <span className="font-bold text-slate-600 text-xs">{record?.customers?.address || record?.address || dbRowData?.address || 'N/A'}</span>
                   </div>
                   <div className="pt-2 border-t">
                     <span className="text-slate-400 block">চালান নং</span>
