@@ -104,6 +104,11 @@ const ChalanManager = () => {
 
       if (error) throw error;
 
+      // 🔴 inv_sl টেবিলে বিল নম্বর সিঙ্ক করা
+      if (chalan.chalan_no) {
+        await supabase.from('inv_sl').update({ bill_no: billNo }).eq('chalan_no', chalan.chalan_no);
+      }
+
       const billData = { 
         ...chalan, 
         bill_no: billNo, 

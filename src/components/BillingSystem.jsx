@@ -4,6 +4,7 @@ import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 import { logAction } from '../utils/logger';
+import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils';
 // Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
 const CustomDatePicker = ({ value, onChange }) => {
   const hiddenInputRef = React.useRef(null);
@@ -112,6 +113,9 @@ const getTodayFormatted = () => {
   const [outPurchaseLoading, setOutPurchaseLoading] = useState(false);
 
   const [qty, setQty] = useState('');
+  const [enableSN, setEnableSN] = useState(false);
+  const [snList, setSnList] = useState([]);
+  const [editingSNIndex, setEditingSNIndex] = useState(null);
   const [cart, setCart] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -269,6 +273,10 @@ const handleGlobalShortcuts = (e) => {
 const addToCart = () => {
     if (!selectedProduct || !qty || qty <= 0) return alert('সঠিক তথ্য দিন');
     const product = products.find(p => p.id === parseInt(selectedProduct));
+    if (!product) return alert('প্রোডাক্ট পাওয়া যায়নি!');
+
+    const parsedQty = parseInt(qty);
+    const validSerials = enableSN ? snList.slice(0, parsedQty).map(s => (s || '').trim().toUpperCase()).filter(Boolean) : [];
   
     setCart([...cart, { 
         product_id: product.id, 
@@ -276,10 +284,44 @@ const addToCart = () => {
         model: product.model, 
         category: product.category, 
         unit_price: isInHouse ? 0 : (parseFloat(product.unit_price) || 0), 
-        qty: parseInt(qty), 
-        total: isInHouse ? 0 : ((parseFloat(product.unit_price) || 0) * parseInt(qty))
+        qty: parsedQty, 
+        total: isInHouse ? 0 : ((parseFloat(product.unit_price) || 0) * parsedQty),
+        hasSN: enableSN,
+        serials: validSerials
     }]);
-    setSelectedProduct(''); setQty(''); setProductSearchText(''); 
+    setSelectedProduct(''); 
+    setQty(''); 
+    setProductSearchText(''); 
+    setEnableSN(false);
+    setSnList([]);
+  };
+
+  const handleToggleCartItemSN = (index) => {
+    if (editingSNIndex === index) {
+      setEditingSNIndex(null);
+    } else {
+      setEditingSNIndex(index);
+      const item = cart[index];
+      if (!item.serials || item.serials.length === 0) {
+        const updated = [...cart];
+        updated[index] = {
+          ...item,
+          hasSN: true,
+          serials: Array.from({ length: item.qty || 1 }, () => '')
+        };
+        setCart(updated);
+      }
+    }
+  };
+
+  const handleUpdateCartItemSerial = (cartIdx, serialIdx, value) => {
+    const updated = [...cart];
+    const currentSerials = [...(updated[cartIdx].serials || [])];
+    while (currentSerials.length <= serialIdx) currentSerials.push('');
+    currentSerials[serialIdx] = value.toUpperCase();
+    updated[cartIdx].serials = currentSerials;
+    updated[cartIdx].hasSN = true;
+    setCart(updated);
   };
 
   const handleCartDataChange = (index, field, value) => {
@@ -394,6 +436,15 @@ const addToCart = () => {
         }
       }
 
+      // 🔴 অটোমেটিকভাবে inv_sl (সার্ভিসিং ও ওয়ারেন্টি) টেবিলে সিরিয়াল নম্বর সেভ করা
+      await saveInvoiceSerialsToInvSl({
+        items: cart,
+        billNo: finalBillNo,
+        chalanNo: chalanNo,
+        customerName: finalName,
+        customerAddress: finalAddress
+      });
+
       if (isDirectPaidBill) {
         await logAction("Bill Created", `Bill No: ${finalBillNo} created. Payment: ${paymentMethod}. Total: ${chalanData.total_amount} Tk`);
         setBillGenerated(true);
@@ -433,6 +484,15 @@ const handleQuickBillConfirm = async () => {
       }).eq('id', generatedData.chalan.id);
       
       if (error) throw error;
+
+      // 🔴 কুইক বিলের ক্ষেত্রেও inv_sl টেবিলে বিল নম্বর সিঙ্ক করা
+      await saveInvoiceSerialsToInvSl({
+        items: generatedData.items,
+        billNo: finalBillNo,
+        chalanNo: generatedData.chalan.chalan_no,
+        customerName: generatedData.chalan.customer_name,
+        customerAddress: generatedData.chalan.address
+      });
       
       await logAction("Bill Created", `Bill No: ${finalBillNo} created. Payment: ${paymentMethod}. Total: ${generatedData.chalan.total_amount} Tk`);
       
@@ -708,10 +768,72 @@ const handleQuickBillConfirm = async () => {
               )}
             </div>
 
-            <div className="flex gap-3">
-              <input type="number" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="পরিমাণ" className="w-36 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600" />
-              <button onClick={addToCart} className="flex-1 bg-slate-900 text-white px-8 rounded-2xl font-bold hover:bg-red-600 transition-all whitespace-nowrap">Add</button>
+            <div className="flex gap-2 items-center">
+              <input 
+                type="number" 
+                value={qty} 
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQty(val);
+                  const parsed = parseInt(val) || 0;
+                  setSnList(prev => {
+                    const arr = [...prev];
+                    while (arr.length < parsed) arr.push('');
+                    return arr.slice(0, Math.max(1, parsed));
+                  });
+                }} 
+                placeholder="পরিমাণ" 
+                className="w-28 p-4 bg-slate-50 border rounded-2xl font-bold outline-none focus:ring-2 focus:ring-red-600" 
+              />
+
+              <label className="flex items-center gap-1.5 px-3 py-3.5 bg-slate-50 border rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors select-none">
+                <input 
+                  type="checkbox" 
+                  checked={enableSN} 
+                  onChange={(e) => {
+                    setEnableSN(e.target.checked);
+                    if (e.target.checked && snList.length === 0) {
+                      const parsed = parseInt(qty) || 1;
+                      setSnList(Array.from({ length: parsed }, () => ''));
+                    }
+                  }} 
+                  className="w-4 h-4 accent-blue-600 cursor-pointer"
+                />
+                <span className="text-xs font-black text-slate-700 tracking-wide">SN</span>
+              </label>
+
+              <button onClick={addToCart} className="flex-1 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold hover:bg-red-600 transition-all whitespace-nowrap">
+                Add
+              </button>
             </div>
+
+            {/* 🔴 SN চেকবক্স অন থাকলে সিরিয়াল নম্বর ইনপুট করার ঘর */}
+            {enableSN && (
+              <div className="p-3.5 bg-blue-50/80 border border-blue-200 rounded-2xl space-y-2 animate-in fade-in duration-200">
+                <div className="flex justify-between items-center text-[11px] font-black text-blue-900">
+                  <span>ইনভার্টার সিরিয়াল নম্বর (S/N) দিন:</span>
+                  <span className="text-[10px] bg-blue-200/70 text-blue-800 px-2 py-0.5 rounded font-mono">মোট {Math.max(1, parseInt(qty) || 1)} টি</span>
+                </div>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
+                  {Array.from({ length: Math.max(1, parseInt(qty) || 1) }).map((_, sIdx) => (
+                    <div key={sIdx} className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono font-black text-blue-600 w-6">#{sIdx + 1}</span>
+                      <input 
+                        type="text"
+                        placeholder={`সিরিয়াল নং #${sIdx + 1}`}
+                        value={snList[sIdx] || ''}
+                        onChange={(e) => {
+                          const updated = [...snList];
+                          updated[sIdx] = e.target.value.toUpperCase();
+                          setSnList(updated);
+                        }}
+                        className="flex-1 p-2 bg-white border border-blue-200 rounded-xl font-mono font-bold text-xs uppercase outline-none focus:ring-2 focus:ring-blue-600 text-slate-800"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -731,7 +853,56 @@ const handleQuickBillConfirm = async () => {
                 <tbody className="divide-y divide-slate-100">
                   {cart.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                      <td className="py-4 font-bold text-slate-800">{item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span></td>
+                      <td className="py-4 font-bold text-slate-800">
+                        {item.name} <span className="text-xs text-slate-400 block font-medium">{item.model}</span>
+                        
+                        {/* 🔴 SN ব্যাজ এবং ইনলাইন এডিটর */}
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {item.serials && item.serials.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {item.serials.map((sn, sIdx) => (
+                                <span key={sIdx} className="bg-blue-100 text-blue-700 text-[10px] font-mono font-black px-1.5 py-0.5 rounded border border-blue-200">
+                                  SN: {sn}
+                                </span>
+                              ))}
+                              <button 
+                                type="button" 
+                                onClick={() => handleToggleCartItemSN(idx)}
+                                className="text-[10px] font-bold text-blue-600 underline hover:text-blue-800 ml-1"
+                              >
+                                {editingSNIndex === idx ? 'বন্ধ' : 'এডিট SN'}
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              type="button" 
+                              onClick={() => handleToggleCartItemSN(idx)}
+                              className="text-[10px] font-black text-slate-400 hover:text-blue-600 flex items-center gap-1 bg-slate-100 px-2 py-0.5 rounded-md hover:bg-blue-50 transition-colors"
+                            >
+                              <span>+ SN দিন</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {editingSNIndex === idx && (
+                          <div className="mt-2 p-2.5 bg-blue-50/90 border border-blue-200 rounded-xl space-y-1.5">
+                            <div className="flex justify-between items-center text-[10px] font-black text-blue-900">
+                              <span>সিরিয়াল নম্বর ইনপুট ({item.qty} পিস):</span>
+                              <button type="button" onClick={() => setEditingSNIndex(null)} className="text-slate-400 hover:text-slate-700 font-bold">✕ বন্ধ</button>
+                            </div>
+                            {Array.from({ length: item.qty || 1 }).map((_, sIdx) => (
+                              <input 
+                                key={sIdx}
+                                type="text"
+                                placeholder={`সিরিয়াল #${sIdx + 1}`}
+                                value={(item.serials && item.serials[sIdx]) || ''}
+                                onChange={(e) => handleUpdateCartItemSerial(idx, sIdx, e.target.value)}
+                                className="w-full p-1.5 bg-white border border-blue-200 rounded-lg font-mono font-bold text-xs uppercase outline-none focus:ring-1 focus:ring-blue-600"
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-4 text-center">
                         <input type="number" value={item.qty} onChange={(e) => handleCartDataChange(idx, 'qty', e.target.value)} className="w-20 p-1 text-center bg-slate-50 border rounded-lg font-black text-xs outline-none focus:border-slate-900" />
                       </td>

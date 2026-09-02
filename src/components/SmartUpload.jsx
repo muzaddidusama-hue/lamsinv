@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '../supabaseClient'; 
+import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils'; 
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -250,6 +251,22 @@ const SmartUpload = () => {
           const newStock = currentStock - Number(match.quantity);
           await supabase.from('products').update({ stock_quantity: newStock }).eq('id', match.matchedProduct.id);
         }
+      }
+
+      // 🔴 অটোমেটিকভাবে inv_sl টেবিলে সিরিয়াল নম্বর সেভ করা
+      const serialItems = matchedItems.map(m => ({
+        ...m.matchedProduct,
+        serials: m.serials || []
+      })).filter(i => i.serials && i.serials.length > 0);
+
+      if (serialItems.length > 0) {
+        await saveInvoiceSerialsToInvSl({
+          items: serialItems,
+          billNo: chalanPayload.bill_no,
+          chalanNo: chalanPayload.chalan_no,
+          customerName: cName,
+          customerAddress: cAddress
+        });
       }
 
       alert(`✅ সফলভাবে ${uploadMode} এবং কাস্টমার ডাটাবেজে সেভ হয়েছে!`);
