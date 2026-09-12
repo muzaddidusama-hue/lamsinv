@@ -29,6 +29,7 @@ const StockManagement = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [newValue, setNewValue] = useState('');
   const [purchaseSource, setPurchaseSource] = useState('Import');
+  const [customSource, setCustomSource] = useState('');
   const [reduceReason, setReduceReason] = useState('');
   const [manualDate, setManualDate] = useState(getTodayFormatted());
   
@@ -88,6 +89,10 @@ const StockManagement = () => {
   const handleDataSave = async () => {
     if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
     
+    if (modalType === 'stock' && purchaseSource === 'Custom' && !customSource.trim()) {
+      return alert('দয়া করে কাস্টম সোর্স বা কারণ লিখুন (যেমন: manual counting, adjustment)!');
+    }
+
     if (modalType === 'reduce_stock' && !reduceReason.trim()) {
       return alert('দয়া করে স্টক কমানোর কারণ লিখুন!');
     }
@@ -115,13 +120,14 @@ const StockManagement = () => {
       const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
       const finalTimestamp = `${manualDate}T${currentTime}.000Z`;
             if (modalType === 'stock') {
+              const finalSource = purchaseSource === 'Custom' ? customSource.trim() : purchaseSource;
               const { error: ledgerError } = await supabase.from('ledger').insert([
                 {
                   product: `${selectedProduct.name} - ${selectedProduct.model}`,
                   quantity: parseInt(newValue),
                   date: manualDate,
                   in: finalTimestamp, 
-                  source: `${purchaseSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`
+                  source: `${finalSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`
                 }
               ]);
               if (ledgerError) {
@@ -159,6 +165,8 @@ const StockManagement = () => {
     setUpdateModal(false);
     setSelectedProduct(null);
     setNewValue('');
+    setPurchaseSource('Import');
+    setCustomSource('');
     setModalProductSearchText(''); // রিসেট
     setReduceReason(''); // রিসেট
     setManualDate(getTodayFormatted()); // রিসেট
@@ -324,11 +332,32 @@ const StockManagement = () => {
               {modalType === 'stock' && (
                 <div>
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">মাল আসার সোর্স (Source)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Import', 'Out Purchase'].map(s => (
-                      <button key={s} onClick={() => setPurchaseSource(s)} className={`p-4 rounded-2xl font-black text-xs md:text-sm border-2 transition-all ${purchaseSource === s ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-slate-100 text-slate-400'}`}>{s}</button>
+                  <div className="grid grid-cols-3 gap-2 md:gap-3">
+                    {['Import', 'Out Purchase', 'Custom'].map(s => (
+                      <button 
+                        key={s} 
+                        type="button"
+                        onClick={() => setPurchaseSource(s)} 
+                        className={`p-3 md:p-4 rounded-2xl font-black text-xs md:text-sm border-2 transition-all ${purchaseSource === s ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                      >
+                        {s === 'Custom' ? '✨ Custom' : s}
+                      </button>
                     ))}
                   </div>
+
+                  {purchaseSource === 'Custom' && (
+                    <div className="mt-3">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 block">কাস্টম সোর্স বা কারণ (Custom Reason)</label>
+                      <input 
+                        type="text" 
+                        value={customSource}
+                        onChange={(e) => setCustomSource(e.target.value)}
+                        placeholder="কারণ লিখুন (যেমন: Manual Counting, Adjustment, Correction etc.)..."
+                        className="w-full p-4 bg-slate-50 border border-orange-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-orange-500 text-slate-800"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
