@@ -27,6 +27,7 @@ const ResellerOfferPublic = lazy(() => import('./components/ResellerOfferPublic'
 const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'));
 const InverterErrorCodes = lazy(() => import('./components/InverterErrorCodes'));
 const SolarCal = lazy(() => import('./components/SolarCal'));
+const ProductBrand = lazy(() => import('./components/ProductBrand'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
 const PublicCatalogWrapper = () => {
@@ -264,6 +265,7 @@ function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/scan" element={<SmartUpload />} />
             <Route path="/product-entry" element={<ProductEntry />} />
+            <Route path="/product-brand" element={<ProductBrand />} />
             <Route path="/stock" element={<StockManagement />} />
             <Route path="/broken" element={<BrokenManager />} />
             <Route path="/label-print" element={<LabelPrint />} />
