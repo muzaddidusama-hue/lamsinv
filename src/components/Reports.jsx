@@ -47,6 +47,14 @@ const [invSerials, setInvSerials] = useState([]);
     return name.toLowerCase().replace(/[^a-z0-9]/g, '');
   };
 
+  const normalizeHouse = (houseStr) => {
+    if (!houseStr) return 'Head Office';
+    const str = String(houseStr).toLowerCase().trim();
+    if (str.includes('showroom') || str.includes('nawabpur')) return 'Showroom';
+    if (str.includes('head office') || str.includes('ho')) return 'Head Office';
+    return houseStr;
+  };
+
   const totals = useMemo(() => {
     let q = 0, m = 0, s = 0;
     if (reportData && reportData.combinedProductStats) {
@@ -144,8 +152,10 @@ const [invSerials, setInvSerials] = useState([]);
           stocks: { 'Head Office': 0, 'Showroom': 0 } 
         });
       }
-      const houseName = p.house || 'Head Office';
-      summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      const houseName = normalizeHouse(p.house);
+      if (summaryMap.get(key).stocks[houseName] !== undefined) {
+        summaryMap.get(key).stocks[houseName] += parseInt(p.stock_quantity) || 0;
+      }
     });
 
     allTransactions.forEach(t => {
@@ -168,8 +178,9 @@ const [invSerials, setInvSerials] = useState([]);
         });
       }
       
-      const isHo = t.house === 'Head Office';
-      const isShow = t.house === 'Showroom';
+      const tHouseNorm = normalizeHouse(t.house);
+      const isHo = tHouseNorm === 'Head Office';
+      const isShow = tHouseNorm === 'Showroom';
       const isSale = t.type === 'out' && t.id.startsWith('sale_');
       const txDate = t.date ? t.date.split('T')[0] : (t.timestamp ? t.timestamp.split('T')[0] : '');
 
@@ -278,8 +289,9 @@ const [invSerials, setInvSerials] = useState([]);
   const filteredLedgerHistory = useMemo(() => {
     return combinedLedgerHistory.filter(t => {
       if (ledgerTab === 'total') return true;
-      if (ledgerTab === 'ho') return t.house === 'Head Office';
-      if (ledgerTab === 'showroom') return t.house === 'Showroom';
+      const tHouseNorm = normalizeHouse(t.house);
+      if (ledgerTab === 'ho') return tHouseNorm === 'Head Office';
+      if (ledgerTab === 'showroom') return tHouseNorm === 'Showroom';
       return true;
     });
   }, [combinedLedgerHistory, ledgerTab]);
@@ -392,11 +404,32 @@ const checkIsTransfer = (val) => {
           }
         }
 
-        const { data: allChalans, error } = await supabase
-          .from('chalans')
-          .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`);
+        // Fetch all chalans in pages to eliminate the 1,000-row limit truncation
+        const allChalans = [];
+        let fromOffset = 0;
+        const PAGE_SIZE = 1000;
+        let hasMore = true;
 
-        if (error) throw error;
+        while (hasMore) {
+          const { data: pageData, error: pageErr } = await supabase
+            .from('chalans')
+            .select(`*, customers(name, phone), chalan_items(*, products(name, model, category))`)
+            .order('created_at', { ascending: false })
+            .range(fromOffset, fromOffset + PAGE_SIZE - 1);
+
+          if (pageErr) throw pageErr;
+
+          if (pageData && pageData.length > 0) {
+            allChalans.push(...pageData);
+            if (pageData.length < PAGE_SIZE) {
+              hasMore = false;
+            } else {
+              fromOffset += PAGE_SIZE;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
         
         const startDateTime = new Date(`${startDate}T00:00:00.000Z`).getTime();
         const endDateTime = new Date(`${endDate}T23:59:59.999Z`).getTime();
@@ -412,6 +445,7 @@ const checkIsTransfer = (val) => {
 
             if (isPeriod) periodChalans.push(ch);
             if (!checkIsTransfer(ch.is_in_house) && ch.chalan_items) {
+              const chHouse = normalizeHouse(ch.house);
               ch.chalan_items.forEach(item => {
                 const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
                 const cName = ch.customer_name || ch.customers?.name || 'Walk-in';
@@ -422,7 +456,7 @@ const checkIsTransfer = (val) => {
                     timestamp: ch.created_at,
                     product: pName,
                     type: 'out',
-                    house: ch.house || 'Head Office',
+                    house: chHouse,
                     quantity: item.quantity,
                     source: `Sold to: ${cName}`,
                     ref: `Bill: #${ch.bill_no || 'N/A'} ${ch.chalan_no && ch.chalan_no !== 'N/A' ? `(Chl: ${ch.chalan_no})` : ''}`,
@@ -437,7 +471,7 @@ const checkIsTransfer = (val) => {
                     timestamp: ch.created_at,
                     product: pName,
                     type: 'out',
-                    house: ch.house || 'Head Office',
+                    house: chHouse,
                     quantity: item.quantity,
                     source: `Challan Out: ${cName}`,
                     ref: `Chl: #${ch.chalan_no}`,
@@ -449,13 +483,37 @@ const checkIsTransfer = (val) => {
               });
             }
             if (checkIsTransfer(ch.is_in_house) && ch.chalan_items && ch.status === 'completed') {
+              const fromHouse = normalizeHouse(ch.house);
+              const toHouse = normalizeHouse(ch.transfer_to);
               ch.chalan_items.forEach(item => {
                 const pName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
                 extractedTrans.push({
-                  id: `tr_out_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'out', house: ch.house, quantity: item.quantity, source: `Transfer Out (To ${ch.transfer_to})`, ref: `Chl: #${ch.chalan_no}`, isPast, isFuture, isPeriod
+                  id: `tr_out_${ch.id}_${item.id}`, 
+                  date: ch.created_at ? ch.created_at.split('T')[0] : '', 
+                  timestamp: ch.created_at, 
+                  product: pName, 
+                  type: 'out', 
+                  house: fromHouse, 
+                  quantity: item.quantity, 
+                  source: `Transfer Out (To ${toHouse})`, 
+                  ref: `Chl: #${ch.chalan_no}`, 
+                  isPast, 
+                  isFuture, 
+                  isPeriod
                 });
                 extractedTrans.push({
-                  id: `tr_in_${ch.id}_${item.id}`, date: ch.created_at ? ch.created_at.split('T')[0] : '', timestamp: ch.created_at, product: pName, type: 'in', house: ch.transfer_to, quantity: item.quantity, source: `Transfer In (From ${ch.house})`, ref: `Chl: #${ch.chalan_no}`, isPast, isFuture, isPeriod
+                  id: `tr_in_${ch.id}_${item.id}`, 
+                  date: ch.created_at ? ch.created_at.split('T')[0] : '', 
+                  timestamp: ch.created_at, 
+                  product: pName, 
+                  type: 'in', 
+                  house: toHouse, 
+                  quantity: item.quantity, 
+                  source: `Transfer In (From ${fromHouse})`, 
+                  ref: `Chl: #${ch.chalan_no}`, 
+                  isPast, 
+                  isFuture, 
+                  isPeriod
                 });
               });
             }
@@ -473,11 +531,11 @@ const checkIsTransfer = (val) => {
         if (!ledgerErr && allLedger) {
           allLedger.forEach(l => {
             if (l.type === 'out') return; // Exclude manual stock outs from ledger (since they are now fetched from stock_out)
-            if (l.source && (l.source.includes('Return from') || l.source.includes('Return from Cancelled') || l.source.toLowerCase().startsWith('return'))) return;
             const isPast = l.date < startDate;
             const isFuture = l.date > endDate;
             const isPeriod = !isPast && !isFuture;
-            let resolvedHouse = l.house;
+
+            let resolvedHouse = l.house ? normalizeHouse(l.house) : null;
             if (!resolvedHouse) {
               if (l.source) {
                 const srcLower = l.source.toLowerCase();
@@ -495,7 +553,7 @@ const checkIsTransfer = (val) => {
                 return getStandardKey(fullName) === targetKey;
               });
               if (matchingProducts.length > 0) {
-                const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+                const uniqueHouses = [...new Set(matchingProducts.map(p => normalizeHouse(p.house)).filter(Boolean))];
                 if (uniqueHouses.length === 1) {
                   resolvedHouse = uniqueHouses[0];
                 }
@@ -504,6 +562,9 @@ const checkIsTransfer = (val) => {
             if (!resolvedHouse) {
               resolvedHouse = 'Head Office';
             }
+
+            const isCustomerReturn = l.source && l.source.toLowerCase().includes('return');
+
             extractedTrans.push({
               id: `leg_${l.id}`,
               dbId: l.id, 
@@ -515,7 +576,7 @@ const checkIsTransfer = (val) => {
               house: resolvedHouse,
               quantity: parseInt(l.quantity) || 0,
               source: l.source || 'Import / Manual Entry',
-              ref: 'Manual Entry',
+              ref: isCustomerReturn ? 'Customer Return' : 'Manual Entry',
               isPast,
               isFuture,
               isPeriod
@@ -533,7 +594,8 @@ const checkIsTransfer = (val) => {
             const isPast = s.date < startDate;
             const isFuture = s.date > endDate;
             const isPeriod = !isPast && !isFuture;
-            let resolvedHouse = s.house;
+
+            let resolvedHouse = s.house ? normalizeHouse(s.house) : null;
             if (!resolvedHouse) {
               if (s.reason) {
                 const reasonLower = s.reason.toLowerCase();
@@ -551,7 +613,7 @@ const checkIsTransfer = (val) => {
                 return getStandardKey(fullName) === targetKey;
               });
               if (matchingProducts.length > 0) {
-                const uniqueHouses = [...new Set(matchingProducts.map(p => p.house).filter(Boolean))];
+                const uniqueHouses = [...new Set(matchingProducts.map(p => normalizeHouse(p.house)).filter(Boolean))];
                 if (uniqueHouses.length === 1) {
                   resolvedHouse = uniqueHouses[0];
                 }
@@ -560,6 +622,7 @@ const checkIsTransfer = (val) => {
             if (!resolvedHouse) {
               resolvedHouse = 'Head Office';
             }
+
             extractedTrans.push({
               id: `stout_${s.id}`,
               dbId: s.id,

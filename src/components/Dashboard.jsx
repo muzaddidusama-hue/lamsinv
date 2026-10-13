@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
@@ -13,6 +14,7 @@ const Dashboard = ({ setView }) => {
 
   const [selectedItem, setSelectedItem] = useState(null);
   const [modalItems, setModalItems] = useState([]);
+  const [loadingModalItems, setLoadingModalItems] = useState(false);
   const [modalType, setModalType] = useState(''); 
   const [processing, setProcessing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -22,6 +24,10 @@ const Dashboard = ({ setView }) => {
   const [challanSearch, setChallanSearch] = useState('');
   const [billSearch, setBillSearch] = useState('');
   const [pendingSearch, setPendingSearch] = useState('');
+
+  // Refs for race-condition prevention and debounced realtime updates
+  const realtimeDebounceRef = useRef(null);
+  const fetchRequestIdRef = useRef(0);
 
   const formatItemDate = (dateVal) => {
     if (!dateVal) return '';
@@ -36,14 +42,19 @@ const Dashboard = ({ setView }) => {
   useEffect(() => {
     fetchDashboardData(true);
 
+    const triggerDebouncedFetch = () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
+      realtimeDebounceRef.current = setTimeout(() => {
+        fetchDashboardData(false);
+      }, 350);
+    };
+
     const chalansChannel = supabase
       .channel('dashboard-chalans-realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'chalans' },
-        () => {
-          fetchDashboardData(false);
-        }
+        triggerDebouncedFetch
       )
       .subscribe();
 
@@ -52,36 +63,43 @@ const Dashboard = ({ setView }) => {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
-        () => {
-          fetchDashboardData(false);
-        }
+        triggerDebouncedFetch
       )
       .subscribe();
 
     return () => {
+      if (realtimeDebounceRef.current) clearTimeout(realtimeDebounceRef.current);
       supabase.removeChannel(chalansChannel);
       supabase.removeChannel(productsChannel);
     };
   }, []);
 
   const fetchDashboardData = async (isInitial = false) => {
+    const currentRequestId = ++fetchRequestIdRef.current;
     if (isInitial) setLoading(true);
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
     const startOfMonthISO = startOfMonth.toISOString();
     try {
-      const { data: hold } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'hold').order('created_at', { ascending: false });
-      const { data: tChalans } = await supabase.from('chalans').select('*, customers(*)').gte('created_at', startOfMonthISO).order('created_at', { ascending: false });
-      const { data: tBills } = await supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', startOfMonthISO).order('created_at', { ascending: false });
-      const { data: stock } = await supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true });
-      
-      setHoldChalans(hold || []);
-      setTodayChalans(tChalans || []);
-      setTodayBills(tBills || []);
-      setLowStockProducts(stock || []);
-    } catch (error) { console.error(error); }
-    if (isInitial) setLoading(false);
+      const [holdRes, tChalansRes, tBillsRes, stockRes] = await Promise.all([
+        supabase.from('chalans').select('*, customers(*)').eq('status', 'hold').order('created_at', { ascending: false }),
+        supabase.from('chalans').select('*, customers(*)').gte('created_at', startOfMonthISO).order('created_at', { ascending: false }),
+        supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', startOfMonthISO).order('created_at', { ascending: false }),
+        supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true })
+      ]);
+
+      // Discard stale out-of-order network responses
+      if (currentRequestId !== fetchRequestIdRef.current) return;
+
+      setHoldChalans(holdRes.data || []);
+      setTodayChalans(tChalansRes.data || []);
+      setTodayBills(tBillsRes.data || []);
+      setLowStockProducts(stockRes.data || []);
+    } catch (error) { 
+      console.error('Error fetching dashboard data:', error); 
+    }
+    if (isInitial && currentRequestId === fetchRequestIdRef.current) setLoading(false);
   };
 
   const handleOpenLowStockWindow = () => {
@@ -212,10 +230,25 @@ const Dashboard = ({ setView }) => {
   };
 
   const handleViewDetails = async (item, type) => {
-    setSelectedItem(item); setModalType(type); setPaymentMethod(''); setBillNo('');
+    setSelectedItem(item); 
+    setModalType(type); 
+    setPaymentMethod(''); 
+    setBillNo('');
+    setModalItems([]);
     if (type !== 'product') {
-        const { data } = await supabase.from('chalan_items').select('*, products(*)').eq('chalan_id', item.id);
-        setModalItems(data || []);
+      setLoadingModalItems(true);
+      try {
+        const { data, error } = await supabase.from('chalan_items').select('*, products(*)').eq('chalan_id', item.id);
+        if (!error && data) {
+          setModalItems(data);
+        }
+      } catch (err) {
+        console.error('Error fetching chalan items:', err);
+      } finally {
+        setLoadingModalItems(false);
+      }
+    } else {
+      setLoadingModalItems(false);
     }
   };
 
@@ -224,54 +257,110 @@ const Dashboard = ({ setView }) => {
   };
 
   const handleAction = async (actionType) => {
+    if (processing) return;
+    if (loadingModalItems || modalItems.length === 0) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'অপেক্ষা করুন',
+        text: 'আইটেমের তালিকা এখনও লোড হচ্ছে...',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
     setProcessing(true);
+    const targetItem = selectedItem;
+
     try {
-      const isTransferMode = checkIsTransfer(selectedItem.is_in_house);
+      const isTransferMode = checkIsTransfer(targetItem.is_in_house);
 
       if (actionType === 'transfer') {
         if (!isTransferMode) throw new Error("অবৈধ রিকোয়েস্ট!");
         
+        // Optimistic UI: remove immediately from holdChalans & close modal
+        setHoldChalans(prev => prev.filter(c => c.id !== targetItem.id));
+        setSelectedItem(null);
+
         for (let itm of modalItems) {
-          const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
+          // 1. Deduct from source product
+          const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).maybeSingle();
           if (sourceP) {
-            await supabase.from('products').update({ stock_quantity: sourceP.stock_quantity - itm.quantity }).eq('id', sourceP.id);
+            await supabase.from('products').update({ stock_quantity: (sourceP.stock_quantity || 0) - itm.quantity }).eq('id', sourceP.id);
           }
           
-          const { data: targetP } = await supabase.from('products').select('id, stock_quantity').eq('name', itm.products.name).eq('model', itm.products.model).eq('house', selectedItem.transfer_to).maybeSingle();
+          // 2. Add to target product
+          const prodName = itm.products?.name || '';
+          const prodModel = itm.products?.model || '';
+          const { data: targetProds } = await supabase.from('products')
+            .select('id, stock_quantity')
+            .eq('name', prodName)
+            .eq('model', prodModel)
+            .eq('house', targetItem.transfer_to)
+            .limit(1);
           
+          const targetP = targetProds && targetProds.length > 0 ? targetProds[0] : null;
           if (targetP) {
-            await supabase.from('products').update({ stock_quantity: targetP.stock_quantity + itm.quantity }).eq('id', targetP.id);
-          } else {
+            await supabase.from('products').update({ stock_quantity: (targetP.stock_quantity || 0) + itm.quantity }).eq('id', targetP.id);
+          } else if (itm.products) {
             const { id, created_at, stock_quantity, house, ...cleanProductData } = itm.products;
-            
             await supabase.from('products').insert([{ 
               ...cleanProductData, 
               stock_quantity: itm.quantity, 
-              house: selectedItem.transfer_to 
+              house: targetItem.transfer_to 
             }]);
           }
         }
-        await supabase.from('chalans').update({ status: 'completed' }).eq('id', selectedItem.id);
+
+        // 3. Update chalan status to completed
+        const { error: chalanUpdateErr } = await supabase.from('chalans').update({ status: 'completed' }).eq('id', targetItem.id);
+        if (chalanUpdateErr) throw chalanUpdateErr;
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: `ট্রান্সফার সম্পন্ন: ${targetItem.chalan_no}`,
+          timer: 3000,
+          showConfirmButton: false
+        });
       } 
       
       else if (actionType === 'payment') {
         if (isTransferMode) throw new Error("ইন-হাউজ ট্রান্সফারে পেমেন্ট প্রযোজ্য নয়!");
         if (!paymentMethod) throw new Error('পেমেন্ট মেথড সিলেক্ট করুন!');
         
+        // Optimistic UI: remove immediately from holdChalans & close modal
+        setHoldChalans(prev => prev.filter(c => c.id !== targetItem.id));
+        setSelectedItem(null);
+
         const finalBillNo = billNo.trim() !== '' ? billNo.trim() : `BLL-${Date.now().toString().slice(-6)}`;
 
         for (let itm of modalItems) {
-          const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).single();
-          if (p) await supabase.from('products').update({ stock_quantity: p.stock_quantity - itm.quantity }).eq('id', p.id);
+          const { data: p } = await supabase.from('products').select('id, stock_quantity').eq('id', itm.product_id).maybeSingle();
+          if (p) await supabase.from('products').update({ stock_quantity: (p.stock_quantity || 0) - itm.quantity }).eq('id', p.id);
         }
-        await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: finalBillNo }).eq('id', selectedItem.id);
+        const { error: billUpdateErr } = await supabase.from('chalans').update({ status: 'paid', payment_method: paymentMethod, bill_no: finalBillNo }).eq('id', targetItem.id);
+        if (billUpdateErr) throw billUpdateErr;
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'success',
+          title: `পেমেন্ট সম্পন্ন (বিল: ${finalBillNo})`,
+          timer: 3000,
+          showConfirmButton: false
+        });
       }
       
-      alert('✅ সফল হয়েছে!'); 
-      setSelectedItem(null); 
       fetchDashboardData(false);
     } catch (e) { 
-      alert(e.message || 'ত্রুটি হয়েছে'); 
+      fetchDashboardData(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'ত্রুটি হয়েছে',
+        text: e.message || 'অপারেশন সম্পন্ন করা যায়নি'
+      });
       console.error(e); 
     } finally {
       setProcessing(false);
@@ -922,6 +1011,11 @@ const Dashboard = ({ setView }) => {
                     <p className="text-3xl font-black text-slate-800">{selectedItem.unit_price} ৳</p>
                   </div>
                 </div>
+              ) : loadingModalItems ? (
+                <div className="py-12 text-center text-slate-400 font-bold text-xs flex flex-col items-center justify-center gap-3">
+                  <div className="w-6 h-6 rounded-full border-2 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                  <span>চালানের আইটেমগুলো লোড হচ্ছে...</span>
+                </div>
               ) : (
                 <table className="w-full text-left">
                   <thead>
@@ -942,6 +1036,11 @@ const Dashboard = ({ setView }) => {
                         <td className="py-3 text-right font-black text-slate-800 text-xs">{itm.total_price.toLocaleString()} ৳</td>
                       </tr>
                     ))}
+                    {modalItems.length === 0 && (
+                      <tr>
+                        <td colSpan="3" className="text-center py-6 text-slate-400 italic text-xs">কোনো আইটেম পাওয়া যায়নি।</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               )}
@@ -953,10 +1052,17 @@ const Dashboard = ({ setView }) => {
                     {checkIsTransfer(selectedItem.is_in_house) ? (
                       <button 
                         onClick={() => handleAction('transfer')} 
-                        disabled={processing} 
-                        className="w-full bg-[#ea3838] hover:bg-red-600 text-white py-4 rounded-xl font-black text-sm shadow-md active:scale-95 uppercase tracking-wider transition-colors"
+                        disabled={processing || loadingModalItems || modalItems.length === 0} 
+                        className="w-full bg-[#ea3838] hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed text-white py-4 rounded-xl font-black text-sm shadow-md active:scale-95 uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                       >
-                        {processing ? 'Processing Transfer...' : 'Confirm Stock Transfer'}
+                        {processing ? (
+                          <>
+                            <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                            <span>Processing Transfer...</span>
+                          </>
+                        ) : (
+                          'Confirm Stock Transfer'
+                        )}
                       </button>
                     ) : (
                       <div className="space-y-3">
@@ -980,10 +1086,17 @@ const Dashboard = ({ setView }) => {
                           </select>
                           <button 
                             onClick={() => handleAction('payment')} 
-                            disabled={processing || !paymentMethod} 
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-xl font-black text-xs shadow-md whitespace-nowrap active:scale-95 transition-colors disabled:bg-slate-200 disabled:text-slate-400"
+                            disabled={processing || loadingModalItems || modalItems.length === 0 || !paymentMethod} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3.5 rounded-xl font-black text-xs shadow-md whitespace-nowrap active:scale-95 transition-all disabled:opacity-50 disabled:bg-slate-200 disabled:text-slate-400 flex items-center justify-center gap-2"
                           >
-                            {processing ? 'Processing...' : 'Receive Payment & Issue Bill'}
+                            {processing ? (
+                              <>
+                                <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin"></div>
+                                <span>Processing...</span>
+                              </>
+                            ) : (
+                              'Receive Payment & Issue Bill'
+                            )}
                           </button>
                         </div>
                       </div>
