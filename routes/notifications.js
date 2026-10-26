@@ -19,7 +19,7 @@ export function sanitizePhoneNumber(phone) {
  * @param {string} [options.parseMode='HTML'] - 'HTML', 'MarkdownV2', 'Markdown', or null
  * @param {boolean} [options.silent=false] - If true, sends without sound notification
  */
-export async function sendTelegram({ message, chatId, parseMode = 'HTML', silent = false }) {
+export async function sendTelegram({ message, chatId, parseMode = 'HTML', silent = false, replyMarkup = null }) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID;
 
@@ -39,6 +39,9 @@ export async function sendTelegram({ message, chatId, parseMode = 'HTML', silent
 
   if (parseMode) {
     payload.parse_mode = parseMode;
+  }
+  if (replyMarkup) {
+    payload.reply_markup = replyMarkup;
   }
 
   let response = await fetch(url, {

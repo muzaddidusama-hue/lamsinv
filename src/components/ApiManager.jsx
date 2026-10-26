@@ -48,6 +48,39 @@ const TrashIcon = () => (
 // Pre-defined System API endpoints catalog
 const SYSTEM_APIS = [
   {
+    id: 'telegram_webhook',
+    controllerId: 'telegram_webhook',
+    category: 'messaging',
+    categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
+    method: 'POST',
+    path: '/api/telegram/webhook',
+    title: 'টেলিগ্রাম ইনকামিং বট ওয়েবহুক (Telegram Bot Webhook)',
+    description: 'টেলিগ্রামের ব্যবহারকারী যখন বটকে /stock, /low, বা যেকোনো প্রোডাক্টের নাম লিখে মেসেজ দেয়, এই ওয়েবহুক স্বয়ংক্রিয়ভাবে রিপ্লাই করে।',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Bot-Api-Secret-Token': 'LAMS_InvBot_15963_UbhMuzaddid17'
+    },
+    samplePayload: {
+      update_id: 10001,
+      message: {
+        chat: { id: 8657367736 },
+        text: '/stock'
+      }
+    }
+  },
+  {
+    id: 'telegram_search',
+    controllerId: 'telegram_search',
+    category: 'messaging',
+    categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
+    method: 'GET',
+    path: '/api/telegram/search?q=solaron',
+    title: 'প্রোডাক্ট সার্চ এপিআই (Telegram Product Search API)',
+    description: 'ব্র্যান্ড বা মডেল নাম দিয়ে ইনভেন্টরি থেকে রিয়েল-টাইম স্টক, ক্যাটাগরি ও প্রাইস সার্চ করার এপিআই।',
+    headers: { 'Content-Type': 'application/json' },
+    samplePayload: null
+  },
+  {
     id: 'telegram_stock',
     controllerId: 'telegram_stock',
     category: 'messaging',

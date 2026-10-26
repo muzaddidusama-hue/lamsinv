@@ -60,6 +60,24 @@ const apiRegistry = {
     enabled: true,
     requestsCount: 0,
     blockedCount: 0
+  },
+  telegram_webhook: {
+    id: 'telegram_webhook',
+    name: 'Telegram Bot Incoming Webhook',
+    path: '/api/telegram/webhook',
+    method: 'POST',
+    enabled: true,
+    requestsCount: 0,
+    blockedCount: 0
+  },
+  telegram_search: {
+    id: 'telegram_search',
+    name: 'Telegram Product Search API',
+    path: '/api/telegram/search',
+    method: 'ALL',
+    enabled: true,
+    requestsCount: 0,
+    blockedCount: 0
   }
 };
 
