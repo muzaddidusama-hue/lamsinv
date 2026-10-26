@@ -7,6 +7,11 @@ import apiControllerRouter, { apiGatekeeper } from '../routes/apiController.js';
 
 dotenv.config();
 
+// Ensure Telegram Bot environment defaults
+process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
+process.env.TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '8657367736';
+process.env.TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'LAMS_InvBot_15963_UbhMuzaddid17';
+
 const app = express();
 
 app.use(cors());

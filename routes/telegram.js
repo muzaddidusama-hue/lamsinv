@@ -3,6 +3,10 @@ import { sendTelegram } from './notifications.js';
 
 export const router = express.Router();
 
+const DEFAULT_TG_TOKEN = '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
+const DEFAULT_TG_CHAT_ID = '8657367736';
+const DEFAULT_WEBHOOK_SECRET = 'LAMS_InvBot_15963_UbhMuzaddid17';
+
 /**
  * Helper to fetch all inventory products from Supabase REST API
  */
@@ -206,7 +210,8 @@ async function handleStockTelegram(req, res) {
 
     const filter = params.filter || 'low';
     const threshold = Number(params.threshold) || 5;
-    const chatId = params.chatId || process.env.TELEGRAM_CHAT_ID;
+    const chatId = params.chatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
+    const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
     const shouldSend = params.send !== 'false' && params.send !== false;
 
     const products = await fetchProductsFromDb();
@@ -220,10 +225,10 @@ async function handleStockTelegram(req, res) {
     let telegramError = null;
 
     if (shouldSend) {
-      if (!process.env.TELEGRAM_BOT_TOKEN) {
-        telegramError = 'TELEGRAM_BOT_TOKEN is not configured in .env. Message generated but not dispatched.';
+      if (!token) {
+        telegramError = 'TELEGRAM_BOT_TOKEN is not configured. Message generated but not dispatched.';
       } else if (!chatId) {
-        telegramError = 'Telegram Chat ID not specified and TELEGRAM_CHAT_ID is not configured in .env.';
+        telegramError = 'Telegram Chat ID not specified and TELEGRAM_CHAT_ID is not configured.';
       } else {
         try {
           await sendTelegram({
@@ -297,7 +302,7 @@ async function handleTelegramWebhook(req, res) {
     if (!update) return;
 
     // Optional Secret Token verification
-    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
     const incomingSecret = req.headers['x-telegram-bot-api-secret-token'] || req.params.secret;
     if (expectedSecret && incomingSecret && incomingSecret !== expectedSecret) {
       console.warn('[Telegram Webhook]: Secret token mismatch, ignoring update.');
@@ -479,8 +484,8 @@ async function handleTelegramWebhook(req, res) {
  * Registers this site's webhook with Telegram Bot API in 1 click
  */
 async function handleSetupWebhook(req, res) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET || 'LAMS_InvBot_15963_UbhMuzaddid17';
+  const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
   const host = req.query.host || req.get('host') || 'lamspower.pro.bd';
   const protocol = host.includes('localhost') ? 'http' : 'https';
   const webhookUrl = req.query.url || `${protocol}://${host}/api/telegram/webhook`;
