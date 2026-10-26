@@ -48,6 +48,22 @@ const TrashIcon = () => (
 // Pre-defined System API endpoints catalog
 const SYSTEM_APIS = [
   {
+    id: 'telegram_stock',
+    controllerId: 'telegram_stock',
+    category: 'messaging',
+    categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
+    method: 'GET',
+    path: '/api/telegram/stock',
+    title: 'টেলিগ্রাম লাইভ স্টক রিপোর্ট (Live Telegram Stock API)',
+    description: 'ইনভেন্টরি থেকে সকল প্রোডাক্টের বর্তমান স্টক হিসেব করে লাইভ রিপোর্ট তৈরি করে এবং স্বয়ংক্রিয়ভাবে টেলিগ্রামে পাঠিয়ে দেয়।',
+    headers: { 'Content-Type': 'application/json' },
+    samplePayload: {
+      filter: 'low',
+      threshold: 5,
+      send: true
+    }
+  },
+  {
     id: 'notify_unified',
     controllerId: 'notify_all',
     category: 'messaging',

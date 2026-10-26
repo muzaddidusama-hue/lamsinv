@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import notificationRouter from './routes/notifications.js';
+import telegramRouter from './routes/telegram.js';
 import apiControllerRouter, { apiGatekeeper } from './routes/apiController.js';
 
 dotenv.config();
@@ -188,8 +189,9 @@ app.post('/api/invalidate', async (req, res) => {
   }
 });
 
-// 4. Notification Routes (Telegram & WhatsApp Cloud API)
+// 4. Notification & Telegram Routes
 app.use('/api/notify', notificationRouter);
+app.use('/api/telegram', telegramRouter);
 
 // 5. Production Static File Serving
 // In production mode, serve built Vite React files

@@ -51,6 +51,15 @@ const apiRegistry = {
     enabled: true,
     requestsCount: 0,
     blockedCount: 0
+  },
+  telegram_stock: {
+    id: 'telegram_stock',
+    name: 'Telegram Live Stock Report',
+    path: '/api/telegram/stock',
+    method: 'ALL',
+    enabled: true,
+    requestsCount: 0,
+    blockedCount: 0
   }
 };
 
@@ -65,7 +74,8 @@ export function apiGatekeeper(req, res, next) {
 
   // Find matching endpoint in registry
   const matchedEntry = Object.values(apiRegistry).find((entry) => {
-    return entry.method === reqMethod && normalizedPath === entry.path;
+    const methodMatches = entry.method === 'ALL' || entry.method === reqMethod;
+    return methodMatches && normalizedPath === entry.path;
   });
 
   if (matchedEntry) {
