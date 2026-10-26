@@ -28,6 +28,7 @@ const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'))
 const InverterErrorCodes = lazy(() => import('./components/InverterErrorCodes'));
 const SolarCal = lazy(() => import('./components/SolarCal'));
 const ProductBrand = lazy(() => import('./components/ProductBrand'));
+const ApiManager = lazy(() => import('./components/ApiManager'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
 const PublicCatalogWrapper = () => {
@@ -292,6 +293,16 @@ function App() {
             <Route path="/user-management" element={
               <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
                 <UserManagement />
+              </RoleRoute>
+            } />
+            <Route path="/api" element={
+              <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
+                <ApiManager />
+              </RoleRoute>
+            } />
+            <Route path="/api-manager" element={
+              <RoleRoute userRole={userRole} allowedRoles={['Admin', 'CEO']}>
+                <ApiManager />
               </RoleRoute>
             } />
           </Route>

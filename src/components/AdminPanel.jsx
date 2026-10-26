@@ -58,6 +58,12 @@ const SolarCalIcon = () => (
   </svg>
 );
 
+const ApiIcon = () => (
+  <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+  </svg>
+);
+
 const LogoutIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 01-3-3h4a3 3 0 013 3v1" />
@@ -210,6 +216,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
     { id: 'frontend_custom', label: 'পাবলিক পেজ এডিট', path: '/frontend-custom', icon: <SettingsIcon />, isDropdown: false },
     { id: 'reseller_offer_admin', label: 'রিসেলার অফার', path: '/reseller-offer-admin', icon: <SettingsIcon />, isDropdown: false },
     { id: 'user_management', label: 'ইউজার ম্যানেজমেন্ট', path: '/user-management', icon: <UserIcon />, isDropdown: false },
+    { id: 'api', label: 'API', path: '/api', icon: <ApiIcon />, isDropdown: false },
   ];
 
   // Flattened items list for quick search navigation

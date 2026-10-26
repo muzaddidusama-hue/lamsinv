@@ -1,7 +1,15 @@
-const express = require('express');
-const cors = require('cors');
-const { createClient } = require('redis');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import { createClient } from 'redis';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import notificationRouter from './routes/notifications.js';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -175,11 +183,12 @@ app.post('/api/invalidate', async (req, res) => {
   }
 });
 
-// 4. Production Static File Serving
-// In production mode, serve built Vite React files
-const path = require('path');
-const distPath = path.join(__dirname, 'dist');
+// 4. Notification Routes (Telegram & WhatsApp Cloud API)
+app.use('/api/notify', notificationRouter);
 
+// 5. Production Static File Serving
+// In production mode, serve built Vite React files
+const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // For React SPA routes, fall back to index.html
@@ -190,7 +199,7 @@ app.get('*', (req, res) => {
 // Start listening
 app.listen(PORT, () => {
   console.log(`=================================================`);
-  console.log(`  Caching & Redis Proxy Server running on port ${PORT}`);
+  console.log(`  Caching & Proxy Server running on port ${PORT}`);
   console.log(`  Target Supabase URL: ${supabaseUrl}`);
   console.log(`  Mode: ${process.env.NODE_ENV || 'development'}`);
   console.log(`=================================================`);
