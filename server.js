@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import notificationRouter from './routes/notifications.js';
+import apiControllerRouter, { apiGatekeeper } from './routes/apiController.js';
 
 dotenv.config();
 
@@ -74,7 +75,11 @@ connectRedis();
 // Cache TTL in seconds (5 minutes)
 const REDIS_CACHE_TTL = 300;
 
-// 2. GET API Query Caching Endpoint
+// 2. API Gatekeeper & Route Controller
+app.use('/api/control', apiControllerRouter);
+app.use(apiGatekeeper);
+
+// 3. GET API Query Caching Endpoint
 app.get('/api/query', async (req, res) => {
   const targetUrl = req.query.url;
 

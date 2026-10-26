@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient';
 import Swal from 'sweetalert2';
 
 // Modern SVG Icons
@@ -50,6 +49,7 @@ const TrashIcon = () => (
 const SYSTEM_APIS = [
   {
     id: 'notify_unified',
+    controllerId: 'notify_all',
     category: 'messaging',
     categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
     method: 'POST',
@@ -58,12 +58,13 @@ const SYSTEM_APIS = [
     description: 'এক কলেই টেলিগ্রাম বট এবং হোয়াটসঅ্যাপ ক্লাউড এপিআইতে নোটিফিকেশন মেসেজ পাঠায়।',
     headers: { 'Content-Type': 'application/json' },
     samplePayload: {
-      platform: 'all', // 'all' | 'telegram' | 'whatsapp'
+      platform: 'all',
       message: '⚠️ <b>স্টক অ্যালার্ট:</b> SolarOn 3600VA ইনভার্টার স্টক ৫ পিসের নিচে নেমেছে!'
     }
   },
   {
     id: 'notify_telegram',
+    controllerId: 'notify_telegram',
     category: 'messaging',
     categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
     method: 'POST',
@@ -77,6 +78,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'notify_whatsapp',
+    controllerId: 'notify_whatsapp',
     category: 'messaging',
     categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
     method: 'POST',
@@ -91,6 +93,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'notify_status',
+    controllerId: null,
     category: 'messaging',
     categoryLabel: 'টেলিগ্রাম ও হোয়াটসঅ্যাপ',
     method: 'GET',
@@ -102,6 +105,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'query_cache',
+    controllerId: 'query_cache',
     category: 'database',
     categoryLabel: 'ডাটাবেস ও ক্যাশিং',
     method: 'GET',
@@ -113,6 +117,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'cache_invalidate',
+    controllerId: 'cache_invalidate',
     category: 'database',
     categoryLabel: 'ডাটাবেস ও ক্যাশিং',
     method: 'POST',
@@ -124,6 +129,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'supabase_products',
+    controllerId: null,
     category: 'inventory',
     categoryLabel: 'ইনভেন্টরি ও প্রোডাক্টস',
     method: 'GET',
@@ -138,6 +144,7 @@ const SYSTEM_APIS = [
   },
   {
     id: 'supabase_chalans',
+    controllerId: null,
     category: 'inventory',
     categoryLabel: 'ইনভেন্টরি ও প্রোডাক্টস',
     method: 'GET',
@@ -161,6 +168,10 @@ export default function ApiManager() {
   // Status state
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+
+  // API Controller & Gatekeeper state
+  const [controllerRegistry, setControllerRegistry] = useState({});
+  const [togglingApiId, setTogglingApiId] = useState(null);
 
   // API Directory search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -190,10 +201,11 @@ export default function ApiManager() {
   const [testLoading, setTestLoading] = useState(false);
   const [testDuration, setTestDuration] = useState(null);
 
-  // Load API keys on mount
+  // Load API keys and Controller Status on mount
   useEffect(() => {
     loadStoredApiKeys();
     checkConnectionStatus();
+    fetchControllerStatus();
   }, []);
 
   const loadStoredApiKeys = () => {
@@ -202,7 +214,6 @@ export default function ApiManager() {
       if (stored) {
         setApiKeys(JSON.parse(stored));
       } else {
-        // Default sample key
         const defaultKeys = [
           {
             id: 'key_1',
@@ -248,6 +259,61 @@ export default function ApiManager() {
     }
   };
 
+  const fetchControllerStatus = async () => {
+    try {
+      const res = await fetch('/api/control/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.registry) {
+          setControllerRegistry(data.registry);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch API controller status:', err);
+    }
+  };
+
+  // Toggle API on/off through controller
+  const handleToggleApiStatus = async (apiId) => {
+    const currentStatus = controllerRegistry[apiId]?.enabled ?? true;
+    const newStatus = !currentStatus;
+    setTogglingApiId(apiId);
+
+    try {
+      const res = await fetch('/api/control/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiId, enabled: newStatus })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setControllerRegistry((prev) => ({
+          ...prev,
+          [apiId]: {
+            ...prev[apiId],
+            enabled: newStatus
+          }
+        }));
+
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: newStatus ? 'success' : 'warning',
+          title: newStatus ? 'এপিআই সক্রিয় (Enabled) করা হয়েছে' : 'এপিআই বন্ধ (Disabled) করা হয়েছে',
+          showConfirmButton: false,
+          timer: 2000
+        });
+      } else {
+        Swal.fire({ icon: 'error', title: 'টগল করতে সমস্যা হয়েছে', text: data.error });
+      }
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'কন্ট্রোলার এরর', text: err.message });
+    } finally {
+      setTogglingApiId(null);
+    }
+  };
+
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
@@ -262,7 +328,6 @@ export default function ApiManager() {
       return;
     }
 
-    // Generate random 32-hex string
     const randomHex = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
     const fullKey = `lams_live_${randomHex}`;
 
@@ -379,6 +444,9 @@ export default function ApiManager() {
         ok: res.ok,
         data: bodyData
       });
+
+      // Refresh controller metrics after call
+      fetchControllerStatus();
     } catch (err) {
       const endTime = performance.now();
       setTestDuration(Math.round(endTime - startTime));
@@ -404,7 +472,6 @@ export default function ApiManager() {
     return matchesCategory && matchesSearch;
   });
 
-  // Selected API for Code Generator
   const currentGenApi = SYSTEM_APIS.find((a) => a.id === selectedApiId) || SYSTEM_APIS[0];
   const activeKeyForCode = generatorCustomKey || (apiKeys[0]?.key || 'YOUR_LAMS_API_KEY');
 
@@ -505,13 +572,13 @@ console.log(res.data);`;
         <div className="space-y-2 z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#ea3838]/10 text-[#ea3838] text-xs font-black uppercase tracking-wider">
             <ApiEndpointsIcon />
-            API Management & Hub
+            API Management & Gatekeeper
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
-            API ডিরেক্টরি ও ম্যানেজমেন্ট
+            API ডিরেক্টরি ও রেসপন্স কন্ট্রোলার
           </h1>
           <p className="text-xs md:text-sm text-slate-500 font-semibold max-w-2xl">
-            টেলিগ্রাম বট, হোয়াটসঅ্যাপ ক্লাউড এপিআই, ইনভেন্টরি ক্যাশ ও ডাটাবেস এপিআই জেনারেট, সংরক্ষণ এবং সরাসরি টেস্ট করুন।
+            টেলিগ্রাম বট, হোয়াটসঅ্যাপ ক্লাউড এপিআই, ইনভেন্টরি ক্যাশ ও ডাটাবেস এপিআই জেনারেট, অ্যাক্টিভ/ডিজেবল এবং লাইভ টেস্ট করুন।
           </p>
         </div>
 
@@ -524,7 +591,10 @@ console.log(res.data);`;
             + নতুন API Key তৈরি করুন
           </button>
           <button
-            onClick={checkConnectionStatus}
+            onClick={() => {
+              checkConnectionStatus();
+              fetchControllerStatus();
+            }}
             disabled={loadingStatus}
             className="px-4 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-all flex items-center gap-2"
             title="রিফ্রেশ স্ট্যাটাস"
@@ -535,7 +605,7 @@ console.log(res.data);`;
         </div>
       </div>
 
-      {/* 2. Connection Health Status Strip */}
+      {/* 2. Connection Health & Controller Status Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Telegram Card */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
@@ -573,14 +643,14 @@ console.log(res.data);`;
           </span>
         </div>
 
-        {/* Database Proxy Card */}
+        {/* Gatekeeper Controller Status Card */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Cache & Proxy</p>
-            <h4 className="text-sm font-black text-slate-800 mt-0.5">রেডিস / মেমরি প্রক্সি</h4>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">API Gatekeeper</p>
+            <h4 className="text-sm font-black text-slate-800 mt-0.5">রেসপন্স কন্ট্রোলার</h4>
           </div>
-          <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-50 text-blue-600 border border-blue-200 flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+          <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
             সক্রিয় (Active)
           </span>
         </div>
@@ -608,7 +678,7 @@ console.log(res.data);`;
           }`}
         >
           <ApiEndpointsIcon />
-          ১. সমস্ত API সংগ্রহ (Directory)
+          ১. API ডিরেক্টরি ও কন্ট্রোলার (Directory & Toggles)
         </button>
 
         <button
@@ -648,7 +718,7 @@ console.log(res.data);`;
         </button>
       </div>
 
-      {/* 4. Tab 1: API Directory */}
+      {/* 4. Tab 1: API Directory with Interactive Live Switch Controller */}
       {activeTab === 'directory' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Search & Filter Bar */}
@@ -691,26 +761,57 @@ console.log(res.data);`;
             {filteredApis.map((api) => {
               const fullUrl = `${window.location.origin}${api.path}`;
               const isCopied = copiedId === api.id;
+              const hasController = !!api.controllerId;
+              const isEnabled = hasController ? (controllerRegistry[api.controllerId]?.enabled ?? true) : true;
+              const reqStats = hasController ? controllerRegistry[api.controllerId] : null;
 
               return (
                 <div
                   key={api.id}
-                  className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-md transition-all flex flex-col justify-between group"
+                  className={`bg-white rounded-3xl p-6 border transition-all flex flex-col justify-between group ${
+                    isEnabled
+                      ? 'border-slate-200/80 shadow-xs hover:shadow-md'
+                      : 'border-red-200 bg-red-50/20 shadow-xs'
+                  }`}
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                         {api.categoryLabel}
                       </span>
-                      <span
-                        className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                          api.method === 'POST'
-                            ? 'bg-amber-100 text-amber-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                        }`}
-                      >
-                        {api.method}
-                      </span>
+                      
+                      <div className="flex items-center gap-2">
+                        {/* Live Gatekeeper Response Switch */}
+                        {hasController ? (
+                          <button
+                            onClick={() => handleToggleApiStatus(api.controllerId)}
+                            disabled={togglingApiId === api.controllerId}
+                            className={`px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                              isEnabled
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-300 hover:bg-emerald-100'
+                                : 'bg-red-100 text-red-700 border border-red-300 hover:bg-red-200'
+                            }`}
+                            title="ক্লিক করে এই এপিআই-এর রেসপন্স চালু বা বন্ধ করুন"
+                          >
+                            <span className={`w-2 h-2 rounded-full ${isEnabled ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                            {togglingApiId === api.controllerId ? 'আপডেট হচ্ছে...' : (isEnabled ? 'রেসপন্স: অন (Active)' : 'রেসপন্স: বন্ধ (Off)')}
+                          </button>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                            স্ট্যাটিক
+                          </span>
+                        )}
+
+                        <span
+                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                            api.method === 'POST'
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-emerald-100 text-emerald-700'
+                          }`}
+                        >
+                          {api.method}
+                        </span>
+                      </div>
                     </div>
 
                     <h3 className="text-base font-black text-slate-800 leading-snug group-hover:text-[#ea3838] transition-colors">
@@ -734,7 +835,14 @@ console.log(res.data);`;
                       </button>
                     </div>
 
-                    {/* Sample payload toggle */}
+                    {/* Stats & Payload info */}
+                    {reqStats && (
+                      <div className="flex items-center gap-4 text-[10px] font-bold text-slate-500 bg-slate-100/60 p-2 rounded-xl">
+                        <span>📊 মোট কল: <b className="text-slate-800">{reqStats.requestsCount || 0}</b></span>
+                        <span>🚫 ব্লকড: <b className={reqStats.blockedCount > 0 ? 'text-red-600' : 'text-slate-800'}>{reqStats.blockedCount || 0}</b></span>
+                      </div>
+                    )}
+
                     {api.samplePayload && (
                       <div className="pt-1">
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
