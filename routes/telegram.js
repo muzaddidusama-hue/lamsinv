@@ -6,13 +6,15 @@ export const router = express.Router();
 const DEFAULT_TG_TOKEN = '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
 const DEFAULT_TG_CHAT_ID = '8657367736';
 const DEFAULT_WEBHOOK_SECRET = 'LAMS_InvBot_15963_UbhMuzaddid17';
+const DEFAULT_SUPABASE_URL = 'https://iahytcrmstlkvnmwfxgs.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhaHl0Y3Jtc3Rsa3ZubXdmeGdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTA5MDYsImV4cCI6MjA5MjE2NjkwNn0.ipaXOyv2mGTZMPJrqqkFVu_qnNhvWlm9-PZJqxu2XUw';
 
 /**
  * Helper to fetch all inventory products from Supabase REST API
  */
 async function fetchProductsFromDb() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
-  const apiKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+  const apiKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
 
   if (!apiKey) {
     throw new Error('Supabase API key is missing in environment variables.');
@@ -253,7 +255,7 @@ async function handleStockTelegram(req, res) {
       summary,
       report: reportText,
       low_stock_items: lowStockItems,
-      out_of_stock_items: outOfStockItems,
+      outOfStock_items: outOfStockItems,
       products_count: products.length,
       timestamp: new Date().toISOString()
     });
@@ -294,24 +296,25 @@ async function handleSearchTelegram(req, res) {
  * Handles incoming Telegram bot messages, commands, and keyboard presses
  */
 async function handleTelegramWebhook(req, res) {
-  // Telegram expects 200 OK fast
-  res.status(200).json({ ok: true });
-
   try {
     const update = req.body;
-    if (!update) return;
+    if (!update) {
+      return res.status(200).json({ ok: true, notice: 'No update payload' });
+    }
 
     // Optional Secret Token verification
     const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
     const incomingSecret = req.headers['x-telegram-bot-api-secret-token'] || req.params.secret;
     if (expectedSecret && incomingSecret && incomingSecret !== expectedSecret) {
       console.warn('[Telegram Webhook]: Secret token mismatch, ignoring update.');
-      return;
+      return res.status(200).json({ ok: true, notice: 'Secret mismatch' });
     }
 
     // Extract message or callback_query
     const message = update.message || update.edited_message;
-    if (!message || !message.chat) return;
+    if (!message || !message.chat) {
+      return res.status(200).json({ ok: true, notice: 'No message in update' });
+    }
 
     const chatId = message.chat.id;
     const text = (message.text || '').trim();
@@ -319,11 +322,17 @@ async function handleTelegramWebhook(req, res) {
 
     console.log(`[Telegram Webhook]: Received message from ${senderName} (${chatId}): "${text}"`);
 
-    // Command handling
     const lowerText = text.toLowerCase();
+    
+    // Command normalization: strip bot username suffix e.g. /stock@InventoryLamsPower_bot -> /stock
+    const words = text.split(/\s+/);
+    const firstWord = words[0] || '';
+    const rawCommand = firstWord.split('@')[0].toLowerCase();
+    const commandArgs = words.slice(1).join(' ').trim();
+    const normalizedText = lowerText.replace(/@\w+/g, '').trim();
 
     // 1. /start or /help
-    if (lowerText === '/start' || lowerText === '/help') {
+    if (rawCommand === '/start' || rawCommand === '/help') {
       const welcomeMsg = [
         `👋 <b>Hello, ${senderName}!</b>`,
         `Welcome to <b>LAMS POWER Inventory Bot</b>.`,
@@ -331,11 +340,11 @@ async function handleTelegramWebhook(req, res) {
         `You can use this bot to check live stock, search product prices, or monitor low-stock inventory in real-time.`,
         ``,
         `📋 <b>Available Commands:</b>`,
-        `• <b>📊 Live Stock</b> (or <code>/stock</code>): Overview of current inventory`,
-        `• <b>⚠️ Low Stock</b> (or <code>/low</code>): Items with ≤ 5 units remaining`,
-        `• <b>🛑 Out of Stock</b> (or <code>/out</code>): Products currently at 0 units`,
-        `• <b>📁 Categories</b> (or <code>/categories</code>): Product categories list`,
-        `• <b>🔍 Search Product</b>: Type any product name (e.g. <code>SolarOn</code> or <code>3600VA</code>)`,
+        `• <b>/stock</b> or <b>/inventory</b> : Overview of current stock & metrics`,
+        `• <b>/low</b> or <b>/lowstock</b> : Items with ≤ 5 units remaining`,
+        `• <b>/out</b> or <b>/outstock</b> : Products currently at 0 units`,
+        `• <b>/categories</b> : List product categories & inventory counts`,
+        `• <b>/search &lt;model&gt;</b> : Search any product (e.g. <code>/search 3600VA</code> or <code>SolarOn</code>)`,
         ``,
         `<i>Tap any button below to get started!</i>`
       ].join('\n');
@@ -346,11 +355,16 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'start' });
     }
 
-    // 2. /stock or '📊 Live Stock'
-    if (lowerText === '/stock' || lowerText.includes('live stock') || lowerText.includes('stock overview')) {
+    // 2. /stock, /inventory, or '📊 Live Stock'
+    if (
+      ['/stock', '/inventory', '/allstock', 'stock', 'inventory'].includes(rawCommand) ||
+      normalizedText.includes('live stock') ||
+      normalizedText.includes('stock summary') ||
+      normalizedText === '📊 live stock'
+    ) {
       const products = await fetchProductsFromDb();
       const { reportText } = buildStockTelegramReport({ products, filter: 'low', threshold: 5 });
       await sendTelegram({
@@ -359,11 +373,15 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'stock' });
     }
 
-    // 3. /low or '⚠️ Low Stock'
-    if (lowerText === '/low' || lowerText === '/lowstock' || lowerText.includes('low stock')) {
+    // 3. /low, /lowstock, or '⚠️ Low Stock'
+    if (
+      ['/low', '/lowstock'].includes(rawCommand) ||
+      normalizedText.includes('low stock') ||
+      normalizedText === '⚠️ low stock'
+    ) {
       const products = await fetchProductsFromDb();
       const lowStockItems = products.filter(
         (p) => (Number(p.stock_quantity) || 0) <= 5 && (Number(p.stock_quantity) || 0) > 0
@@ -388,11 +406,15 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'low' });
     }
 
-    // 4. /out or '🛑 Out of Stock'
-    if (lowerText === '/out' || lowerText.includes('out of stock')) {
+    // 4. /out, /outstock, or '🛑 Out of Stock'
+    if (
+      ['/out', '/outstock', '/outofstock'].includes(rawCommand) ||
+      normalizedText.includes('out of stock') ||
+      normalizedText === '🛑 out of stock'
+    ) {
       const products = await fetchProductsFromDb();
       const { reportText } = buildStockTelegramReport({ products, filter: 'out' });
       await sendTelegram({
@@ -401,11 +423,15 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'out' });
     }
 
-    // 5. /categories or '📁 Categories'
-    if (lowerText === '/categories' || lowerText.includes('categories')) {
+    // 5. /categories, /category, or '📁 Categories'
+    if (
+      ['/categories', '/category', '/cat'].includes(rawCommand) ||
+      normalizedText.includes('categories') ||
+      normalizedText === '📁 categories'
+    ) {
       const products = await fetchProductsFromDb();
       const catMap = {};
       products.forEach((p) => {
@@ -427,13 +453,25 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'categories' });
     }
 
     // 6. Search query (either `/search query` or natural text search)
-    let searchQuery = text;
-    if (lowerText.startsWith('/search')) {
-      searchQuery = text.replace(/^\/search\s*/i, '');
+    let searchQuery = '';
+    if (['/search', '/find', '/p', '/product'].includes(rawCommand)) {
+      searchQuery = commandArgs;
+    } else {
+      // If user typed an unknown slash command like /helpme, inform them
+      if (rawCommand.startsWith('/')) {
+        await sendTelegram({
+          message: `❓ <b>Unknown command:</b> <code>${text}</code>\n\n💡 <b>Available commands:</b>\n• <b>/stock</b> or <b>/inventory</b> - Live stock report\n• <b>/low</b> - Low stock warning\n• <b>/out</b> - Out of stock items\n• <b>/categories</b> - Categories list\n• Type any product name (e.g. <code>SolarOn 3600</code>) to search`,
+          chatId,
+          parseMode: 'HTML',
+          replyMarkup: DEFAULT_KEYBOARD
+        });
+        return res.status(200).json({ ok: true, handled: 'unknown_command' });
+      }
+      searchQuery = text;
     }
 
     if (!searchQuery.trim()) {
@@ -443,7 +481,7 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'empty_search' });
     }
 
     const matches = await searchProducts(searchQuery);
@@ -455,10 +493,10 @@ async function handleTelegramWebhook(req, res) {
         parseMode: 'HTML',
         replyMarkup: DEFAULT_KEYBOARD
       });
-      return;
+      return res.status(200).json({ ok: true, handled: 'search_not_found' });
     }
 
-    // If 1 to 5 matches, send detailed cards
+    // If matches found, send detailed product cards
     const displayMatches = matches.slice(0, 5);
     const cardMessages = displayMatches.map((p) => formatProductTelegramCard(p)).join('\n\n');
 
@@ -473,8 +511,11 @@ async function handleTelegramWebhook(req, res) {
       parseMode: 'HTML',
       replyMarkup: DEFAULT_KEYBOARD
     });
+
+    return res.status(200).json({ ok: true, handled: 'search_results' });
   } catch (err) {
     console.error('[Telegram Webhook Handler Error]:', err.message);
+    return res.status(200).json({ ok: true, error: err.message });
   }
 }
 
