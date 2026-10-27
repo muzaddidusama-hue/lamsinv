@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
@@ -399,7 +399,8 @@ const addToCart = () => {
 
       const isDirectPaidBill = !isInHouse && paymentMethod !== '';
       const finalBillNo = isDirectPaidBill ? (isManualBill && manualBillNo.trim() !== '' ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`) : null;
-      const finalStatus = isDirectPaidBill ? 'paid' : 'hold';
+      // In-house transfers are auto-approved (completed) — no manual approval needed
+      const finalStatus = isInHouse ? 'completed' : (isDirectPaidBill ? 'paid' : 'hold');
 
       const { data: chalanData, error: chalanErr } = await supabase.from('chalans').insert([{
         chalan_no: chalanNo, 
@@ -433,6 +434,32 @@ const addToCart = () => {
         // Direct bill হলে স্টকের পরিমাণ রিয়েলটাইমে কমিয়ে নিবো
         if (isDirectPaidBill) {
           await supabase.rpc('update_product_stock', { prod_id: item.product_id, qty_change: -item.qty });
+        }
+
+        // In-house transfer: auto-approve -- deduct from source, add to target house immediately
+        if (isInHouse) {
+          // 1. Deduct from source product
+          const { data: sourceP } = await supabase.from('products').select('id, stock_quantity').eq('id', item.product_id).maybeSingle();
+          if (sourceP) {
+            await supabase.from('products').update({ stock_quantity: (sourceP.stock_quantity || 0) - item.qty }).eq('id', sourceP.id);
+          }
+          // 2. Find matching product in target house
+          const { data: targetProds } = await supabase.from('products')
+            .select('id, stock_quantity')
+            .eq('name', item.name)
+            .eq('model', item.model)
+            .eq('house', transferTo)
+            .limit(1);
+          const targetP = targetProds && targetProds.length > 0 ? targetProds[0] : null;
+          if (targetP) {
+            await supabase.from('products').update({ stock_quantity: (targetP.stock_quantity || 0) + item.qty }).eq('id', targetP.id);
+          } else {
+            const { data: fullProd } = await supabase.from('products').select('*').eq('id', item.product_id).maybeSingle();
+            if (fullProd) {
+              const { id: _id, created_at: _ca, stock_quantity: _sq, house: _h, ...cleanProductData } = fullProd;
+              await supabase.from('products').insert([{ ...cleanProductData, stock_quantity: item.qty, house: transferTo }]);
+            }
+          }
         }
       }
 
