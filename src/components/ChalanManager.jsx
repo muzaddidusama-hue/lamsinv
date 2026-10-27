@@ -92,7 +92,26 @@ const ChalanManager = () => {
     setProcessingPayment(true);
     try {
       const billNo = isManualBill ? manualBillNo : `BLL-${Date.now().toString().slice(-6)}`;
-      
+
+      // 🔴 ফিক্স: স্টক ডিডাক্ট করা — hold চালান পেমেন্ট হলে ইনভেন্টরি থেকে বাদ দিতে হবে
+      // BillingSystem hold মোডে চালান বানানোর সময় স্টক কমায় না,
+      // তাই ChalanManager-এ পেমেন্ট কনফার্মের সময় এখানে কমাতে হবে।
+      for (const item of items) {
+        if (item.product_id) {
+          const { data: prod } = await supabase
+            .from('products')
+            .select('id, stock_quantity')
+            .eq('id', item.product_id)
+            .maybeSingle();
+          if (prod) {
+            await supabase
+              .from('products')
+              .update({ stock_quantity: Math.max(0, (prod.stock_quantity || 0) - item.quantity) })
+              .eq('id', prod.id);
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('chalans')
         .update({ 
@@ -219,8 +238,8 @@ const ChalanManager = () => {
                 <h3 className="text-xl font-black mb-6 text-blue-400">🏠 ইন-হাউজ ট্রান্সফার</h3>
                 <div className="p-5 bg-slate-800 rounded-3xl border border-slate-700 text-slate-350 text-xs font-semibold leading-relaxed space-y-4">
                   <p>এটি একটি অভ্যন্তরীণ স্টক স্থানান্তর চালান (ইন-হাউজ মোড)।</p>
-                  <p>মালামাল স্থানান্তর সম্পন্ন করার জন্য অনুগ্রহ করে <b>ড্যাশবোর্ডের পেন্ডিং রিকোয়েস্ট তালিকা</b> থেকে চালানটি সম্পন্ন (Receive/Deliver) করুন।</p>
-                  <p>ইন-হাউজ স্থানান্তরের ক্ষেত্রে কোনো পেমেন্ট হিসাব বা বিক্রয় রেভিনিউ গণনা করা হয় না।</p>
+                  <p>মালামাল স্থানান্তর সম্পন্ন করার জন্য অনুগ্রহ করে <b>ড্যাশবোর্ডের পেন্ডিং রিকোয়েস্ট তালিকা</b> থেকে চালানটি সম্পন্ন (Receive/Deliver) করুন।</p>
+                  <p>ইন-হাউজ স্থানান্তরের ক্ষেত্রে কোনো পেমেন্ট হিসাব বা বিক্রয় রেভিনিউ গণনা করা হয় না।</p>
                 </div>
               </div>
             ) : (
