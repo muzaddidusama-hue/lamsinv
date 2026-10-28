@@ -27,6 +27,8 @@ const ResellerOfferPublic = lazy(() => import('./components/ResellerOfferPublic'
 const ResellerOfferAdmin = lazy(() => import('./components/ResellerOfferAdmin'));
 const InverterErrorCodes = lazy(() => import('./components/InverterErrorCodes'));
 const SolarCal = lazy(() => import('./components/SolarCal'));
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./components/TermsOfService'));
 const ProductBrand = lazy(() => import('./components/ProductBrand'));
 const ApiManager = lazy(() => import('./components/ApiManager'));
 
@@ -255,6 +257,27 @@ function App() {
               </div>
             }>
               <SolarCal />
+            </Suspense>
+          } />
+
+          <Route path="/privacy-policy" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading...</p>
+              </div>
+            }>
+              <PrivacyPolicy />
+            </Suspense>
+          } />
+          <Route path="/terms-of-service" element={
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4 text-slate-700">
+                <div className="w-10 h-10 rounded-full border-4 border-slate-200 border-t-[#ea3838] animate-spin"></div>
+                <p className="text-slate-400 font-bold tracking-widest text-xs uppercase animate-pulse">Loading...</p>
+              </div>
+            }>
+              <TermsOfService />
             </Suspense>
           } />
 

@@ -1925,6 +1925,8 @@ const PublicCatalog = ({ onAdminClick }) => {
             <button onClick={() => handleTabSwitch('contact')} className="hover:text-white transition-colors cursor-pointer">Contact</button>
             <button onClick={() => navigate('/solarcal')} className="text-[#ea3838] font-black hover:text-white transition-colors flex items-center gap-1 cursor-pointer">☀️ Solar Calculator</button>
             <button onClick={() => navigate('/error-codes')} className="hover:text-white transition-colors cursor-pointer">Error Guide</button>
+            <button onClick={() => navigate('/privacy-policy')} className="hover:text-white transition-colors cursor-pointer">Privacy Policy</button>
+            <button onClick={() => navigate('/terms-of-service')} className="hover:text-white transition-colors cursor-pointer">Terms</button>
             <button onClick={onAdminClick} className="hover:text-white transition-colors text-[#ea3838] cursor-pointer">Portal</button>
           </div>
 
