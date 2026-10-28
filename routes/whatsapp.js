@@ -25,32 +25,37 @@ router.get('/webhook', (req, res) => {
   return res.sendStatus(403);
 });
 
-router.post('/webhook', (req, res) => {
+router.post('/webhook', async (req, res) => {
   const appSecret = getAppSecret();
   if (!appSecret) return res.status(503).json({ error: 'WhatsApp webhook signature verification is not configured.' });
-  if (appSecret) {
-    const signature = req.headers['x-hub-signature-256'] || '';
-    const rawBody = req.rawBody;
-    if (!rawBody || !signature.startsWith('sha256=')) return res.sendStatus(401);
-    const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
-    const actualBuffer = Buffer.from(signature);
-    const expectedBuffer = Buffer.from(expected);
-    if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
-      return res.sendStatus(401);
-    }
+
+  const signature = req.headers['x-hub-signature-256'] || '';
+  const rawBody = req.rawBody;
+  if (!rawBody || !signature.startsWith('sha256=')) return res.sendStatus(401);
+  const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+  const actualBuffer = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return res.sendStatus(401);
   }
 
-  res.sendStatus(200);
+  if (req.body?.object !== 'whatsapp_business_account') return res.sendStatus(200);
   const messages = req.body?.entry?.flatMap((entry) =>
     entry.changes?.flatMap((change) => change.value?.messages || []) || []
   ) || [];
   for (const message of messages) {
     const from = message.from;
     const text = message.text?.body?.trim();
-    if (from && text) handleIncomingMessage(from, text).catch((error) => {
+    if (!from || !text) continue;
+    try {
+      await handleIncomingMessage(from, text);
+    } catch (error) {
       console.error('[WhatsApp reply error]:', error.message);
-    });
+    }
   }
+
+  // Wait for the reply API call before ending the serverless invocation.
+  return res.sendStatus(200);
 });
 
 export async function sendWhatsAppMessage(to, text) {
