@@ -26,7 +26,7 @@ const PrivacyPolicy = () => {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
                 Lams<span style={{ color: '#ea3838' }}>Power</span>
               </h1>
               <p className="text-xs text-slate-400 font-semibold uppercase tracking-widest">Solar Energy Solutions</p>
