@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import notificationRouter from '../routes/notifications.js';
 import telegramRouter from '../routes/telegram.js';
+import whatsappRouter from '../routes/whatsapp.js';
 import apiControllerRouter, { apiGatekeeper } from '../routes/apiController.js';
 
 dotenv.config();
@@ -25,9 +26,10 @@ const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1N
 app.use('/api/control', apiControllerRouter);
 app.use(apiGatekeeper);
 
-// 2. Notification & Telegram Routes
+// 2. Notification, Telegram & WhatsApp Routes
 app.use('/api/notify', notificationRouter);
 app.use('/api/telegram', telegramRouter);
+app.use('/api/whatsapp', whatsappRouter);
 
 // 3. Fallback Query Proxy (if queried directly)
 app.get('/api/query', async (req, res) => {
