@@ -43,7 +43,7 @@ const PrivacyPolicy = () => {
         {/* Intro */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8 mb-6">
           <p className="text-slate-700 text-base leading-relaxed">
-            Welcome to <strong>Lams Power</strong>. We are a solar energy products company based in Lahore, Pakistan,
+            Welcome to <strong>Lams Power</strong>. We are a solar energy products company based in Dhaka, Bangladesh,
             committed to providing high-quality solar panels, inverters, batteries, and energy solutions to homes and
             businesses across Pakistan and Bangladesh. This Privacy Policy explains how we collect, use, disclose, and
             protect your personal information when you visit our website, browse our product catalog, or contact us
@@ -276,8 +276,8 @@ const PrivacyPolicy = () => {
           </div>
           <p className="text-slate-600 text-sm mt-4">
             To exercise any of these rights, please contact us at{' '}
-            <a href="mailto:info@lamspower.com" className="font-bold underline" style={{ color: '#ea3838' }}>
-              info@lamspower.com
+            <a href="mailto:contact@lamspower.pro.bd" className="font-bold underline" style={{ color: '#ea3838' }}>
+              contact@lamspower.pro.bd
             </a>. We will respond to your request within 30 days.
           </p>
         </div>
@@ -326,8 +326,8 @@ const PrivacyPolicy = () => {
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Email</p>
-                <a href="mailto:info@lamspower.com" className="text-white font-semibold hover:underline" style={{ color: '#ea3838' }}>
-                  info@lamspower.com
+                <a href="mailto:contact@lamspower.pro.bd" className="text-white font-semibold hover:underline" style={{ color: '#ea3838' }}>
+                  contact@lamspower.pro.bd
                 </a>
               </div>
             </div>
@@ -340,7 +340,7 @@ const PrivacyPolicy = () => {
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Address</p>
-                <p className="text-white font-semibold">Lahore, Pakistan</p>
+                <p className="text-white font-semibold">1476, Alobdi Eidgah, Mirpur 12, Dhaka</p>
               </div>
             </div>
           </div>
@@ -367,7 +367,7 @@ const PrivacyPolicy = () => {
         <p className="font-bold uppercase tracking-widest">
           © {new Date().getFullYear()} Lams Power. All Rights Reserved.
         </p>
-        <p className="mt-1">Lahore, Pakistan &nbsp;|&nbsp; info@lamspower.com</p>
+        <p className="mt-1">1476, Alobdi Eidgah, Mirpur 12, Dhaka &nbsp;|&nbsp; contact@lamspower.pro.bd</p>
       </footer>
 
     </div>

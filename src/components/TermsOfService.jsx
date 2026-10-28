@@ -45,7 +45,7 @@ const TermsOfService = () => {
           <p className="text-slate-700 text-base leading-relaxed">
             These Terms of Service ("Terms") govern your access to and use of the Lams Power website, product catalog,
             solar calculator, and any related services (collectively, the "Services") provided by <strong>Lams Power</strong>,
-            a solar energy products company headquartered in Lahore, Pakistan.
+            a solar energy products company headquartered in Dhaka, Bangladesh.
           </p>
           <p className="text-slate-700 text-base leading-relaxed mt-4">
             By accessing our website or purchasing our products, you agree to be bound by these Terms. Please read them
@@ -327,7 +327,7 @@ const TermsOfService = () => {
           <p className="text-slate-700 leading-relaxed mb-4">
             These Terms shall be governed by and construed in accordance with the laws of the Islamic Republic of
             Pakistan. Any disputes arising out of or in connection with these Terms or our Services shall be subject
-            to the exclusive jurisdiction of the courts of Lahore, Punjab, Pakistan.
+            to the exclusive jurisdiction of the courts of Dhaka, Bangladesh.
           </p>
           <p className="text-slate-700 leading-relaxed">
             We encourage you to contact us directly to resolve any disputes amicably before pursuing formal legal
@@ -384,8 +384,8 @@ const TermsOfService = () => {
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Email</p>
-                <a href="mailto:info@lamspower.com" className="font-semibold hover:underline" style={{ color: '#ea3838' }}>
-                  info@lamspower.com
+                <a href="mailto:contact@lamspower.pro.bd" className="font-semibold hover:underline" style={{ color: '#ea3838' }}>
+                  contact@lamspower.pro.bd
                 </a>
               </div>
             </div>
@@ -398,7 +398,7 @@ const TermsOfService = () => {
               </div>
               <div>
                 <p className="text-xs text-slate-400 uppercase tracking-widest font-bold">Address</p>
-                <p className="text-white font-semibold">Lahore, Pakistan</p>
+                <p className="text-white font-semibold">1476, Alobdi Eidgah, Mirpur 12, Dhaka</p>
               </div>
             </div>
           </div>
@@ -425,7 +425,7 @@ const TermsOfService = () => {
         <p className="font-bold uppercase tracking-widest">
           © {new Date().getFullYear()} Lams Power. All Rights Reserved.
         </p>
-        <p className="mt-1">Lahore, Pakistan &nbsp;|&nbsp; info@lamspower.com</p>
+        <p className="mt-1">1476, Alobdi Eidgah, Mirpur 12, Dhaka &nbsp;|&nbsp; contact@lamspower.pro.bd</p>
       </footer>
 
     </div>
