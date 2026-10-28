@@ -82,72 +82,129 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-async function getProductStock(query) {
+function parseStockQuery(query) {
+  const normalized = normalize(query);
+  const house = /\bshowroom\b/.test(normalized)
+    ? 'Showroom'
+    : (/\bho\b|\bhead office\b|\bheadoffice\b/.test(normalized) ? 'Head Office' : null);
+  const searchText = normalized
+    .replace(/\bhead office\b/g, ' ')
+    .replace(/\b(showroom|headoffice|ho|stock|current|all|available|availability|please|show|check|inventory)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { house, terms: searchText.split(' ').filter(Boolean) };
+}
+
+async function getStockReport(query) {
   const supabase = getSupabase();
   if (!supabase) throw new Error('WhatsApp stock lookup requires SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL.');
 
-  const normalizedQuery = normalize(query.replace(/\b(stock|available|availability|please|show|check)\b/gi, ' '));
-  const terms = normalizedQuery.split(/\s+/).filter(Boolean);
-  if (!terms.length) return { kind: 'help' };
-
+  const { house, terms } = parseStockQuery(query);
   const { data: products, error } = await supabase.from('products')
     .select('id, name, model, house, stock_quantity').limit(5000);
   if (error) throw error;
 
-  const matches = (products || []).filter((product) => {
-    const searchable = normalize(`${product.name} ${product.model}`);
-    return terms.every((term) => searchable.includes(term));
-  });
-  if (!matches.length) return { kind: 'not_found' };
-
-  // A product can be stored as two rows, one per stock location. Combine those rows by name/model.
+  // A product may be stored as separate HO and Showroom rows; merge those rows by name/model.
   const grouped = new Map();
-  for (const product of matches) {
+  for (const product of products || []) {
     const key = normalize(`${product.name} ${product.model}`);
+    if (!key || !terms.every((term) => key.includes(term))) continue;
+
     const current = grouped.get(key) || {
-      name: product.name, model: product.model, headOffice: 0, showroom: 0, productIds: []
+      name: product.name || '', model: product.model || '', headOffice: 0, showroom: 0, productIds: []
     };
-    const house = String(product.house || '').toLowerCase();
     const quantity = Number(product.stock_quantity) || 0;
-    if (house === 'head office') current.headOffice += quantity;
-    if (house === 'showroom') current.showroom += quantity;
+    if (String(product.house || '').toLowerCase() === 'showroom') current.showroom += quantity;
+    else current.headOffice += quantity;
     current.productIds.push(product.id);
     grouped.set(key, current);
   }
 
-  const exact = [...grouped.values()].filter((product) => normalize(`${product.name} ${product.model}`) === normalizedQuery);
-  const selected = exact.length ? exact : [...grouped.values()];
-  if (selected.length > 1) return { kind: 'ambiguous', products: selected.slice(0, 8) };
+  let results = [...grouped.values()];
+  if (!results.length) return { kind: 'not_found', house };
 
-  const product = selected[0];
-  const { data: itemRows, error: historyError } = await supabase.from('chalan_items')
-    .select('product_id, chalans!inner(chalan_no, bill_no, created_at, status)')
-    .in('product_id', product.productIds);
-  if (historyError) throw historyError;
+  const isFullReport = terms.length === 0;
+  if (!isFullReport) {
+    try {
+      const productIds = results.flatMap((product) => product.productIds);
+      const { data: itemRows, error: historyError } = await supabase.from('chalan_items')
+        .select('product_id, chalans!inner(chalan_no, bill_no, created_at, status)')
+        .in('product_id', productIds);
+      if (historyError) throw historyError;
 
-  const completed = (itemRows || [])
-    .map((row) => Array.isArray(row.chalans) ? row.chalans[0] : row.chalans)
-    .filter((chalan) => chalan && ['paid', 'completed'].includes(String(chalan.status || '').toLowerCase()))
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+      const latestByProductId = new Map();
+      for (const row of itemRows || []) {
+        const chalan = Array.isArray(row.chalans) ? row.chalans[0] : row.chalans;
+        if (!chalan || !['paid', 'completed'].includes(String(chalan.status || '').toLowerCase())) continue;
+        const previous = latestByProductId.get(row.product_id);
+        if (!previous || new Date(chalan.created_at) > new Date(previous.created_at)) {
+          latestByProductId.set(row.product_id, chalan);
+        }
+      }
+      results = results.map((product) => {
+        const latest = product.productIds.map((id) => latestByProductId.get(id)).filter(Boolean)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+        return {
+          ...product,
+          lastReference: latest?.bill_no || latest?.chalan_no || 'N/A',
+          lastDate: latest ? formatDate(latest.created_at) : 'No completed bill/challan found'
+        };
+      });
+    } catch (error) {
+      console.error('[WhatsApp stock history lookup error]:', error.message);
+    }
+  }
 
+  results.sort((a, b) => `${a.name} ${a.model}`.localeCompare(`${b.name} ${b.model}`));
   return {
-    kind: 'found', product,
-    lastReference: completed?.bill_no || completed?.chalan_no || 'N/A',
-    lastDate: completed ? formatDate(completed.created_at) : 'No completed bill/challan found'
+    kind: 'report',
+    house,
+    isFullReport,
+    products: results,
+    totalHeadOffice: results.reduce((sum, product) => sum + product.headOffice, 0),
+    totalShowroom: results.reduce((sum, product) => sum + product.showroom, 0)
   };
 }
 
-function formatStockReply(result) {
-  if (result.kind === 'help') return 'Send a product name or model, for example: SolarOn 3600. You can also send “SolarOn stock”.';
-  if (result.kind === 'not_found') return 'I could not find a matching product. Try the full product name or model, e.g. SolarOn 3600.';
-  if (result.kind === 'ambiguous') {
-    const choices = result.products.map((product) => `• ${product.name} ${product.model || ''}`.trim()).join('\n');
-    return `Several products match. Please send the model too:\n${choices}`;
+function formatStockReplies(result) {
+  if (result.kind === 'not_found') {
+    return ['No matching products found. Try a product name or model, e.g. SolarOn 3600.'];
   }
-  const { product } = result;
-  return `📦 ${product.name}${product.model ? ` ${product.model}` : ''}\n🏢 HO: ${product.headOffice} pcs\n🏬 Showroom: ${product.showroom} pcs\n📊 Total: ${product.headOffice + product.showroom} pcs\n🧾 Last bill/challan: ${result.lastReference}\n📅 Date: ${result.lastDate}`;
+
+  const locationLabel = result.house || 'All locations';
+  const total = result.totalHeadOffice + result.totalShowroom;
+  const heading = result.isFullReport
+    ? `📦 Current stock — ${locationLabel}\nItems: ${result.products.length} | HO: ${result.totalHeadOffice} pcs | Showroom: ${result.totalShowroom} pcs | Total: ${total} pcs`
+    : `📦 Stock matches — ${locationLabel}\nFound ${result.products.length} product(s) | Total: ${total} pcs`;
+  const lines = result.products.map((product) => {
+    const title = `${product.name}${product.model ? ` ${product.model}` : ''}`.trim();
+    const stock = result.house === 'Showroom'
+      ? `Showroom ${product.showroom}`
+      : result.house === 'Head Office'
+        ? `HO ${product.headOffice}`
+        : `HO ${product.headOffice} | Showroom ${product.showroom} | Total ${product.headOffice + product.showroom}`;
+    const lastUpdate = !result.isFullReport && product.lastDate
+      ? ` | Last: ${product.lastDate}${product.lastReference && product.lastReference !== 'N/A' ? ` (${product.lastReference})` : ''}`
+      : '';
+    return `• ${title}: ${stock} pcs${lastUpdate}`;
+  });
+
+  const messages = [];
+  let current = heading;
+  for (const line of lines) {
+    if (current.length + line.length + 1 > 3200) {
+      messages.push(current);
+      current = `📦 Stock — ${locationLabel} (continued)`;
+    }
+    current += `\n${line}`;
+  }
+  messages.push(current);
+  return messages;
 }
 
+async function sendWhatsAppMessages(to, messages) {
+  for (const message of messages) await sendWhatsAppMessage(to, message);
+}
 async function handleIncomingMessage(from, text) {
   const normalized = normalize(text);
   if (normalized === 'help' || normalized === 'menu' || normalized === 'hi' || normalized === 'hello') {
@@ -168,8 +225,8 @@ async function handleIncomingMessage(from, text) {
     return;
   }
   try {
-    const result = await getProductStock(text);
-    await sendWhatsAppMessage(from, formatStockReply(result));
+    const result = await getStockReport(text);
+    await sendWhatsAppMessages(from, formatStockReplies(result));
   } catch (error) {
     console.error('[WhatsApp stock lookup error]:', error.message);
     await sendWhatsAppMessage(from, 'I could not retrieve stock right now. Please try again shortly.');
