@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import notificationRouter from './routes/notifications.js';
 import telegramRouter from './routes/telegram.js';
+import whatsappRouter from './routes/whatsapp.js';
 import apiControllerRouter, { apiGatekeeper } from './routes/apiController.js';
 
 dotenv.config();
@@ -17,7 +18,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
 
 // Load Supabase credentials from server env
 const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
@@ -192,6 +193,7 @@ app.post('/api/invalidate', async (req, res) => {
 // 4. Notification & Telegram Routes
 app.use('/api/notify', notificationRouter);
 app.use('/api/telegram', telegramRouter);
+app.use('/api/whatsapp', whatsappRouter);
 
 // 5. Production Static File Serving
 // In production mode, serve built Vite React files
