@@ -26,27 +26,47 @@ router.get('/webhook', (req, res) => {
 });
 
 router.post('/webhook', async (req, res) => {
+  console.info('[WhatsApp webhook] POST received.', {
+    contentType: req.headers['content-type'] || 'unknown',
+    hasSignature: Boolean(req.headers['x-hub-signature-256']),
+    rawBodyBytes: req.rawBody?.length || 0
+  });
+
   const appSecret = getAppSecret();
-  if (!appSecret) return res.status(503).json({ error: 'WhatsApp webhook signature verification is not configured.' });
+  if (!appSecret) {
+    console.error('[WhatsApp webhook] Rejected: WHATSAPP_APP_SECRET is not configured.');
+    return res.status(503).json({ error: 'WhatsApp webhook signature verification is not configured.' });
+  }
 
   const signature = req.headers['x-hub-signature-256'] || '';
   const rawBody = req.rawBody;
-  if (!rawBody || !signature.startsWith('sha256=')) return res.sendStatus(401);
+  if (!rawBody || !signature.startsWith('sha256=')) {
+    console.warn('[WhatsApp webhook] Rejected: request body or Meta signature header is missing.');
+    return res.sendStatus(401);
+  }
   const expected = `sha256=${crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
   const actualBuffer = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
   if (actualBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(actualBuffer, expectedBuffer)) {
+    console.warn('[WhatsApp webhook] Rejected: Meta signature did not match WHATSAPP_APP_SECRET.');
     return res.sendStatus(401);
   }
 
-  if (req.body?.object !== 'whatsapp_business_account') return res.sendStatus(200);
+  if (req.body?.object !== 'whatsapp_business_account') {
+    console.info('[WhatsApp webhook] Signed event ignored: object is not whatsapp_business_account.');
+    return res.sendStatus(200);
+  }
   const messages = req.body?.entry?.flatMap((entry) =>
     entry.changes?.flatMap((change) => change.value?.messages || []) || []
   ) || [];
+  console.info(`[WhatsApp webhook] Signature verified; received ${messages.length} message(s).`);
   for (const message of messages) {
     const from = message.from;
     const text = message.text?.body?.trim();
-    if (!from || !text) continue;
+    if (!from || !text) {
+      console.info(`[WhatsApp webhook] Skipped non-text or incomplete message (type: ${message.type || 'unknown'}).`);
+      continue;
+    }
     try {
       await handleIncomingMessage(from, text);
     } catch (error) {
@@ -215,7 +235,7 @@ async function handleIncomingMessage(from, text) {
     await sendWhatsAppMessage(from, 'Please visit https://lamspower.pro.bd for product prices or contact our sales team.');
     return;
   }
-  if (normalized.includes('address') || normalized.includes('location') || normalized.includes('office')) {
+  if (normalized.includes('address') || normalized.includes('location') || normalized.includes('office address') || normalized.includes('corporate office')) {
     await sendWhatsAppMessage(from, 'Corporate Office: 1476, Alobdi Eidgah, Mirpur 12, Dhaka. Showroom: Kaptan Bazar Complex, Bhaban #1, Shop #86, Nawabpur Road, Dhaka-1203.');
     return;
   }
