@@ -677,7 +677,12 @@ const checkIsTransfer = (val) => {
               const itemProduct = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
               return getStandardKey(itemProduct) === productKey;
             });
-            if (itemStillExists || normalizeHouse(row.house) !== house) return;
+            // Older ledger rows do not have a `house` column. Resolve their
+            // warehouse from the return source before comparing with the
+            // cancelled sale; otherwise missing house defaults to Head Office
+            // and showroom cancellation Out movements are skipped.
+            const returnHouse = normalizeHouse(row.house || row.source);
+            if (itemStillExists || returnHouse !== house) return;
 
             const key = JSON.stringify([ch.id, productKey, house]);
             const recovered = recoveredCancelledOuts.get(key) || {
