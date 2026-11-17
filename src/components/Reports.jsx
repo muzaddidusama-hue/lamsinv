@@ -636,6 +636,67 @@ const checkIsTransfer = (val) => {
               }
             });
           });
+
+          // Older full cancellations could delete chalan_items. In that case the
+          // return ledger still proves the returned product and quantity, but the
+          // cancelled sale's Out is missing. Recreate that Out only when the
+          // cancelled invoice has no matching item row, avoiding double counting.
+          const cancelledByRef = new Map();
+          allChalans.forEach(ch => {
+            if (ch.status !== 'cancelled') return;
+            [ch.bill_no, ch.chalan_no].filter(ref => ref && ref !== 'N/A').forEach(ref => {
+              const matches = cancelledByRef.get(ref) || [];
+              matches.push(ch);
+              cancelledByRef.set(ref, matches);
+            });
+          });
+
+          const recoveredCancelledOuts = new Map();
+          allLedger.forEach(row => {
+            if (row.type !== 'in' || !row.source || /\[item:[^\]]+\]/i.test(row.source)) return;
+            const invoiceRef = row.source.match(/Return from Inv: #(.+?)(?: \(To:|$)/i)?.[1]?.trim();
+            const candidates = invoiceRef ? cancelledByRef.get(invoiceRef) || [] : [];
+            if (candidates.length !== 1) return;
+
+            const ch = candidates[0];
+            const productKey = getStandardKey(row.product);
+            const house = normalizeHouse(ch.house);
+            const itemStillExists = ch.chalan_items?.some(item => {
+              const itemProduct = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+              return getStandardKey(itemProduct) === productKey;
+            });
+            if (itemStillExists || normalizeHouse(row.house) !== house) return;
+
+            const key = JSON.stringify([ch.id, productKey, house]);
+            const recovered = recoveredCancelledOuts.get(key) || {
+              ch,
+              product: row.product,
+              house,
+              quantity: 0
+            };
+            recovered.quantity += Number(row.quantity) || 0;
+            recoveredCancelledOuts.set(key, recovered);
+          });
+
+          recoveredCancelledOuts.forEach(({ ch, product, house, quantity }, key) => {
+            const txDate = ch.created_at ? ch.created_at.split('T')[0] : '';
+            const isPast = txDate < startDate;
+            const isFuture = txDate > endDate;
+            extractedTrans.push({
+              id: `legacy_cancelled_return_out_${key}`,
+              date: txDate,
+              timestamp: ch.created_at,
+              product,
+              type: 'out',
+              house,
+              quantity,
+              source: `Cancelled Sale: ${ch.customer_name || 'Walk-in'}`,
+              ref: `Bill: #${ch.bill_no || ch.chalan_no} (Recovered from return record)`,
+              isPast,
+              isFuture,
+              isPeriod: !isPast && !isFuture
+            });
+          });
         }
 
         // Fetch manual removals from stock_out
