@@ -49,7 +49,7 @@ export function getOptimizedImageUrl(url, options = {}) {
       urlObj.searchParams.set('fm', 'webp');
       urlObj.searchParams.set('fit', 'crop');
       return urlObj.toString();
-    } catch (e) {
+    } catch {
       return url;
     }
   }

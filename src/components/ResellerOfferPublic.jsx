@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import lamsLogo from '../assets/lams-logo.webp';
@@ -9,11 +9,7 @@ const ResellerOfferPublic = () => {
   const [heading, setHeading] = useState('');
   const [offerText, setOfferText] = useState('');
 
-  useEffect(() => {
-    fetchOffer();
-  }, []);
-
-  const fetchOffer = async () => {
+  const fetchOffer = useCallback(async () => {
     try {
       const { data, error } = await supabase.from('site_settings').select('*').single();
       if (error) throw error;
@@ -41,7 +37,12 @@ const ResellerOfferPublic = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void fetchOffer(), 0);
+    return () => clearTimeout(timer);
+  }, [fetchOffer]);
 
   if (loading) {
     return (

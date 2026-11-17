@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useDeferredValue } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useDeferredValue, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import lamsLogo from '../assets/lams-logo.webp';
@@ -10,22 +10,8 @@ import productsImg from '../assets/products-image.webp';
 import solarOn3600Img from '../assets/solaron-3600.webp';
 import OptimizedImage from './OptimizedImage';
 
-const sortModelsByCapacity = (modelsArray) => {
-  const parseCapacity = (modelName) => {
-    const match = modelName.match(/([\d.]+)\s*(va|w|kw)/i);
-    if (!match) return Infinity; 
-    const value = parseFloat(match[1]);
-    const unit = match[2].toLowerCase();
-    if (unit === 'kw') return value * 1000;
-    return value;
-  };
-  return modelsArray.sort((a, b) => {
-    const capA = parseCapacity(a);
-    const capB = parseCapacity(b);
-    if (capA !== capB) return capA - capB; 
-    return a.localeCompare(b); 
-  });
-};
+const CATEGORIES = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
+const TWELVE_VOLT_BRANDS = ['powerland', 'sunland', 'sunland extreme'];
 
 // Smart wattage parser
 const parseSmartWattage = (input) => {
@@ -71,15 +57,9 @@ const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
 
   useEffect(() => {
     const end = parseInt(target, 10);
-    if (isNaN(end) || end <= 0) {
-      setCount(0);
-      return;
-    }
+    if (isNaN(end) || end <= 0) return;
     
-    if (!trigger) {
-      setCount(end);
-      return;
-    }
+    if (!trigger) return;
 
     let start = 0;
     const totalSteps = 40;
@@ -99,7 +79,11 @@ const AnimatedCounter = ({ target, duration = 1500, trigger = false }) => {
     return () => clearInterval(timer);
   }, [target, duration, trigger]);
 
-  return <span>{count || target || 0}</span>;
+  const parsedTarget = parseInt(target, 10);
+  const value = !Number.isFinite(parsedTarget) || parsedTarget <= 0
+    ? 0
+    : trigger ? count : parsedTarget;
+  return <span>{value}</span>;
 };
 
 const PublicCatalog = ({ onAdminClick }) => {
@@ -253,14 +237,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     return () => observer.disconnect();
   }, [loading]);
 
-  const categories = [
-    "Hybrid Inverter",
-    "On-grid Inverter",
-    "Solar Panel - 12 Volt",
-    "Solar Panel - 24 Volt"
-  ];
-  
-  const twelveVoltBrands = ['powerland', 'sunland', 'sunland extreme'];
+  const categories = CATEGORIES;
 
   const deferredProductSearch = useDeferredValue(productSearch);
 
@@ -334,9 +311,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       // 1. Category check
       let matchesCat = false;
       if (cat === 'Solar Panel - 12 Volt') {
-        matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+        matchesCat = pCatLower === 'solar panel' && TWELVE_VOLT_BRANDS.includes(pNameLower);
       } else if (cat === 'Solar Panel - 24 Volt') {
-        matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+        matchesCat = pCatLower === 'solar panel' && !TWELVE_VOLT_BRANDS.includes(pNameLower);
       } else {
         matchesCat = p.category === cat;
       }
@@ -391,7 +368,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   };
 
   // Pure category products for Home page showcases (unaffected by catalog live search/filter inputs)
-  const getCategoryShowcaseList = (cat) => {
+  const getCategoryShowcaseList = useCallback((cat) => {
     return deDuplicatedProducts.filter(p => {
       const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
       if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
@@ -400,9 +377,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
       if (cat === 'Solar Panel - 12 Volt') {
-        return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+        return pCatLower === 'solar panel' && TWELVE_VOLT_BRANDS.includes(pNameLower);
       } else if (cat === 'Solar Panel - 24 Volt') {
-        return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+        return pCatLower === 'solar panel' && !TWELVE_VOLT_BRANDS.includes(pNameLower);
       } else {
         return p.category === cat;
       }
@@ -412,7 +389,7 @@ const PublicCatalog = ({ onAdminClick }) => {
       const capB = parseFloat(b.model.match(/([\d.]+)/)?.[1] || 0);
       return capA - capB;
     });
-  };
+  }, [deDuplicatedProducts]);
 
   // Get active product details for the interactive portfolio specs card
   const getShowcaseProduct = (categoryName) => {
@@ -470,7 +447,7 @@ const PublicCatalog = ({ onAdminClick }) => {
   };
 
   // Generate 8-10 models list from database for the autoplay switcher
-  const getShowcaseModelsList = () => {
+  const getShowcaseModelsList = useCallback(() => {
     const targetBrands = [
       'Inhenergy',
       'JFY',
@@ -515,17 +492,15 @@ const PublicCatalog = ({ onAdminClick }) => {
     });
 
     return finalModels;
-  };
+  }, [deDuplicatedProducts]);
 
   // Initialize showcaseQueue once products or fallbacks are available
   useEffect(() => {
     const pool = getShowcaseModelsList();
-    if (pool.length >= 5) {
-      setShowcaseQueue(pool.slice(0, 5));
-    } else if (pool.length > 0) {
-      setShowcaseQueue(pool);
-    }
-  }, [deDuplicatedProducts]);
+    if (pool.length === 0) return;
+    const timer = setTimeout(() => setShowcaseQueue(pool.slice(0, 5)), 0);
+    return () => clearTimeout(timer);
+  }, [deDuplicatedProducts, getShowcaseModelsList]);
 
   // Autoplay conveyor-belt effect (Shifts out top model, appends a new brand model at the 5th position)
   useEffect(() => {
@@ -554,7 +529,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [showcaseQueue.length, isShowcaseHovered]);
+  }, [showcaseQueue.length, isShowcaseHovered, getShowcaseModelsList]);
 
   const handleShowcaseItemClick = (idx) => {
     if (idx === 0) return;
@@ -597,7 +572,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     }, 4000);
 
     return () => clearInterval(interval);
-  }, [deDuplicatedProducts, isRegularUseHovered]);
+  }, [deDuplicatedProducts, isRegularUseHovered, categories, getCategoryShowcaseList]);
 
   const getRegularUseShowcaseProduct = (categoryName) => {
     const list = getCategoryShowcaseList(categoryName);
@@ -637,9 +612,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       if (productCategoryFilter !== 'All') {
         let matchesCat = false;
         if (productCategoryFilter === 'Solar Panel - 12 Volt') {
-          matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+          matchesCat = pCatLower === 'solar panel' && TWELVE_VOLT_BRANDS.includes(pNameLower);
         } else if (productCategoryFilter === 'Solar Panel - 24 Volt') {
-          matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+          matchesCat = pCatLower === 'solar panel' && !TWELVE_VOLT_BRANDS.includes(pNameLower);
         } else {
           matchesCat = p.category === productCategoryFilter;
         }
@@ -668,9 +643,9 @@ const PublicCatalog = ({ onAdminClick }) => {
         const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
         let matchesCat = false;
         if (productCategoryFilter === 'Solar Panel - 12 Volt') {
-          matchesCat = pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+          matchesCat = pCatLower === 'solar panel' && TWELVE_VOLT_BRANDS.includes(pNameLower);
         } else if (productCategoryFilter === 'Solar Panel - 24 Volt') {
-          matchesCat = pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+          matchesCat = pCatLower === 'solar panel' && !TWELVE_VOLT_BRANDS.includes(pNameLower);
         } else {
           matchesCat = p.category === productCategoryFilter;
         }
@@ -707,7 +682,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     });
   };
 
-  const FiltersPanel = ({ isMobile = false }) => {
+  const renderFiltersPanel = ({ isMobile = false } = {}) => {
     const availableBrands = getAvailableBrandsForCategory();
 
     return (
@@ -766,10 +741,10 @@ const PublicCatalog = ({ onAdminClick }) => {
                 const pNameLower = p.name ? p.name.toLowerCase().trim() : '';
                 const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
                 if (cat === 'Solar Panel - 12 Volt') {
-                  return pCatLower === 'solar panel' && twelveVoltBrands.includes(pNameLower);
+                  return pCatLower === 'solar panel' && TWELVE_VOLT_BRANDS.includes(pNameLower);
                 }
                 if (cat === 'Solar Panel - 24 Volt') {
-                  return pCatLower === 'solar panel' && !twelveVoltBrands.includes(pNameLower);
+                  return pCatLower === 'solar panel' && !TWELVE_VOLT_BRANDS.includes(pNameLower);
                 }
                 return p.category === cat;
               }).length;
@@ -1501,7 +1476,7 @@ const PublicCatalog = ({ onAdminClick }) => {
             
             {/* Desktop Filters Sidebar (hidden on mobile, shown on lg) */}
             <div className="hidden lg:block w-72 shrink-0 self-start sticky top-24">
-              <FiltersPanel />
+              {renderFiltersPanel()}
             </div>
 
             {/* Main Content Area */}
@@ -1560,7 +1535,7 @@ const PublicCatalog = ({ onAdminClick }) => {
               {/* Mobile Filters dropdown panel */}
               {showMobileFilters && (
                 <div className="lg:hidden animate-in slide-in-from-top-4 duration-200">
-                  <FiltersPanel isMobile={true} />
+                  {renderFiltersPanel({ isMobile: true })}
                 </div>
               )}
 
@@ -1803,7 +1778,7 @@ const PublicCatalog = ({ onAdminClick }) => {
                 if (!catalogImageUrl) catalogImageUrl = parsed.catalog_url;
               }
             }
-          } catch (e) {
+          } catch {
             parsedDescText = desc;
           }
         } else {

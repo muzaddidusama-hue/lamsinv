@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import { printBill } from '../utils/printBill';
-import { downloadPDF } from '../utils/pdfGenerator';
 import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils';
 // Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
 const CustomDatePicker = ({ value, onChange }) => {
@@ -28,7 +27,7 @@ const CustomDatePicker = ({ value, onChange }) => {
     if (hiddenInputRef.current) {
       try {
         hiddenInputRef.current.showPicker();
-      } catch (err) {
+    } catch {
         hiddenInputRef.current.click();
       }
     }
@@ -103,7 +102,6 @@ const CustomDatePicker = ({ value, onChange }) => {
    const [showOutPurchaseDropdown, setShowOutPurchaseDropdown] = useState(false);
    const [outPurchaseQty, setOutPurchaseQty] = useState('');
    const [outPurchaseDate, setOutPurchaseDate] = useState(getTodayFormatted());
-   const [outPurchaseHouse, setOutPurchaseHouse] = useState(house);
    const [outPurchaseLoading, setOutPurchaseLoading] = useState(false);
 
    const [qty, setQty] = useState('');
@@ -127,12 +125,11 @@ const CustomDatePicker = ({ value, onChange }) => {
      };
    }, []);
 
-   useEffect(() => { 
-     fetchAvailableProducts(); 
-     setOutPurchaseHouse(house);
+   useEffect(() => {
+     fetchAvailableProducts();
    }, []);
 
-   const fetchAvailableProducts = async () => {
+  async function fetchAvailableProducts() {
      const { data } = await supabase.from('products').select('*').eq('house', house);
      if (data) {
        const sortedData = data.sort((a, b) => {
@@ -169,7 +166,7 @@ const CustomDatePicker = ({ value, onChange }) => {
        // ২. ledger টেবিলে এন্ট্রি দেওয়া
        const currentTime = new Date().toTimeString().split(' ')[0];
        const finalTimestamp = `${outPurchaseDate}T${currentTime}.000Z`;
-       const houseLabel = outPurchaseHouse === 'Showroom' ? 'Nawabpur' : 'Head Office';
+       const houseLabel = house === 'Showroom' ? 'Nawabpur' : 'Head Office';
 
        const { error: ledgerErr } = await supabase.from('ledger').insert([
          {
@@ -219,7 +216,7 @@ const CustomDatePicker = ({ value, onChange }) => {
       setCustomerSuggestions([]);
       setActiveSearchField('');
     }
-  };
+  }
 
   const handleNameChange = (val) => {
     setName(val);
@@ -513,7 +510,7 @@ const addToCart = () => {
                     <span>🛒</span> আউট পারচেস স্টক এন্ট্রি
                   </span>
                   <span className="text-[10px] font-black px-2.5 py-0.5 bg-orange-200 text-orange-900 rounded-lg">
-                    {outPurchaseHouse === 'Showroom' ? '🏪 শোরুম (Nawabpur)' : '🏢 হেড অফিস'}
+                    {house === 'Showroom' ? '🏪 শোরুম (Nawabpur)' : '🏢 হেড অফিস'}
                   </span>
                 </div>
 
@@ -583,7 +580,7 @@ const addToCart = () => {
                   <input 
                     type="text" 
                     readOnly 
-                    value={outPurchaseHouse === 'Showroom' ? 'Showroom (Nawabpur)' : 'Head Office'}
+                    value={house === 'Showroom' ? 'Showroom (Nawabpur)' : 'Head Office'}
                     className="w-full p-2.5 bg-orange-100/70 border border-orange-200 rounded-xl font-bold text-xs text-orange-950 cursor-not-allowed"
                   />
                 </div>

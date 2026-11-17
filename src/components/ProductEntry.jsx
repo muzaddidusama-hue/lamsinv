@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ProductEntry = () => {
@@ -20,7 +20,7 @@ const ProductEntry = () => {
   const [brandMode, setBrandMode] = useState('new'); // 'new' brand or 'existing' brand selection
   const [category, setCategory] = useState('Hybrid Inverter');
   const [model, setModel] = useState('');
-  const [unitPrice, setUnitPrice] = useState('');
+  const [manualUnitPrice, setManualUnitPrice] = useState('');
   const [availability, setAvailability] = useState('in stock');
   const [house, setHouse] = useState('Head Office');
   const [imageUrl, setImageUrl] = useState('');
@@ -28,6 +28,9 @@ const ProductEntry = () => {
   // Special states for Solar Panel auto calculation
   const [panelWatt, setPanelWatt] = useState('');
   const [perWattPrice, setPerWattPrice] = useState('');
+  const unitPrice = category === 'Solar Panel' && pageMode === 'create'
+    ? (((parseFloat(panelWatt) || 0) * (parseFloat(perWattPrice) || 0)) || '').toString()
+    : manualUnitPrice;
 
   // Form states - Advanced (Descriptions & Specs)
   const [volt, setVolt] = useState('');
@@ -38,22 +41,17 @@ const ProductEntry = () => {
 
   const categories = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel", "Lithium Battery", "Accessories"];
 
-  useEffect(() => {
-    fetchBrands();
-    fetchProductsList();
-  }, []);
-
   // Fetch unique brand list from database
-  const fetchBrands = async () => {
+  const fetchBrands = useCallback(async () => {
     const { data } = await supabase.from('products').select('name');
     if (data) {
       const uniqueBrands = [...new Set(data.map(item => item.name).filter(Boolean))];
       setBrands(uniqueBrands.sort());
     }
-  };
+  }, []);
 
   // Fetch all products for the searchable Edit dropdown
-  const fetchProductsList = async () => {
+  const fetchProductsList = useCallback(async () => {
     const { data } = await supabase.from('products').select('*');
     if (data) {
       // Sort A-Z by brand name and model
@@ -65,7 +63,14 @@ const ProductEntry = () => {
       });
       setProductsList(sorted);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initial data load is intentionally started after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchBrands();
+    void fetchProductsList();
+  }, [fetchBrands, fetchProductsList]);
 
   // Get unique products by brand name + category + model for edit selector dropdown
   const getUniqueProductsForEdit = () => {
@@ -80,14 +85,6 @@ const ProductEntry = () => {
     });
     return unique;
   };
-
-  // Solar panel watt price auto calculator
-  useEffect(() => {
-    if (category === 'Solar Panel') {
-      const total = (parseFloat(panelWatt) || 0) * (parseFloat(perWattPrice) || 0);
-      setUnitPrice(total > 0 ? total.toString() : '');
-    }
-  }, [panelWatt, perWattPrice, category]);
 
   // Fetch existing brand image when adding a product under an existing brand name
   useEffect(() => {
@@ -125,7 +122,7 @@ const ProductEntry = () => {
       setBrandName(prod.name || '');
       setCategory(prod.category || 'Hybrid Inverter');
       setModel(prod.model || '');
-      setUnitPrice(prod.unit_price ? prod.unit_price.toString() : '');
+      setManualUnitPrice(prod.unit_price ? prod.unit_price.toString() : '');
       setAvailability(prod.availability || 'in stock');
       setHouse(prod.house || 'Head Office');
       setImageUrl(prod.image_url || '');
@@ -239,7 +236,7 @@ const ProductEntry = () => {
 
   const resetForm = () => {
     setModel('');
-    setUnitPrice('');
+    setManualUnitPrice('');
     setPanelWatt('');
     setPerWattPrice('');
     setImageUrl('');
@@ -537,7 +534,7 @@ const ProductEntry = () => {
                         <input 
                           type="number" 
                           value={unitPrice} 
-                          onChange={(e) => setUnitPrice(e.target.value)} 
+                          onChange={(e) => setManualUnitPrice(e.target.value)}
                           placeholder="0.00" 
                           className="w-full p-3.5 bg-slate-50/50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-[#ea3838]/10 font-bold text-xs text-slate-800" 
                         />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import Barcode from 'react-barcode';
 import html2canvas from 'html2canvas';
@@ -9,7 +9,6 @@ const SCALE_MM_TO_PX = 96 / 25.4; // 3.779527559
 const LabelPrint = () => {
   const [activeTab, setActiveTab] = useState('print');
   const [templates, setTemplates] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Edit Template State
@@ -45,16 +44,18 @@ const LabelPrint = () => {
   const [uploadFile, setUploadFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  const [paperSize, setPaperSize] = useState('A4');
+  const paperSize = 'A4';
 
-  useEffect(() => {
-    fetchTemplates();
-  }, []);
-
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     const { data, error } = await supabase.from('sticker_templates').select('*');
     if (!error && data) setTemplates(data);
-  };
+  }, []);
+
+  useEffect(() => {
+    // Initial data load is intentionally started after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchTemplates();
+  }, [fetchTemplates]);
 
   const handleDeleteTemplate = async (template) => {
     const result = await Swal.fire({
@@ -70,7 +71,6 @@ const LabelPrint = () => {
 
     if (!result.isConfirmed) return;
 
-    setLoading(true);
     try {
       // 1. Storage থেকে ছবি ডিলিট করুন (যদি থাকে)
       if (template.template_url) {
@@ -84,12 +84,12 @@ const LabelPrint = () => {
       }
 
       // 2. Database থেকে রেকর্ড ডিলিট করুন
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from('sticker_templates')
         .delete()
         .eq('id', template.id);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
 
       Swal.fire('ডিলিট হয়েছে!', 'টেমপ্লেটটি সফলভাবে ডিলিট করা হয়েছে।', 'success');
       
@@ -102,8 +102,6 @@ const LabelPrint = () => {
     } catch (err) {
       console.error(err);
       Swal.fire('এরর!', 'টেমপ্লেট ডিলিট করতে সমস্যা হয়েছে!', 'error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -131,7 +129,7 @@ const LabelPrint = () => {
         const fileExt = editFile.name.split('.').pop();
         const fileName = `${editModel.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
         
-        const { data: uploadData, error: uploadErr } = await supabase.storage
+        const { error: uploadErr } = await supabase.storage
           .from('stickers')
           .upload(fileName, editFile);
 
@@ -253,7 +251,7 @@ const LabelPrint = () => {
       const fileExt = uploadFile.name.split('.').pop();
       const fileName = `${newModel.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`;
       
-      const { data: uploadData, error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await supabase.storage
         .from('stickers')
         .upload(fileName, uploadFile);
 
@@ -291,7 +289,7 @@ const LabelPrint = () => {
 
       if (result.isConfirmed) setActiveTab('print'); 
 
-    } catch (error) {
+    } catch {
       Swal.fire('এরর!', 'টেমপ্লেট সেভ করতে সমস্যা হয়েছে!', 'error');
     }
     setUploading(false);
@@ -299,7 +297,7 @@ const LabelPrint = () => {
 
   const selectedTemplateData = templates.find(t => t.id.toString() === selectedModel);
 
-  const handleAutoFit = () => {
+  const handleAutoFit = useCallback(() => {
     if (selectedTemplateData && parentRef.current) {
       const parentWidth = parentRef.current.clientWidth - 64;
       const parentHeight = parentRef.current.clientHeight - 64;
@@ -313,7 +311,7 @@ const LabelPrint = () => {
       
       setPreviewZoom(Math.max(0.1, Math.min(2, Math.round(fitScale * 100) / 100)));
     }
-  };
+  }, [selectedTemplateData]);
 
   useEffect(() => {
     if (!selectedTemplateData) return;
@@ -333,7 +331,7 @@ const LabelPrint = () => {
       clearTimeout(timer);
       window.removeEventListener('resize', handleResize);
     };
-  }, [selectedModel, selectedTemplateData]);
+  }, [selectedModel, selectedTemplateData, handleAutoFit]);
 
   // 🖨️ আপডেট: গ্যাপ ছাড়া একসাথে প্রিন্ট করার লজিক
   const handlePrintAll = () => {
@@ -420,7 +418,7 @@ const LabelPrint = () => {
       link.download = `Preview_${selectedTemplateData.model_name}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (err) {
+    } catch {
       Swal.fire('এরর', 'ছবি ডাউনলোড করতে সমস্যা হয়েছে!', 'error');
     } finally {
       setPreviewZoom(originalZoom);
@@ -830,7 +828,7 @@ const LabelPrint = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {printQueue.map((item, idx) => (
+                    {printQueue.map((item) => (
                       <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                         <td className="py-3 pl-2 font-bold text-slate-800">
                           {item.template.brand} <span className="text-xs text-slate-400 ml-1">{item.template.model_name}</span>

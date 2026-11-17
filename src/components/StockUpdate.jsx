@@ -13,11 +13,11 @@ const StockManagement = () => {
     fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  async function fetchProducts() {
     const { data } = await supabase.from('products').select('*').order('name', { ascending: true });
     setProducts(data || []);
     setLoading(false);
-  };
+  }
 
   const handleProductChange = (id) => {
     setSelectedProduct(id);

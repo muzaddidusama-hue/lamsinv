@@ -89,7 +89,6 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   useEffect(() => {
     const text = searchText.trim();
     if (text.length < 2) {
-      setDbResults([]);
       return;
     }
 
@@ -426,7 +425,7 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
                   ))}
 
                   {/* Database Smart Redirect Matches */}
-                  {dbResults.map((item, idx) => (
+                  {searchText.trim().length >= 2 && dbResults.map((item, idx) => (
                     <button
                       key={`db-${idx}`}
                       onClick={() => handleSearchResultClick(item.path, item.state)}

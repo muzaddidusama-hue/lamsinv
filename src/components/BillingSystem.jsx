@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
@@ -30,7 +30,7 @@ const CustomDatePicker = ({ value, onChange }) => {
     if (hiddenInputRef.current) {
       try {
         hiddenInputRef.current.showPicker();
-      } catch (err) {
+      } catch {
         hiddenInputRef.current.click();
       }
     }
@@ -127,6 +127,7 @@ const getTodayFormatted = () => {
     const [manualBillNo, setManualBillNo] = useState('');
     const [billGenerated, setBillGenerated] = useState(false);
   const searchTimeoutRef = useRef(null);
+  const generateChallanRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -134,11 +135,7 @@ const getTodayFormatted = () => {
     };
   }, []);
 
-  useEffect(() => { 
-    fetchAvailableProducts(); 
-  }, [house]);
-
-  const fetchAvailableProducts = async () => {
+  const fetchAvailableProducts = useCallback(async () => {
     const { data } = await supabase.from('products').select('*').eq('house', house);
     if (data) {
       const sortedData = data.sort((a, b) => {
@@ -153,7 +150,11 @@ const getTodayFormatted = () => {
       setAllHouseProducts(sortedData);
       setProducts(sortedData.filter(p => (p.stock_quantity || 0) > 0));
     }
-  };
+  }, [house]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => fetchAvailableProducts());
+  }, [fetchAvailableProducts]);
 
   const handleSaveOutPurchase = async () => {
     if (!outPurchaseProduct) return alert('দয়া করে আউট পারচেসের জন্য প্রোডাক্ট নির্বাচন করুন!');
@@ -218,7 +219,7 @@ const handleGlobalShortcuts = (e) => {
       // ⌨️ Ctrl + S চাপলে বিল/চালান জেনারেট হবে
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault(); // ব্রাউজারের ডিফল্ট সেভ উইন্ডো বন্ধ করবে
-        if (cart.length > 0) handleGenerateChallan();
+        if (cart.length > 0) generateChallanRef.current?.();
       }
       
       // ⌨️ Escape (Esc) চাপলে যেকোনো মডাল/পপ-আপ বন্ধ হবে
@@ -230,7 +231,7 @@ const handleGlobalShortcuts = (e) => {
 
     window.addEventListener('keydown', handleGlobalShortcuts);
     return () => window.removeEventListener('keydown', handleGlobalShortcuts);
-  }, [cart, isInHouse]); // ডিপেন্ডেন্সিগুলো দিতে হবে
+  }, [cart]);
 
   const handlePhoneChange = (val) => {
     setPhone(val);
@@ -491,6 +492,10 @@ const addToCart = () => {
     
     setLoading(false);
   };
+
+  useEffect(() => {
+    generateChallanRef.current = handleGenerateChallan;
+  });
 
 const handleQuickBillConfirm = async () => {
     if (!paymentMethod) return alert('পেমেন্ট মেথড সিলেক্ট করুন!');

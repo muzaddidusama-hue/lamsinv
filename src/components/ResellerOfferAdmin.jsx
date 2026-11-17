@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ResellerOfferAdmin = () => {
@@ -8,11 +8,7 @@ const ResellerOfferAdmin = () => {
   const [heading, setHeading] = useState('');
   const [offerText, setOfferText] = useState('');
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.from('site_settings').select('*').single();
@@ -34,7 +30,12 @@ const ResellerOfferAdmin = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => void fetchSettings(), 0);
+    return () => clearTimeout(timer);
+  }, [fetchSettings]);
 
   const handleSave = async (e) => {
     e.preventDefault();

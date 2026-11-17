@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { printChallan } from '../utils/printChalan';
@@ -23,17 +23,47 @@ const BillManager = () => {
   const [editForm, setEditForm] = useState(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const fetchAllRecords = useCallback(async (queryOverride) => {
+    setLoading(true);
+    try {
+      const activeQuery = typeof queryOverride === 'string' ? queryOverride : searchQuery;
+      let queryBuilder = supabase
+        .from('chalans')
+        .select(`
+          *,
+          customers(name, phone, address),
+          chalan_items(quantity, products(name, model))
+        `);
+
+      if (activeQuery.trim()) {
+        queryBuilder = queryBuilder.order('created_at', { ascending: false }).limit(1000);
+      } else {
+        const [year, month] = selectedMonth.split('-');
+        const firstDay = new Date(year, month - 1, 1).toISOString();
+        const lastDay = new Date(year, month, 0, 23, 59, 59).toISOString();
+        queryBuilder = queryBuilder
+          .gte('created_at', firstDay)
+          .lte('created_at', lastDay)
+          .order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await queryBuilder;
+      if (error) throw error;
+      setRecords(data || []);
+    } catch (error) {
+      console.error('Error fetching records:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery, selectedMonth]);
+
   useEffect(() => {
     if (location.state?.searchQuery) {
-      setSearchQuery(location.state.searchQuery);
-      if (location.state.tab) {
-        setActiveTab(location.state.tab);
-      }
-      fetchAllRecords(location.state.searchQuery);
+      Promise.resolve().then(() => fetchAllRecords(location.state.searchQuery));
     } else if (!searchQuery.trim()) {
-      fetchAllRecords();
+      Promise.resolve().then(() => fetchAllRecords());
     }
-  }, [location.state, selectedMonth, searchQuery]);
+  }, [location.state?.searchQuery, selectedMonth, searchQuery, fetchAllRecords]);
 
   useEffect(() => {
     const chalansChannel = supabase
@@ -50,43 +80,7 @@ const BillManager = () => {
     return () => {
       supabase.removeChannel(chalansChannel);
     };
-  }, [selectedMonth, searchQuery]);
-
-  // মাস বা সার্চ অনুযায়ী সব ডাটা ফেচ করার লজিক
-  const fetchAllRecords = async (queryOverride) => {
-    setLoading(true);
-    try {
-      const activeQuery = typeof queryOverride === 'string' ? queryOverride : searchQuery;
-      let queryBuilder = supabase
-        .from('chalans')
-        .select(`
-          *,
-          customers(name, phone, address),
-          chalan_items(quantity, products(name, model))
-        `);
-
-      if (activeQuery.trim()) {
-        // সার্চ কোয়েরি থাকলে সম্পূর্ণ ডাটাবেজ থেকে সার্চ করার জন্য মাস ফিল্টার বাদ দিয়ে লাস্ট ১০০০ রেকর্ড নিয়ে আসবো
-        queryBuilder = queryBuilder.order('created_at', { ascending: false }).limit(1000);
-      } else {
-        // সার্চ না থাকলে সিলেক্টেড মাসের রেকর্ড দেখাবো
-        const [year, month] = selectedMonth.split('-');
-        const firstDay = new Date(year, month - 1, 1).toISOString();
-        const lastDay = new Date(year, month, 0, 23, 59, 59).toISOString();
-        queryBuilder = queryBuilder
-          .gte('created_at', firstDay)
-          .lte('created_at', lastDay)
-          .order('created_at', { ascending: false });
-      }
-
-      const { data, error } = await queryBuilder;
-      if (error) throw error;
-      setRecords(data || []);
-    } catch (error) {
-      console.error('Error fetching records:', error);
-    }
-    setLoading(false);
-  };
+  }, [fetchAllRecords]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

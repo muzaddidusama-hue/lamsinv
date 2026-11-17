@@ -54,14 +54,15 @@ const BrokenManager = () => {
   }, []);
 
   // Whenever warehouse changes, reset the selected product and search text
-  useEffect(() => {
+  const handleWarehouseChange = (nextWarehouse) => {
+    setWarehouse(nextWarehouse);
     setSelectedProduct(null);
     setProductSearchText('');
     setPanelName('');
     setWatt('');
-  }, [warehouse]);
+  };
 
-  const fetchBrokenList = async () => {
+  async function fetchBrokenList() {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -77,9 +78,9 @@ const BrokenManager = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  const fetchSolarPanels = async () => {
+  async function fetchSolarPanels() {
     try {
       const { data, error } = await supabase
         .from('products')
@@ -91,7 +92,7 @@ const BrokenManager = () => {
     } catch (error) {
       console.error('Error fetching solar panels:', error);
     }
-  };
+  }
 
   const getDbHouse = (wh) => {
     return wh === 'Head Office' ? 'Head Office' : 'Showroom';
@@ -369,7 +370,7 @@ const BrokenManager = () => {
             <div className="grid grid-cols-2 gap-3">
               <button 
                 type="button"
-                onClick={() => setWarehouse('Head Office')}
+                onClick={() => handleWarehouseChange('Head Office')}
                 className={`p-3.5 rounded-2xl font-black text-xs border-2 transition-all flex items-center justify-center gap-2 ${
                   warehouse === 'Head Office' 
                     ? 'border-[#ea3838] bg-[#ea3838]/5 text-[#ea3838]' 
@@ -380,7 +381,7 @@ const BrokenManager = () => {
               </button>
               <button 
                 type="button"
-                onClick={() => setWarehouse('Nawabpur')}
+                onClick={() => handleWarehouseChange('Nawabpur')}
                 className={`p-3.5 rounded-2xl font-black text-xs border-2 transition-all flex items-center justify-center gap-2 ${
                   warehouse === 'Nawabpur' 
                     ? 'border-[#ea3838] bg-[#ea3838]/5 text-[#ea3838]' 

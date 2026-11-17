@@ -22,7 +22,7 @@ export function clearSupabaseCache() {
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
-  } catch (e) {
+  } catch {
     // Ignore localStorage errors
   }
 }
@@ -40,7 +40,7 @@ async function customCachingFetch(url, options = {}) {
   const isRest = url.includes('/rest/v1/');
 
   // Check if target table is a mutable transactional table
-  const match = url.match(/\/rest\/v1\/([^?\/]+)/);
+  const match = url.match(/\/rest\/v1\/([^?/]+)/);
   const targetTable = match ? match[1] : '';
   const isDynamicTable = UNCACHED_TABLES.includes(targetTable) || targetTable.startsWith('rpc');
 
@@ -67,7 +67,7 @@ async function customCachingFetch(url, options = {}) {
         const clone = response.clone();
         const data = await clone.json();
         memoryCache.set(cacheKey, { data, timestamp: Date.now() });
-      } catch (e) {
+      } catch {
         // Ignore json clone errors
       }
     }

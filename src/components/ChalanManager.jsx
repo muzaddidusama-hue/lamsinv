@@ -9,7 +9,6 @@ const ChalanManager = () => {
   const [searchNo, setSearchNo] = useState(location.state?.chalanNo || '');
   const [chalan, setChalan] = useState(null);
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [pendingChalans, setPendingChalans] = useState([]);
   
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -42,17 +41,17 @@ const ChalanManager = () => {
     };
   }, []);
 
-  const fetchPendingChalans = async () => {
+  async function fetchPendingChalans() {
     const { data } = await supabase
       .from('chalans')
       .select(`*, customers (name, phone, address)`)
       .eq('status', 'hold')
       .order('created_at', { ascending: false });
     if (data) setPendingChalans(data);
-  };
+  }
 
-  const loadChalanDetails = async (cNo) => {
-    setLoading(true); setChalan(null); setItems([]);
+  async function loadChalanDetails(cNo) {
+    setChalan(null); setItems([]);
     try {
       const { data: chalanData, error: chalanErr } = await supabase
         .from('chalans')
@@ -70,9 +69,8 @@ const ChalanManager = () => {
       
       setItems(itemData || []);
       setSearchNo(cNo); 
-    } catch (error) { alert("চালান খুঁজে পাওয়া যায়নি!"); }
-    setLoading(false);
-  };
+    } catch { alert("চালান খুঁজে পাওয়া যায়নি!"); }
+  }
 
   // 🔴 কালপ্রিট ফিক্স: সঠিক কাস্টমার ডাটা বের করার ফাংশন
   const getCustomerData = (record) => {
@@ -151,7 +149,7 @@ const ChalanManager = () => {
       setIsManualBill(false); 
       setManualBillNo(''); 
       fetchPendingChalans();
-    } catch (error) { 
+    } catch (error) {
       alert('পেমেন্ট আপডেট করতে সমস্যা হয়েছে!'); 
       console.error(error);
     }

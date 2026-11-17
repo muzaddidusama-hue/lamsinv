@@ -5,8 +5,8 @@ import { printChallan } from '../utils/printChalan';
 import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 
-const Dashboard = ({ setView }) => {
-  const [holdChalans] = useState([]); // Kept for payment modal compatibility
+const Dashboard = () => {
+  const [, setHoldChalans] = useState([]);
   const [todayChalans, setTodayChalans] = useState([]);
   const [todayBills, setTodayBills] = useState([]);
   const [lowStockProducts, setLowStockProducts] = useState([]);
@@ -74,7 +74,7 @@ const Dashboard = ({ setView }) => {
     };
   }, []);
 
-  const fetchDashboardData = async (isInitial = false) => {
+  async function fetchDashboardData(isInitial = false) {
     const currentRequestId = ++fetchRequestIdRef.current;
     if (isInitial) setLoading(true);
     const startOfMonth = new Date();
@@ -98,7 +98,7 @@ const Dashboard = ({ setView }) => {
       console.error('Error fetching dashboard data:', error); 
     }
     if (isInitial && currentRequestId === fetchRequestIdRef.current) setLoading(false);
-  };
+  }
 
   const handleOpenLowStockWindow = () => {
     const newWindow = window.open('', '_blank', 'width=900,height=700');
@@ -301,7 +301,9 @@ const Dashboard = ({ setView }) => {
           if (targetP) {
             await supabase.from('products').update({ stock_quantity: (targetP.stock_quantity || 0) + itm.quantity }).eq('id', targetP.id);
           } else if (itm.products) {
-            const { id, created_at, stock_quantity, house, ...cleanProductData } = itm.products;
+            const cleanProductData = Object.fromEntries(
+              Object.entries(itm.products).filter(([key]) => !['id', 'created_at', 'stock_quantity', 'house'].includes(key))
+            );
             await supabase.from('products').insert([{ 
               ...cleanProductData, 
               stock_quantity: itm.quantity, 
@@ -469,12 +471,6 @@ const Dashboard = ({ setView }) => {
   const salesIcon = (
     <svg className="w-6 h-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-    </svg>
-  );
-
-  const stockIcon = (
-    <svg className="w-6 h-6 text-rose-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
   );
 

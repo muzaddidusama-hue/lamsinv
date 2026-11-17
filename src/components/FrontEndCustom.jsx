@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import solarOnInverter from '../assets/solar-on-inverter.webp';
 import inhenergyImg from '../assets/inhenergy.webp';
@@ -9,7 +9,6 @@ import productsImg from '../assets/products-image.webp';
 const FrontEndCustom = () => {
   const [activeTab, setActiveTab] = useState('site_info'); // site_info, about_categories, featured_products, featured_banner, product_details
   const [loading, setLoading] = useState(false);
-  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   // সাইট সেটিংস কাঁচা ডাটা
   const [siteSettings, setSiteSettings] = useState({
@@ -52,20 +51,10 @@ const FrontEndCustom = () => {
   const [uploadingSlider, setUploadingSlider] = useState(false);
 
   // প্রোডাক্ট এডিটর স্টেটস (Tab 5: প্রোডাক্ট বিবরণী এডিটর)
-  const [uniqueProducts, setUniqueProducts] = useState([]);
-  const [selectedProductKey, setSelectedProductKey] = useState(''); 
-  const [productForm, setProductForm] = useState({ volt: '', watt: '', description: '', pdf_url: '', catalog_image_url: '' });
-  const [uploadingPdf, setUploadingPdf] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   // প্রোডাক্ট সার্চ ফিল্টার (নতুন আগমন টগল করার সুবিধার জন্য)
-  const [featuredSearchTerm, setFeaturedSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     setLoading(true);
     try {
       // ১. সাইট সেটিংস লোড
@@ -81,7 +70,7 @@ const FrontEndCustom = () => {
             if (parsed.about_profile_text) setAboutProfileText(parsed.about_profile_text);
             if (parsed.about_quality_title) setAboutQualityTitle(parsed.about_quality_title);
             if (parsed.about_quality_text) setAboutQualityText(parsed.about_quality_text);
-            if (parsed.category_images) setCategoryImages({ ...categoryImages, ...parsed.category_images });
+            if (parsed.category_images) setCategoryImages(prev => ({ ...prev, ...parsed.category_images }));
             if (parsed.featured_keys) setFeaturedKeys(parsed.featured_keys);
             if (parsed.featured_text) setFeaturedText(parsed.featured_text);
             if (parsed.featured_custom_images) setFeaturedCustomImages(parsed.featured_custom_images);
@@ -99,194 +88,28 @@ const FrontEndCustom = () => {
         }
       }
 
-      // ২. প্রোডাক্টস লোড করে ইউনিক প্রোডাক্টস বের করা
-      const { data: prods } = await supabase.from('products').select('*').order('name', { ascending: true });
-      if (prods) {
-        const seen = new Set();
-        const uniqueList = [];
-
-        prods.forEach(p => {
-          const cat = p.category ? p.category.trim() : '';
-          const name = p.name ? p.name.trim() : '';
-          const model = p.model ? p.model.trim() : '';
-          const uniqueKey = `${cat}|${name}|${model}`;
-
-          if (!seen.has(uniqueKey) && uniqueKey !== '||' && cat !== 'Lithium Battery') {
-            seen.add(uniqueKey);
-
-            let parsedText = p.description || '';
-            let parsedPdfUrl = '';
-            let parsedCatalogImageUrl = '';
-            if (p.description && p.description.trim().startsWith('{')) {
-              try {
-                const parsed = JSON.parse(p.description);
-                parsedText = parsed.text || '';
-                parsedPdfUrl = parsed.pdf_url || '';
-                parsedCatalogImageUrl = parsed.catalog_image_url || '';
-
-                // Fallback for old catalog_url format
-                if (parsed.catalog_url) {
-                  if (/\.pdf/i.test(parsed.catalog_url)) {
-                    if (!parsedPdfUrl) parsedPdfUrl = parsed.catalog_url;
-                  } else {
-                    if (!parsedCatalogImageUrl) parsedCatalogImageUrl = parsed.catalog_url;
-                  }
-                }
-              } catch (e) {
-                console.error("Error parsing description JSON:", e);
-              }
-            }
-
-            uniqueList.push({
-              uniqueKey,
-              category: p.category,
-              name: p.name,
-              model: p.model,
-              volt: p.volt || '',
-              watt: p.watt || '',
-              description: parsedText,
-              pdf_url: parsedPdfUrl,
-              catalog_image_url: parsedCatalogImageUrl
-            });
-          }
-        });
-
-        setUniqueProducts(uniqueList);
-      }
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
-  };
+  }, []);
 
-  const handleProductSelectChange = (e) => {
-    const key = e.target.value;
-    setSelectedProductKey(key);
-
-    if (!key) {
-      setProductForm({ volt: '', watt: '', description: '', pdf_url: '', catalog_image_url: '' });
-      return;
-    }
-
-    const targetProd = uniqueProducts.find(p => p.uniqueKey === key);
-    if (targetProd) {
-      setProductForm({
-        volt: targetProd.volt,
-        watt: targetProd.watt,
-        description: targetProd.description,
-        pdf_url: targetProd.pdf_url || '',
-        catalog_image_url: targetProd.catalog_image_url || ''
-      });
-    }
-  };
-
-  // ব্যানার ইমেজ আপলোড হ্যান্ডলার (Supabase-এ সরাসরি ফাইল আপলোড করবে)
-  const handleBannerUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploadingBanner(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `featured_banner_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product image')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('product image')
-        .getPublicUrl(filePath);
-
-      setFeaturedBannerImageUrl(publicUrl);
-    } catch (error) {
-      console.error(error);
-      alert('ব্যানার ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
-    } finally {
-      setUploadingBanner(false);
-    }
-  };
-
-  // ক্যাটালগ PDF আপলোড হ্যান্ডলার
-  const handlePdfUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploadingPdf(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `product_catalog_pdf_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product image')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('product image')
-        .getPublicUrl(filePath);
-
-      setProductForm(prev => ({
-        ...prev,
-        pdf_url: publicUrl
-      }));
-      alert('✅ PDF ক্যাটালগ সফলভাবে আপলোড হয়েছে!');
-    } catch (error) {
-      console.error(error);
-      alert('PDF আপলোড করতে সমস্যা হয়েছে: ' + error.message);
-    } finally {
-      setUploadingPdf(false);
-    }
-  };
-
-  // ক্যাটালগ ইমেজ আপলোড হ্যান্ডলার
-  const handleCatalogImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    setUploadingImage(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `product_catalog_img_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('product image')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('product image')
-        .getPublicUrl(filePath);
-
-      setProductForm(prev => ({
-        ...prev,
-        catalog_image_url: publicUrl
-      }));
-      alert('✅ ক্যাটালগ ইমেজ সফলভাবে আপলোড হয়েছে!');
-    } catch (error) {
-      console.error(error);
-      alert('ক্যাটালগ ইমেজ আপলোড করতে সমস্যা হয়েছে: ' + error.message);
-    } finally {
-      setUploadingImage(false);
-    }
-  };
+  useEffect(() => {
+    // This async Supabase request initializes the settings after the first render.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchInitialData();
+  }, [fetchInitialData]);
 
   const getMergedPayload = (updatedSliders) => {
     let existing = {};
     if (siteSettings.footer_image_url && siteSettings.footer_image_url.startsWith('{')) {
       try {
         existing = JSON.parse(siteSettings.footer_image_url);
-      } catch (e) {
-        console.error("Error parsing existing footer_image_url JSON:", e);
+      } catch (error) {
+        console.error('Error parsing existing footer_image_url JSON:', error);
       }
     }
+
     return {
       ...existing,
       about_profile_title: aboutProfileTitle,
@@ -410,60 +233,6 @@ const FrontEndCustom = () => {
     e.preventDefault();
     saveAllSettings({});
   };
-
-  // নতুন আগমন প্রোডাক্ট টগল
-  const handleToggleFeatured = (key) => {
-    if (featuredKeys.includes(key)) {
-      setFeaturedKeys(featuredKeys.filter(k => k !== key));
-    } else {
-      setFeaturedKeys([...featuredKeys, key]);
-    }
-  };
-
-  // প্রোডাক্ট বিবরণী সেভ লজিক
-  const handleSaveProductSpecs = async (e) => {
-    e.preventDefault();
-    if (!selectedProductKey) return alert("দয়া করে একটি প্রোডাক্ট সিলেক্ট করুন!");
-    
-    setLoading(true);
-    const [category, name, model] = selectedProductKey.split('|');
-
-    const descriptionJson = JSON.stringify({
-      text: productForm.description,
-      pdf_url: productForm.pdf_url,
-      catalog_image_url: productForm.catalog_image_url
-    });
-
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({
-          volt: productForm.volt,
-          watt: productForm.watt,
-          description: descriptionJson
-        })
-        .eq('category', category)
-        .eq('name', name)
-        .eq('model', model);
-
-      if (error) throw error;
-      
-      alert(`🎉 ${name} [${model}] এর বিবরণ সকল হাউজ বা লোকেশনে একসাথে আপডেট হয়েছে!`);
-      
-      setUniqueProducts(prev => prev.map(p => 
-        p.uniqueKey === selectedProductKey ? { ...p, ...productForm } : p
-      ));
-    } catch (err) {
-      console.error(err);
-      alert("ত্রুটি হয়েছে: " + err.message);
-    }
-    setLoading(false);
-  };
-
-  // নতুন আগমন সার্চ ফিল্টারিং
-  const filteredUniqueProducts = uniqueProducts.filter(p => 
-    `${p.name} ${p.model} ${p.category}`.toLowerCase().includes(featuredSearchTerm.toLowerCase())
-  );
 
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6 pb-12" style={{ fontFamily: "'Inter', 'Hind Siliguri', sans-serif" }}>

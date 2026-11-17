@@ -4,7 +4,7 @@ import lamsLogo from '../assets/lams-logo.webp';
 import { supabase } from '../supabaseClient';
 
 // Inverter Table with specific Model Suggestions
-export const INVERTER_TABLE = [
+const INVERTER_TABLE = [
   { va: 900,  load: 450,  panel: 500,  model: 'Talegent SunMate-900',  brand: 'Talegent' },
   { va: 1150, load: 800,  panel: 800,  model: 'SolarOn SunMate-1150', brand: 'SolarOn' },
   { va: 1450, load: 1300, panel: 1300, model: 'SolarOn SunMate-1450', brand: 'SolarOn' },
@@ -18,7 +18,7 @@ export const INVERTER_TABLE = [
   { va: 6500, load: 5800, panel: 5800, model: 'Jarrett JXM6.5',       brand: 'Jarrett' }
 ];
 
-export const PRESETS = [
+const PRESETS = [
   { key: 'light', watt: 20, en: 'Light', bn: 'লাইট' },
   { key: 'fan', watt: 100, en: 'Fan', bn: 'ফ্যান' },
   { key: 'wifi', watt: 20, en: 'WiFi Router', bn: 'ওয়াইফাই রাউটার' },
@@ -132,7 +132,7 @@ const SolarCal = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) setIsLoggedIn(true);
     });
-    document.title = `${t('title')} - Lams Power`;
+    document.title = `${TRANSLATIONS[lang].title} - Lams Power`;
   }, [lang]);
 
   // Sync preset names on language change

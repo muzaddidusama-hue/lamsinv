@@ -27,12 +27,15 @@ const FalseBilling = () => {
     };
   }, []);
 
-  useEffect(() => { fetchProducts(); }, []);
-
-  const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').order('name', { ascending: true });
-    if (data) setProducts(data);
-  };
+  useEffect(() => {
+    let active = true;
+    const loadProducts = async () => {
+      const { data } = await supabase.from('products').select('*').order('name', { ascending: true });
+      if (active && data) setProducts(data);
+    };
+    void loadProducts();
+    return () => { active = false; };
+  }, []);
   const handlePhoneChange = (val) => {
     setPhone(val);
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import * as XLSX from 'xlsx';
 
@@ -47,16 +47,10 @@ const ProductBrand = () => {
   const [savingBrand, setSavingBrand] = useState(false);
 
   // Initial load
-  useEffect(() => {
-    fetchAllData();
-  }, []);
-
-  const fetchAllData = async () => {
-    setLoading(true);
+  const fetchAllData = useCallback(async () => {
     try {
       // 1. Fetch site settings for custom brand metadata
       const { data: settingsData } = await supabase.from('site_settings').select('*').single();
-      let metaMap = {};
       let customBrandList = [];
       if (settingsData) {
         setSiteSettings(settingsData);
@@ -64,7 +58,6 @@ const ProductBrand = () => {
           try {
             const parsed = JSON.parse(settingsData.footer_image_url);
             if (parsed.brand_metadata) {
-              metaMap = parsed.brand_metadata;
               setBrandMetadataMap(parsed.brand_metadata);
             }
             if (parsed.custom_brands && Array.isArray(parsed.custom_brands)) {
@@ -134,7 +127,13 @@ const ProductBrand = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Load the dashboard's remote data once after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchAllData();
+  }, [fetchAllData]);
 
   // Upload brand logo
   const handleLogoUpload = async (e) => {

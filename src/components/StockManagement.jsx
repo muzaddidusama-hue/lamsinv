@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 
-const getTodayString = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-\\*\\${month}-\\*\\${day}`.replace(/\\\*\\/g, ''); // safe escaping template syntax
-};
-
 const getTodayFormatted = () => {
   const d = new Date();
   const year = d.getFullYear();
@@ -38,7 +30,23 @@ const StockManagement = () => {
   const [showModalProductDropdown, setShowModalProductDropdown] = useState(false);
 
   useEffect(() => {
-    fetchProducts();
+    let active = true;
+    const fetchProducts = async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from('products').select('*');
+      if (active && !error && data) {
+        const sortedData = data.sort((a, b) => {
+          const nameA = (a.name || '').toLowerCase();
+          const nameB = (b.name || '').toLowerCase();
+          if (nameA < nameB) return -1;
+          if (nameA > nameB) return 1;
+          return (a.model || '').toLowerCase().localeCompare((b.model || '').toLowerCase(), undefined, { numeric: true });
+        });
+        setProducts(sortedData);
+      }
+      if (active) setLoading(false);
+    };
+    void fetchProducts();
 
     const productsChannel = supabase
       .channel('stock-products-realtime')
@@ -52,28 +60,10 @@ const StockManagement = () => {
       .subscribe();
 
     return () => {
+      active = false;
       supabase.removeChannel(productsChannel);
     };
   }, []);
-
-  const fetchProducts = async () => {
-    setLoading(true);
-    const { data, error } = await supabase.from('products').select('*');
-    if (!error && data) {
-      // 🔴 ফিক্স: প্রোডাক্টগুলোকে নাম এবং মডেল অনুযায়ী A-Z সিরিয়ালে সাজানো
-      const sortedData = data.sort((a, b) => {
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        const modelA = (a.model || '').toLowerCase();
-        const modelB = (b.model || '').toLowerCase();
-        return modelA.localeCompare(modelB, undefined, { numeric: true });
-      });
-      setProducts(sortedData);
-    }
-    setLoading(false);
-  };
 
   const toggleAvailability = async (product) => {
     const newStatus = product.availability === 'in stock' ? 'out of stock' : 'in stock';
@@ -81,7 +71,7 @@ const StockManagement = () => {
       const { error } = await supabase.from('products').update({ availability: newStatus }).eq('id', product.id);
       if (error) throw error;
       setProducts(products.map(p => p.id === product.id ? { ...p, availability: newStatus } : p));
-    } catch (error) {
+    } catch {
       alert('স্ট্যাটাস আপডেট করতে সমস্যা হয়েছে!');
     }
   };

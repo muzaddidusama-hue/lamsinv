@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { getOptimizedImageUrl } from '../utils/imageOptimizer';
 
 /**
@@ -16,27 +16,20 @@ export default function OptimizedImage({
   style = {},
   ...props
 }) {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-  const [currentSrc, setCurrentSrc] = useState('');
-
-  useEffect(() => {
-    setLoaded(false);
-    setError(false);
-    if (src) {
-      const optimized = getOptimizedImageUrl(src, { width, quality });
-      setCurrentSrc(optimized);
-    } else {
-      setError(true);
-    }
-  }, [src, width, quality]);
+  const optimizedSrc = src ? getOptimizedImageUrl(src, { width, quality }) : '';
+  const [imageStatus, setImageStatus] = useState({ source: '', displayedSrc: '', loaded: false, error: false, fallback: false });
+  const currentSrc = imageStatus.source === optimizedSrc && imageStatus.fallback && fallback
+    ? fallback
+    : optimizedSrc;
+  const isCurrentImage = imageStatus.source === optimizedSrc && imageStatus.displayedSrc === currentSrc;
+  const loaded = isCurrentImage && imageStatus.loaded;
+  const error = !src || (isCurrentImage && imageStatus.error);
 
   const handleImageError = () => {
-    if (!error) {
-      setError(true);
-      if (fallback) {
-        setCurrentSrc(fallback);
-      }
+    if (currentSrc === optimizedSrc && fallback) {
+      setImageStatus({ source: optimizedSrc, displayedSrc: fallback, loaded: false, error: false, fallback: true });
+    } else {
+      setImageStatus({ source: optimizedSrc, displayedSrc: currentSrc, loaded: false, error: true, fallback: currentSrc !== optimizedSrc });
     }
   };
 
@@ -116,7 +109,7 @@ export default function OptimizedImage({
           alt={alt}
           width={width}
           height={height}
-          onLoad={() => setLoaded(true)}
+          onLoad={() => setImageStatus({ source: optimizedSrc, displayedSrc: currentSrc, loaded: true, error: false, fallback: currentSrc !== optimizedSrc })}
           onError={handleImageError}
           style={imgStyle}
           loading="lazy"

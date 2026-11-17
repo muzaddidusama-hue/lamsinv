@@ -269,6 +269,8 @@ const [invSerials, setInvSerials] = useState([]);
 
   const ledgerSummaryList = useMemo(() => {
     return getLedgerSummary();
+    // getLedgerSummary is a synchronous calculator driven by these state inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawProducts, allTransactions, startDate, endDate, ledgerSearch, ledgerTab]);
 
   const uniqueBrands = useMemo(() => {
@@ -329,18 +331,19 @@ const [invSerials, setInvSerials] = useState([]);
 
   useEffect(() => {
     generateReport();
+    // Report refresh is intentionally tied to the selected date range.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]); 
 // LAZY LOADING
    useEffect(() => {
      if ((reportType === 'ledger_report' || reportType === 'product_wise') && rawProducts.length === 0) fetchAllProducts();
-   }, [reportType]);
+   }, [reportType, rawProducts.length]);
   // REALTIME SERIAL SEARCH WITH DEBOUNCE
   useEffect(() => {
     if (reportType !== 'serial_history') return;
 
     const query = serialSearch.trim();
     if (query.length < 2) {
-      setInvSerials([]);
       return;
     }
 
@@ -365,13 +368,7 @@ const [invSerials, setInvSerials] = useState([]);
     return () => clearTimeout(delayDebounce);
   }, [serialSearch, reportType]);
 
-   const fetchInvSerials = async () => {
-     // Fallback / legacy helper if needed elsewhere
-     const { data } = await supabase.from('inv_sl').select('*').order('created_at', { ascending: false }).limit(1);
-     if (data) setInvSerials(data);
-   };
-
-  const fetchAllProducts = async () => {
+  async function fetchAllProducts() {
     const { data } = await supabase.from('products').select('id, name, model, category, house, stock_quantity').order('name', { ascending: true });
     if (data) {
       setRawProducts(data);
@@ -386,12 +383,12 @@ const [invSerials, setInvSerials] = useState([]);
       });
       setAllProducts(uniqueProds);
     }
-  };
+  }
 const checkIsTransfer = (val) => {
      return val === true || String(val).toLowerCase() === 'true';
    };
 
-    const generateReport = async () => {
+    async function generateReport() {
       setLoading(true);
       try {
         let productsList = rawProducts;
@@ -781,7 +778,7 @@ const checkIsTransfer = (val) => {
         alert('রিপোর্ট জেনারেট করতে সমস্যা হয়েছে!');
       }
       setLoading(false);
-    };
+    }
 
   const processReportData = (chalans) => {
     const data = {
@@ -1379,7 +1376,7 @@ const checkIsTransfer = (val) => {
                                       if (error) throw error;
                                       alert("রেকর্ড মুছে ফেলা হয়েছে!");
                                       generateReport();
-                                    } catch (err) { alert("মুছতে সমস্যা হয়েছে!"); }
+                                    } catch { alert("মুছতে সমস্যা হয়েছে!"); }
                                   }
                                 }}
                                 className={`text-red-500 hover:text-red-700 font-black px-2 ${!l.dbId ? 'opacity-30 cursor-not-allowed' : ''}`}
@@ -1406,7 +1403,10 @@ const checkIsTransfer = (val) => {
                 <input 
                   type="text" 
                   value={serialSearch} 
-                  onChange={(e) => setSerialSearch(e.target.value)} 
+                  onChange={(e) => {
+                    setSerialSearch(e.target.value);
+                    if (e.target.value.trim().length < 2) setInvSerials([]);
+                  }}
                   placeholder="সিরিয়ালের কিছু ডিজিট লিখুন..." 
                   className="w-full p-3 bg-white border rounded-xl font-bold text-xs outline-none focus:border-blue-500" 
                 />
