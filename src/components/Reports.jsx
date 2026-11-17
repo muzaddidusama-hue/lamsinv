@@ -599,6 +599,43 @@ const checkIsTransfer = (val) => {
               isPeriod
             });
           });
+
+          // Legacy partial returns reduced chalan_items.quantity, which made the
+          // original paid sale appear smaller than it was. Restore those units to
+          // Ledger Out only when the invoice totals confirm the items were reduced.
+          // New return rows carry an item marker and keep the original item quantity,
+          // so they must not be added a second time.
+          const legacyReturnTotals = new Map();
+          allLedger.forEach(row => {
+            if (row.type !== 'in' || !row.source || /\[item:[^\]]+\]/i.test(row.source)) return;
+            const invoiceRef = row.source.match(/Return from Inv: #(.+?)(?: \(To:|$)/i)?.[1]?.trim();
+            if (!invoiceRef) return;
+            const key = JSON.stringify([invoiceRef, getStandardKey(row.product), normalizeHouse(row.house)]);
+            legacyReturnTotals.set(key, (legacyReturnTotals.get(key) || 0) + (Number(row.quantity) || 0));
+          });
+
+          allChalans.forEach(ch => {
+            if (ch.status !== 'paid' || !ch.chalan_items?.length) return;
+            const lineTotal = ch.chalan_items.reduce((sum, item) => {
+              const lineAmount = Number(item.total_price);
+              return sum + (Number.isFinite(lineAmount) ? lineAmount : (Number(item.quantity) || 0) * (Number(item.unit_price) || 0));
+            }, 0);
+            if (Math.abs(lineTotal - (Number(ch.total_amount) || 0)) > 0.01) return;
+
+            const invoiceRefs = [ch.bill_no, ch.chalan_no].filter(ref => ref && ref !== 'N/A');
+            ch.chalan_items.forEach(item => {
+              const productName = `${item.products?.name || ''} - ${item.products?.model || ''}`.trim();
+              const legacyReturnedQty = invoiceRefs.reduce((sum, ref) => {
+                const key = JSON.stringify([ref, getStandardKey(productName), normalizeHouse(ch.house)]);
+                return sum + (legacyReturnTotals.get(key) || 0);
+              }, 0);
+
+              if (legacyReturnedQty > 0) {
+                const sale = extractedTrans.find(transaction => transaction.id === `sale_${ch.id}_${item.id}`);
+                if (sale) sale.quantity += legacyReturnedQty;
+              }
+            });
+          });
         }
 
         // Fetch manual removals from stock_out
@@ -1245,7 +1282,7 @@ const checkIsTransfer = (val) => {
                               </span>
                             </td>
                             <td className="p-4">
-                              <p className="text-slate-800">{l.source}</p>
+                              <p className="text-slate-800">{l.source?.replace(/\s*\[item:[^\]]+\]/i, '') || l.source}</p>
                               {l.ref && <p className="text-[10px] text-slate-400 font-mono mt-0.5">{l.ref}</p>}
                             </td>
                             <td className="p-4 text-right pr-8 font-black text-sm whitespace-nowrap">
@@ -1415,7 +1452,7 @@ const checkIsTransfer = (val) => {
                     <thead><tr className="border-b border-slate-800 uppercase text-slate-500 font-bold"><th className="pb-2">Transaction Timestamp</th><th className="pb-2 text-center">Movement Type</th><th className="pb-2 text-center">Reference Log Info</th><th className="pb-2 text-right">Volume</th></tr></thead>
                     <tbody className="divide-y divide-slate-200">
                       {filteredLedgerHistory.map((l, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50"><td className="py-2">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td><td className="py-2 text-center uppercase font-bold">{l.type === 'in' ? 'STOCK IN' : 'SALES OUT'}</td><td className="py-2 text-center text-slate-500">{l.source}</td><td className="py-2 text-right font-bold">{l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS</td></tr>
+                        <tr key={idx} className="hover:bg-slate-50"><td className="py-2">📅 {new Date(l.date).toLocaleDateString('bn-BD')}</td><td className="py-2 text-center uppercase font-bold">{l.type === 'in' ? 'STOCK IN' : 'SALES OUT'}</td><td className="py-2 text-center text-slate-500">{l.source?.replace(/\s*\[item:[^\]]+\]/i, '') || l.source}</td><td className="py-2 text-right font-bold">{l.type === 'in' ? `+${l.quantity}` : `-${l.quantity}`} PCS</td></tr>
                       ))}
                     </tbody>
                   </>

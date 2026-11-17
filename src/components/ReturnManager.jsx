@@ -10,6 +10,7 @@ const ReturnManager = () => {
 
   // 🔴 নতুন: আংশিক রিটার্নের স্টেট
   const [returnQtys, setReturnQtys] = useState({});
+  const [returnedQtyByItem, setReturnedQtyByItem] = useState({});
   const [invoiceSerials, setInvoiceSerials] = useState([]);
   const [selectedSerialsToReturn, setSelectedSerialsToReturn] = useState([]);
 
@@ -57,7 +58,30 @@ const ReturnManager = () => {
     setSelectedInvoice(record);
     setInvoiceSerials([]);
     setReturnQtys({});
+    setReturnedQtyByItem({});
     setSelectedSerialsToReturn([]);
+
+    const invoiceRef = record.bill_no && record.bill_no !== 'N/A' ? record.bill_no : record.chalan_no;
+    if (invoiceRef && record.chalan_items?.length) {
+      const { data: returnRows, error: returnLedgerError } = await supabase
+        .from('ledger')
+        .select('quantity, source')
+        .ilike('source', `%Return from Inv: #${invoiceRef}%`);
+      if (returnLedgerError) {
+        console.error('Return history lookup error:', returnLedgerError);
+        alert('রিটার্নের আগের হিসাব লোড করা যায়নি। আবার চেষ্টা করুন।');
+        setSelectedInvoice(null);
+        return;
+      }
+      const returnedByItem = {};
+      (returnRows || []).forEach((row) => {
+        const itemId = row.source?.match(/\[item:([^\]]+)\]/i)?.[1];
+        if (itemId && record.chalan_items.some(item => String(item.id) === itemId)) {
+          returnedByItem[itemId] = (returnedByItem[itemId] || 0) + (Number(row.quantity) || 0);
+        }
+      });
+      setReturnedQtyByItem(returnedByItem);
+    }
 
     // এই ইনভয়েসের আন্ডারে থাকা সিরিয়ালগুলো খুঁজে বের করা
     let orQuery = [];
@@ -75,7 +99,8 @@ const ReturnManager = () => {
     const item = selectedInvoice.chalan_items.find(i => i.id === itemId);
     if (!item) return;
 
-    let parsedVal = Math.max(0, Math.min(item.quantity, val));
+    const availableQty = Math.max(0, item.quantity - (returnedQtyByItem[itemId] || 0));
+    let parsedVal = Math.max(0, Math.min(availableQty, val));
     setReturnQtys(prev => ({
       ...prev,
       [itemId]: parsedVal
@@ -97,7 +122,7 @@ const ReturnManager = () => {
     if (isFullCancellation) {
       // সম্পূর্ণ বাতিল: ইনভয়েসের সকল আইটেম পুরো পরিমাণে ফেরত যাবে
       selectedInvoice.chalan_items.forEach(item => {
-        qtysToReturn[item.id] = item.quantity;
+        qtysToReturn[item.id] = Math.max(0, item.quantity - (returnedQtyByItem[item.id] || 0));
       });
       serialsToDelete = invoiceSerials.map(s => s.sl_no);
     } else {
@@ -153,7 +178,8 @@ const ReturnManager = () => {
       for (let item of selectedInvoice.chalan_items) {
         const rq = qtysToReturn[item.id] || 0;
         totalReturnedValue += rq * item.unit_price;
-        if (rq < item.quantity) {
+        const availableQty = Math.max(0, item.quantity - (returnedQtyByItem[item.id] || 0));
+        if (rq < availableQty) {
           isActuallyFullReturn = false;
         }
       }
@@ -197,7 +223,7 @@ const ReturnManager = () => {
           const { error: ledgerErr } = await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
-            source: `Return from Inv: #${invoiceRef} (To: ${returnHouse})`,
+            source: `Return from Inv: #${invoiceRef} (To: ${returnHouse}) [item:${item.id}]`,
             house: selectedInvoice.house,
             type: 'in',
             date: new Date().toISOString().split('T')[0],
@@ -208,19 +234,8 @@ const ReturnManager = () => {
             throw new Error(`লেজার এন্ট্রি তৈরি করতে সমস্যা হয়েছে: ${ledgerErr.message}`);
           }
 
-          // chalan_items আপডেট (ডিলিট করা হয় না — রিপোর্টে cancelled বিলের items গোনার জন্য রাখা হয়)
-          const newQty = item.quantity - rq;
-          if (newQty <= 0) {
-            // Items রেখে দেওয়া হচ্ছে — শুধু chalan status cancelled হবে
-          } else {
-            const unitPrice = parseFloat(item.unit_price) || 0;
-            const newTotal = newQty * unitPrice;
-            const { error: updateErr } = await supabase.from('chalan_items').update({ quantity: newQty, total_price: newTotal }).eq('id', item.id);
-            if (updateErr) {
-              console.error("Update chalan_item error:", updateErr);
-              throw new Error(`আইটেম আপডেট করতে সমস্যা হয়েছে: ${updateErr.message}`);
-            }
-          }
+          // Keep the original sale quantity for Ledger Out. Return quantities are tracked
+          // in ledger rows so repeated returns can still be limited to the remaining units.
         }
       }
 
@@ -350,7 +365,7 @@ const ReturnManager = () => {
                         <p className="font-bold text-sm text-slate-800">{item.products?.name}</p>
                         <p className="text-[10px] font-bold text-slate-400 uppercase">{item.products?.model}</p>
                         <div className="flex gap-2 text-[10px] font-bold text-slate-400 mt-1">
-                          <span>মূল পরিমাণ: {item.quantity} পিস</span>
+                          <span>ফেরতযোগ্য: {Math.max(0, item.quantity - (returnedQtyByItem[item.id] || 0))} পিস</span>
                           <span>•</span>
                           <span>ইউনিট প্রাইস: {item.unit_price} ৳</span>
                         </div>
@@ -368,14 +383,14 @@ const ReturnManager = () => {
                         <input 
                           type="number"
                           min="0"
-                          max={item.quantity}
+                          max={Math.max(0, item.quantity - (returnedQtyByItem[item.id] || 0))}
                           value={rq}
                           onChange={(e) => handleUpdateReturnQty(item.id, parseInt(e.target.value) || 0)}
                           className="w-10 text-center font-black text-sm text-slate-800 bg-transparent outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                         <button 
                           onClick={() => handleUpdateReturnQty(item.id, rq + 1)}
-                          disabled={rq >= item.quantity}
+                          disabled={rq >= Math.max(0, item.quantity - (returnedQtyByItem[item.id] || 0))}
                           type="button"
                           className="w-8 h-8 rounded-lg flex items-center justify-center font-bold bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-600 disabled:opacity-30 disabled:pointer-events-none transition-all"
                         >

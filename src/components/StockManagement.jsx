@@ -127,7 +127,7 @@ const StockManagement = () => {
                   quantity: parseInt(newValue),
                   date: manualDate,
                   in: finalTimestamp, 
-                  source: `${finalSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,`
+                  source: `${finalSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
                   house: activeHouse,
                   type: 'in'
                 }
