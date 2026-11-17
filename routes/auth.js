@@ -67,3 +67,5 @@ router.get('/profile', authenticateEmployee, (req, res) => {
 export function getAdminClient() {
   return getClients()?.adminClient || null;
 }
+
+export default router;
