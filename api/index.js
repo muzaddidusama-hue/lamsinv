@@ -13,6 +13,10 @@ process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8347291592:A
 process.env.TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '8657367736';
 process.env.TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'LAMS_InvBot_15963_UbhMuzaddid17';
 
+// Ensure Supabase server-side credentials are available (fallback from VITE_ prefixed vars)
+process.env.SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
+process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+
 const app = express();
 
 app.use(cors());

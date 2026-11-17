@@ -78,6 +78,15 @@ const apiRegistry = {
     enabled: true,
     requestsCount: 0,
     blockedCount: 0
+  },
+  whatsapp_webhook: {
+    id: 'whatsapp_webhook',
+    name: 'WhatsApp Incoming Webhook',
+    path: '/api/whatsapp/webhook',
+    method: 'ALL',
+    enabled: true,
+    requestsCount: 0,
+    blockedCount: 0
   }
 };
 

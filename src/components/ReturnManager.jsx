@@ -193,10 +193,13 @@ const ReturnManager = () => {
           }
 
           // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
+          const returnHouse = selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office';
           const { error: ledgerErr } = await supabase.from('ledger').insert([{
             product: `${item.products?.name} - ${item.products?.model}`,
             quantity: rq,
-            source: `Return from Inv: #${invoiceRef} (To: ${selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
+            source: `Return from Inv: #${invoiceRef} (To: ${returnHouse})`,
+            house: selectedInvoice.house,
+            type: 'in',
             date: new Date().toISOString().split('T')[0],
             in: new Date().toISOString()
           }]);
@@ -205,14 +208,10 @@ const ReturnManager = () => {
             throw new Error(`লেজার এন্ট্রি তৈরি করতে সমস্যা হয়েছে: ${ledgerErr.message}`);
           }
 
-          // chalan_items আপডেট বা ডিলিট
+          // chalan_items আপডেট (ডিলিট করা হয় না — রিপোর্টে cancelled বিলের items গোনার জন্য রাখা হয়)
           const newQty = item.quantity - rq;
           if (newQty <= 0) {
-            const { error: deleteErr } = await supabase.from('chalan_items').delete().eq('id', item.id);
-            if (deleteErr) {
-              console.error("Delete chalan_item error:", deleteErr);
-              throw new Error(`আইটেম মুছতে সমস্যা হয়েছে: ${deleteErr.message}`);
-            }
+            // Items রেখে দেওয়া হচ্ছে — শুধু chalan status cancelled হবে
           } else {
             const unitPrice = parseFloat(item.unit_price) || 0;
             const newTotal = newQty * unitPrice;

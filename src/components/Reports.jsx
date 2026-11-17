@@ -464,6 +464,23 @@ const checkIsTransfer = (val) => {
                     isFuture,
                     isPeriod
                   });
+                } else if (ch.status === 'cancelled') {
+                  // Cancelled (returned) bills also count as Out
+                  // because return creates a ledger 'in' entry that balances this Out.
+                  extractedTrans.push({
+                    id: `sale_cancelled_${ch.id}_${item.id}`,
+                    date: ch.created_at ? ch.created_at.split('T')[0] : '',
+                    timestamp: ch.created_at,
+                    product: pName,
+                    type: 'out',
+                    house: chHouse,
+                    quantity: item.quantity,
+                    source: `Cancelled Sale: ${cName}`,
+                    ref: `Bill: #${ch.bill_no || 'N/A'} (Cancelled)`,
+                    isPast,
+                    isFuture,
+                    isPeriod
+                  });
                 } else if (ch.status === 'hold') {
                   extractedTrans.push({
                     id: `sale_hold_${ch.id}_${item.id}`,
