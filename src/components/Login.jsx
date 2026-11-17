@@ -2,19 +2,25 @@ import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import lamsLogo from '../assets/lams-logo.webp';
 
-const Login = ({ onLoginSuccess }) => {
+const Login = ({ onLoginSuccess, authIssue }) => {
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false); 
   const [errorMessage, setErrorMessage] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
 
   // গুগল লগইন ফাংশন
   const handleGoogleLogin = async () => {
     setLoading(true);
     setErrorMessage('');
+    setStatusMessage('');
     try {
-      sessionStorage.setItem('lams-google-login-pending', '1');
+      try {
+        sessionStorage.setItem('lams-google-login-pending', '1');
+      } catch {
+        // Storage may be unavailable in private or restricted browser contexts.
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.origin }
@@ -39,6 +45,7 @@ const Login = ({ onLoginSuccess }) => {
 
     setLoading(true);
     setErrorMessage('');
+    setStatusMessage('');
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
@@ -47,6 +54,7 @@ const Login = ({ onLoginSuccess }) => {
       if (error) throw error;
       setOtp('');
       setOtpSent(true);
+      setStatusMessage('ইমেইলে OTP পাঠানো হয়েছে। সর্বশেষ ইমেইলের নতুন কোডটি একবার ব্যবহার করুন।');
     } catch (error) {
       console.error('OTP request failed:', error);
       setErrorMessage(`OTP পাঠানো যায়নি: ${error.message || 'নেটওয়ার্ক বা ইমেইল কনফিগারেশন সমস্যা'}`);
@@ -62,6 +70,7 @@ const Login = ({ onLoginSuccess }) => {
 
     setLoading(true);
     setErrorMessage('');
+    setStatusMessage('');
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: email.trim().toLowerCase(),
@@ -97,6 +106,8 @@ const Login = ({ onLoginSuccess }) => {
       </div>
 
       {errorMessage && <p role="alert" className="rounded-xl bg-red-50 p-3 text-left text-sm font-semibold text-red-700">{errorMessage}</p>}
+      {authIssue && <p role="alert" className="rounded-xl bg-red-50 p-3 text-left text-sm font-semibold text-red-700">সাইন-ইন হয়েছে, কিন্তু কর্মী প্রোফাইল যাচাই হয়নি: {authIssue}</p>}
+      {statusMessage && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-left text-sm font-semibold text-emerald-700">{statusMessage}</p>}
 
       <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4 text-left mt-4">
         <div className="space-y-1">

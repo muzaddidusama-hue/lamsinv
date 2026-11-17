@@ -1,4 +1,4 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './supabaseClient';
 import PublicCatalog from './components/PublicCatalog';
@@ -75,7 +75,7 @@ const AdminLayout = ({ isAdmin, userRole, userName, onLogout, loadingSession }) 
 };
 
 // 🔐 Standalone login page component
-const LoginPage = ({ onLoginSuccess, isAdmin }) => {
+const LoginPage = ({ onLoginSuccess, isAdmin, authIssue }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from || '/dashboard';
@@ -95,7 +95,7 @@ const LoginPage = ({ onLoginSuccess, isAdmin }) => {
         >
           ✕ বাতিল
         </button>
-        <Login onLoginSuccess={onLoginSuccess} />
+        <Login onLoginSuccess={onLoginSuccess} authIssue={authIssue} />
       </div>
     </div>
   );
@@ -114,6 +114,8 @@ function App() {
   const [userRole, setUserRole] = useState('Staff');
   const [userName, setUserName] = useState('');
   const [loadingSession, setLoadingSession] = useState(true);
+  const [authIssue, setAuthIssue] = useState('');
+  const authIssueRef = useRef('');
 
   // 🔴 পাসওয়ার্ড রিকভারি স্টেট
   const [recoveryMode, setRecoveryMode] = useState(false);
@@ -130,6 +132,7 @@ function App() {
         setIsAdmin(false);
         setUserRole('Staff');
         setUserName('');
+        if (!authIssueRef.current) setAuthIssue('');
         setLoadingSession(false);
         return;
       }
@@ -141,16 +144,25 @@ function App() {
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          if (response.status === 401 || response.status === 403) await supabase.auth.signOut();
-          throw new Error(data.error || 'Employee access could not be verified.');
+          const message = data.error || `কর্মী অ্যাক্সেস যাচাই হয়নি (HTTP ${response.status})।`;
+          if (response.status === 401 || response.status === 403) {
+            authIssueRef.current = message;
+            setAuthIssue(message);
+            await supabase.auth.signOut();
+          }
+          throw new Error(message);
         }
         if (!mounted || requestId !== latestRequest) return;
+        authIssueRef.current = '';
+        setAuthIssue('');
         setUserRole(data.profile.role || 'Staff');
         setUserName(data.profile.name || 'Employee');
         setIsAdmin(true);
       } catch (error) {
         if (!mounted || requestId !== latestRequest) return;
         console.error('Employee profile validation failed:', error);
+        authIssueRef.current = error.message || 'কর্মী অ্যাক্সেস যাচাই করা যায়নি।';
+        setAuthIssue(authIssueRef.current);
         setIsAdmin(false);
         setUserRole('Staff');
         setUserName('');
@@ -316,7 +328,7 @@ function App() {
           } />
 
           {/* Login Route */}
-          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} isAdmin={isAdmin} />} />
+          <Route path="/login" element={<LoginPage onLoginSuccess={handleLoginSuccess} isAdmin={isAdmin} authIssue={authIssue} />} />
 
           {/* Protected Admin Routes Layout */}
           <Route element={<AdminLayout isAdmin={isAdmin} userRole={userRole} userName={userName} onLogout={handleLogout} loadingSession={loadingSession} />}>
