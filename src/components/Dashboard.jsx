@@ -82,17 +82,17 @@ const Dashboard = () => {
     startOfMonth.setHours(0, 0, 0, 0);
     const startOfMonthISO = startOfMonth.toISOString();
     try {
-      const [tChalansRes, tBillsRes, stockRes] = await Promise.all([
+      const [tChalansRes, stockRes] = await Promise.all([
         supabase.from('chalans').select('*, customers(*)').gte('created_at', startOfMonthISO).order('created_at', { ascending: false }),
-        supabase.from('chalans').select('*, customers(*)').eq('status', 'paid').gte('created_at', startOfMonthISO).order('created_at', { ascending: false }),
-        supabase.from('products').select('*').lt('stock_quantity', 20).order('stock_quantity', { ascending: true })
+        supabase.from('products').select('name, model, house, stock_quantity').lt('stock_quantity', 20).order('stock_quantity', { ascending: true })
       ]);
 
       // Discard stale out-of-order network responses
       if (currentRequestId !== fetchRequestIdRef.current) return;
 
-      setTodayChalans(tChalansRes.data || []);
-      setTodayBills(tBillsRes.data || []);
+      const monthChalans = tChalansRes.data || [];
+      setTodayChalans(monthChalans);
+      setTodayBills(monthChalans.filter(chalan => chalan.status === 'paid'));
       setLowStockProducts(stockRes.data || []);
     } catch (error) { 
       console.error('Error fetching dashboard data:', error); 

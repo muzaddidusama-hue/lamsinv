@@ -5,6 +5,7 @@ import { printBill } from '../utils/printBill';
 import { downloadPDF } from '../utils/pdfGenerator';
 import { logAction } from '../utils/logger';
 import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 // Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
 const CustomDatePicker = ({ value, onChange }) => {
   const hiddenInputRef = React.useRef(null);
@@ -155,6 +156,12 @@ const getTodayFormatted = () => {
   useEffect(() => {
     Promise.resolve().then(() => fetchAvailableProducts());
   }, [fetchAvailableProducts]);
+
+  useEffect(() => subscribeToDatabaseChanges(
+    'billing-system-products-live',
+    [{ table: 'products' }],
+    fetchAvailableProducts
+  ), [fetchAvailableProducts]);
 
   const handleSaveOutPurchase = async () => {
     if (!outPurchaseProduct) return alert('দয়া করে আউট পারচেসের জন্য প্রোডাক্ট নির্বাচন করুন!');

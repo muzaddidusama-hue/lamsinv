@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 const ProductEntry = () => {
   // Page mode: 'create' for new product entry, 'edit' for editing existing products
@@ -71,6 +72,14 @@ const ProductEntry = () => {
     void fetchBrands();
     void fetchProductsList();
   }, [fetchBrands, fetchProductsList]);
+
+  useEffect(() => subscribeToDatabaseChanges(
+    'product-entry-products-live',
+    [{ table: 'products' }],
+    () => {
+      void Promise.all([fetchBrands(), fetchProductsList()]);
+    }
+  ), [fetchBrands, fetchProductsList]);
 
   // Get unique products by brand name + category + model for edit selector dropdown
   const getUniqueProductsForEdit = () => {

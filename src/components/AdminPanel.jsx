@@ -171,11 +171,57 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   }, [searchText]);
 
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "নতুন চালান তৈরি হয়েছে: CHN-998822", time: "৫ মিনিট আগে", read: false },
-    { id: 2, text: "স্টক ফুরিয়ে যাচ্ছে: SolarOn 3600VA (বাকি আছে ৪ পিস)", time: "২ ঘণ্টা আগে", read: false },
-    { id: 3, text: "সার্ভিসিং কমপ্লিট: Nawabpur Inverter 5KVA", time: "১ দিন আগে", read: true }
-  ]);
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    let active = true;
+    const seenEvents = new Set();
+    const formatTime = () => new Date().toLocaleTimeString('bn-BD', {
+      hour: '2-digit', minute: '2-digit'
+    });
+    const pushNotification = (id, text) => {
+      if (!active || seenEvents.has(id)) return;
+      seenEvents.add(id);
+      setNotifications(current => [{ id, text, time: formatTime(), read: false }, ...current].slice(0, 50));
+    };
+
+    const channel = supabase
+      .channel('admin-live-notifications')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chalans' }, payload => {
+        const next = payload.new || {};
+        const previous = payload.old || {};
+        const reference = next.chalan_no || next.bill_no || previous.chalan_no || previous.bill_no || next.id;
+        if (payload.eventType === 'INSERT') {
+          pushNotification(`chalan:insert:${next.id}`, `নতুন চালান তৈরি হয়েছে: ${reference}`);
+        } else if (payload.eventType === 'UPDATE' && next.status !== previous.status) {
+          const statusText = next.status === 'paid' ? 'বিল পরিশোধ হয়েছে' :
+            next.status === 'cancelled' ? 'বিল/চালান বাতিল হয়েছে' :
+              next.status === 'completed' ? 'চালান সম্পন্ন হয়েছে' : `স্ট্যাটাস: ${next.status || 'আপডেট'}`;
+          pushNotification(`chalan:status:${next.id}:${next.status}`, `${statusText}: ${reference}`);
+        }
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'products' }, payload => {
+        const product = payload.new || {};
+        const previous = payload.old || {};
+        const stock = Number(product.stock_quantity);
+        const previousStock = Number(previous.stock_quantity);
+        if (!Number.isFinite(stock) || stock > 5) return;
+        if (Number.isFinite(previousStock) && previousStock <= 5 && previousStock === stock) return;
+        const label = `${product.name || ''} ${product.model || ''}`.trim() || `Product #${product.id}`;
+        const eventVersion = product.updated_at || payload.commit_timestamp || `${Date.now()}:${stock}`;
+        pushNotification(`product:low:${product.id}:${eventVersion}`, `স্টক কম: ${label} (বাকি ${stock} পিস)`);
+      })
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error('[Live notifications] Realtime channel issue:', status, error?.message || '');
+        }
+      });
+
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -266,16 +312,16 @@ const AdminPanel = ({ onLogout, currentUserRole, currentUserName }) => {
   };
 
   const handleMarkAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+    setNotifications(current => current.map(n => ({ ...n, read: true })));
   };
 
   const handleNotificationClick = (id) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+    setNotifications(current => current.map(n => n.id === id ? { ...n, read: true } : n));
   };
 
   const clearNotification = (e, id) => {
     e.stopPropagation();
-    setNotifications(notifications.filter(n => n.id !== id));
+    setNotifications(current => current.filter(n => n.id !== id));
   };
 
   return (

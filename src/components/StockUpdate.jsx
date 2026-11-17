@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 const StockManagement = () => {
   const [products, setProducts] = useState([]);
@@ -10,7 +11,12 @@ const StockManagement = () => {
   const [type, setType] = useState('in');
 
   useEffect(() => {
-    fetchProducts();
+    void fetchProducts();
+    return subscribeToDatabaseChanges(
+      'stock-update-products-live',
+      [{ table: 'products' }],
+      () => void fetchProducts()
+    );
   }, []);
 
   async function fetchProducts() {

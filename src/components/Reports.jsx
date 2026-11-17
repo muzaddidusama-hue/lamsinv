@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import * as XLSX from 'xlsx';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 const Reports = () => {
   const date = new Date();
@@ -41,6 +42,7 @@ const Reports = () => {
 const [invSerials, setInvSerials] = useState([]);
    const [serialSearch, setSerialSearch] = useState('');
    const [loadingSerials, setLoadingSerials] = useState(false);
+  const generateReportRef = useRef(null);
 
   const getStandardKey = (name) => {
     if (!name) return 'unknown';
@@ -334,6 +336,21 @@ const [invSerials, setInvSerials] = useState([]);
     // Report refresh is intentionally tied to the selected date range.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]); 
+
+  useEffect(() => subscribeToDatabaseChanges(
+    'reports-live-data',
+    [
+      { table: 'chalans' },
+      { table: 'chalan_items' },
+      { table: 'ledger' },
+      { table: 'stock_out' },
+      { table: 'products' },
+      { table: 'inv_sl' },
+      { table: 'customers' }
+    ],
+    () => void generateReportRef.current?.(),
+    700
+  ), [startDate, endDate]);
 // LAZY LOADING
    useEffect(() => {
      if ((reportType === 'ledger_report' || reportType === 'product_wise') && rawProducts.length === 0) fetchAllProducts();
@@ -779,6 +796,8 @@ const checkIsTransfer = (val) => {
       }
       setLoading(false);
     }
+
+  generateReportRef.current = generateReport;
 
   const processReportData = (chalans) => {
     const data = {

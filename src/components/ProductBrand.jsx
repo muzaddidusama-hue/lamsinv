@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import * as XLSX from 'xlsx';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 // Helper for date formatting
 const formatDate = (isoString) => {
@@ -133,6 +134,18 @@ const ProductBrand = () => {
     // Load the dashboard's remote data once after mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchAllData();
+    return subscribeToDatabaseChanges(
+      'product-brand-live-data',
+      [
+        { table: 'site_settings' },
+        { table: 'products' },
+        { table: 'chalans' },
+        { table: 'chalan_items' },
+        { table: 'inv_sl' }
+      ],
+      () => void fetchAllData(),
+      700
+    );
   }, [fetchAllData]);
 
   // Upload brand logo

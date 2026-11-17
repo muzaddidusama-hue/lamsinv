@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { printBill } from '../utils/printBill';
 import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 // Custom Aesthetic Date Picker with deep calendar icon and dd/mm/yy format
 const CustomDatePicker = ({ value, onChange }) => {
   const hiddenInputRef = React.useRef(null);
@@ -125,11 +126,7 @@ const CustomDatePicker = ({ value, onChange }) => {
      };
    }, []);
 
-   useEffect(() => {
-     fetchAvailableProducts();
-   }, []);
-
-  async function fetchAvailableProducts() {
+  const fetchAvailableProducts = useCallback(async () => {
      const { data } = await supabase.from('products').select('*').eq('house', house);
      if (data) {
        const sortedData = data.sort((a, b) => {
@@ -144,7 +141,17 @@ const CustomDatePicker = ({ value, onChange }) => {
        setAllHouseProducts(sortedData);
        setProducts(sortedData.filter(p => (p.stock_quantity || 0) > 0));
      }
-   };
+   }, [house]);
+
+   useEffect(() => {
+     Promise.resolve().then(fetchAvailableProducts);
+   }, [fetchAvailableProducts]);
+
+   useEffect(() => subscribeToDatabaseChanges(
+     'nawabpur-billing-products-live',
+     [{ table: 'products' }],
+     fetchAvailableProducts
+   ), [fetchAvailableProducts]);
 
    const handleSaveOutPurchase = async () => {
      if (!outPurchaseProduct) return alert('দয়া করে আউট পারচেসের জন্য প্রোডাক্ট নির্বাচন করুন!');

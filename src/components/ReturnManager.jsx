@@ -1,5 +1,6 @@
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 const ReturnManager = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -8,6 +9,10 @@ const ReturnManager = () => {
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [processing, setProcessing] = useState(false);
   const processingRef = useRef(false);
+  const selectedInvoiceRef = useRef(null);
+  useEffect(() => {
+    selectedInvoiceRef.current = selectedInvoice;
+  }, [selectedInvoice]);
 
   // 🔴 নতুন: আংশিক রিটার্নের স্টেট
   const [returnQtys, setReturnQtys] = useState({});
@@ -16,14 +21,15 @@ const ReturnManager = () => {
   const [selectedSerialsToReturn, setSelectedSerialsToReturn] = useState([]);
 
   // 🔍 সার্চ লজিক
-  const handleSearch = async (e) => {
-    e.preventDefault();
+  const searchRecords = useCallback(async ({ keepSelection = false, quiet = false } = {}) => {
     const query = searchQuery.trim();
-    if (!query) return alert('অনুগ্রহ করে সার্চ করার জন্য কিছু লিখুন!');
+    if (!query) return;
 
-    setLoading(true);
-    setSearchResults([]);
-    setSelectedInvoice(null);
+    if (!quiet) setLoading(true);
+    if (!keepSelection) {
+      setSearchResults([]);
+      setSelectedInvoice(null);
+    }
 
     try {
       const { data: slData } = await supabase.from('inv_sl').select('chalan_no, bill_no').eq('sl_no', query.toUpperCase()).maybeSingle();
@@ -45,13 +51,19 @@ const ReturnManager = () => {
       if (error) throw error;
 
       if (data && data.length > 0) setSearchResults(data);
-      else alert('দুঃখিত! এই তথ্যের কোনো রেকর্ড পাওয়া যায়নি।');
+      else if (!quiet) alert('দুঃখিত! এই তথ্যের কোনো রেকর্ড পাওয়া যায়নি।');
       
     } catch (error) {
       console.error(error);
-      alert('সার্চ করতে সমস্যা হয়েছে!');
+      if (!quiet) alert('সার্চ করতে সমস্যা হয়েছে!');
     }
-    setLoading(false);
+    if (!quiet) setLoading(false);
+  }, [searchQuery]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return alert('অনুগ্রহ করে সার্চ করার জন্য কিছু লিখুন!');
+    void searchRecords();
   };
 
   // 📋 ইনভয়েস সিলেক্ট করার পর তার সিরিয়ালগুলো ফেচ করা
@@ -94,6 +106,77 @@ const ReturnManager = () => {
       if (data) setInvoiceSerials(data);
     }
   };
+
+  // Keep the selected invoice and return history current across operators,
+  // while retaining quantities and serial choices the user is editing.
+  const refreshSelectedInvoice = useCallback(async () => {
+    const currentInvoice = selectedInvoiceRef.current;
+    if (!currentInvoice || processingRef.current) return;
+    const { data: latest, error } = await supabase
+      .from('chalans')
+      .select('*, customers(name, phone), chalan_items(*, products(*))')
+      .eq('id', currentInvoice.id)
+      .maybeSingle();
+    if (error) {
+      console.error('Live invoice refresh error:', error);
+      return;
+    }
+    if (!latest) return;
+    setSelectedInvoice(latest);
+
+    const invoiceRef = latest.bill_no && latest.bill_no !== 'N/A' ? latest.bill_no : latest.chalan_no;
+    const { data: returnRows, error: returnError } = await supabase
+      .from('ledger')
+      .select('quantity, source')
+      .ilike('source', `%Return from Inv: #${invoiceRef}%`);
+    if (returnError) {
+      console.error('Live return history refresh error:', returnError);
+      return;
+    }
+    const returnedByItem = {};
+    (returnRows || []).forEach((row) => {
+      const itemId = row.source?.match(/\[item:([^\]]+)\]/i)?.[1];
+      if (itemId && latest.chalan_items?.some(item => String(item.id) === itemId)) {
+        returnedByItem[itemId] = (returnedByItem[itemId] || 0) + (Number(row.quantity) || 0);
+      }
+    });
+    setReturnedQtyByItem(returnedByItem);
+    setReturnQtys(previous => Object.fromEntries(
+      Object.entries(previous).map(([itemId, qty]) => [
+        itemId,
+        Math.min(Number(qty) || 0, Math.max(0, Number(latest.chalan_items?.find(item => String(item.id) === itemId)?.quantity || 0) - (returnedByItem[itemId] || 0)))
+      ])
+    ));
+
+    const serialFilters = [];
+    if (latest.chalan_no && latest.chalan_no !== 'N/A') serialFilters.push(`chalan_no.eq.${latest.chalan_no}`);
+    if (latest.bill_no && latest.bill_no !== 'N/A') serialFilters.push(`bill_no.eq.${latest.bill_no}`);
+    if (serialFilters.length) {
+      const { data: serials, error: serialError } = await supabase.from('inv_sl').select('*').or(serialFilters.join(','));
+      if (serialError) console.error('Live invoice serial refresh error:', serialError);
+      else if (serials) setInvoiceSerials(serials);
+    }
+  }, []);
+
+  useEffect(() => {
+    const selectedId = selectedInvoice?.id;
+    const watchingResults = !selectedInvoice && searchResults.length > 0;
+    if (!selectedId && !watchingResults) return undefined;
+
+    const tables = selectedId
+      ? [
+          { table: 'chalans', filter: `id=eq.${selectedId}` },
+          { table: 'chalan_items', filter: `chalan_id=eq.${selectedId}` },
+          { table: 'ledger' },
+          { table: 'inv_sl' },
+        ]
+      : [{ table: 'chalans' }, { table: 'chalan_items' }];
+    return subscribeToDatabaseChanges(
+      `return-manager-live-${selectedId || 'search-results'}`,
+      tables,
+      () => selectedId ? refreshSelectedInvoice() : searchRecords({ keepSelection: true, quiet: true })
+    );
+  }, [selectedInvoice, searchResults.length, refreshSelectedInvoice, searchRecords]);
 
   // 🔄 রিটার্ন পরিমাণ আপডেট করার ফাংশন
   const handleUpdateReturnQty = (itemId, val) => {

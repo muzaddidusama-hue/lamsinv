@@ -9,6 +9,7 @@ import solarPanel24v from '../assets/solar-panel-24v.webp';
 import productsImg from '../assets/products-image.webp';
 import solarOn3600Img from '../assets/solaron-3600.webp';
 import OptimizedImage from './OptimizedImage';
+import { subscribeToDatabaseChanges } from '../utils/subscribeToDatabaseChanges';
 
 const CATEGORIES = ["Hybrid Inverter", "On-grid Inverter", "Solar Panel - 12 Volt", "Solar Panel - 24 Volt"];
 const TWELVE_VOLT_BRANDS = ['powerland', 'sunland', 'sunland extreme'];
@@ -157,8 +158,7 @@ const PublicCatalog = ({ onAdminClick }) => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       const { data: prodData, error: prodError } = await supabase
         .from('products')
         .select('*')
@@ -190,9 +190,16 @@ const PublicCatalog = ({ onAdminClick }) => {
       }
       
       setLoading(false);
-    };
-    fetchData();
   }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(fetchData);
+    return subscribeToDatabaseChanges(
+      'public-catalog-products-settings-live',
+      [{ table: 'products' }, { table: 'site_settings' }],
+      fetchData
+    );
+  }, [fetchData]);
 
   // SEO Update
   useEffect(() => {
@@ -292,9 +299,15 @@ const PublicCatalog = ({ onAdminClick }) => {
     });
   }, [products]);
 
-  // Filter individual models with stock quantity >= 10 and no duplicates
-  const getFilteredProductsList = (cat) => {
-    return deDuplicatedProducts.filter(p => {
+  // Build each category's filtered and sorted list once per filter change.
+  const sortedProductsByCategory = useMemo(() => {
+    const searchTerm = deferredProductSearch.toLowerCase();
+    const minVal = parseSmartWattage(minWattInput);
+    const maxVal = parseSmartWattage(maxWattInput);
+    const brandFilter = new Set(selectedBrands);
+
+    return Object.fromEntries(categories.map(cat => {
+      const list = deDuplicatedProducts.filter(p => {
       // Stock quantity check: Must have at least 10 pcs in stock across all houses (except Jarrett in Hybrid Inverter)
       const isJarrettHybrid = p.category === 'Hybrid Inverter' && p.name?.toLowerCase().trim() === 'jarrett';
       if (!isJarrettHybrid && Number(p.stock_quantity) < 10) return false;
@@ -303,9 +316,9 @@ const PublicCatalog = ({ onAdminClick }) => {
       const pCatLower = p.category ? p.category.toLowerCase().trim() : '';
 
       // Live search filter matching name, model, category, volt, or watt
-      if (deferredProductSearch) {
+      if (searchTerm) {
         const searchStr = `${p.name} ${p.model} ${p.category} ${p.volt || ''} ${p.watt || ''}`.toLowerCase();
-        if (!searchStr.includes(deferredProductSearch.toLowerCase())) return false;
+        if (!searchStr.includes(searchTerm)) return false;
       }
 
       // 1. Category check
@@ -320,13 +333,11 @@ const PublicCatalog = ({ onAdminClick }) => {
       if (!matchesCat) return false;
 
       // 2. Brand check
-      if (selectedBrands.length > 0) {
-        if (!selectedBrands.includes(pNameLower)) return false;
+      if (brandFilter.size > 0) {
+        if (!brandFilter.has(pNameLower)) return false;
       }
 
       // 3. Watt/kW range check
-      const minVal = parseSmartWattage(minWattInput);
-      const maxVal = parseSmartWattage(maxWattInput);
       if (minVal !== null || maxVal !== null) {
         const prodWattVal = getProductWattageVal(p);
         if (prodWattVal === null) {
@@ -338,18 +349,18 @@ const PublicCatalog = ({ onAdminClick }) => {
 
       return true;
     });
-  };
-
-  const getSortedProductsList = (cat) => {
-    const list = getFilteredProductsList(cat);
-    // Sort products logically by brand name, then model capacity
-    return list.sort((a, b) => {
+      // Sort products logically by brand name, then model capacity
+      list.sort((a, b) => {
       if (a.name !== b.name) return (a.name || '').localeCompare(b.name || '');
-      const capA = parseFloat(a.model.match(/([\d.]+)/)?.[1] || 0);
-      const capB = parseFloat(b.model.match(/([\d.]+)/)?.[1] || 0);
+      const capA = parseFloat(a.model?.match(/([\d.]+)/)?.[1] || 0);
+      const capB = parseFloat(b.model?.match(/([\d.]+)/)?.[1] || 0);
       return capA - capB;
     });
-  };
+      return [cat, list];
+    }));
+  }, [deDuplicatedProducts, deferredProductSearch, minWattInput, maxWattInput, selectedBrands, categories]);
+
+  const getSortedProductsList = (cat) => sortedProductsByCategory[cat] || [];
 
   // Group products by brand/name subsection
   const groupProductsByBrand = (prods) => {
