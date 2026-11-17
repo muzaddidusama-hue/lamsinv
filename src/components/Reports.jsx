@@ -131,6 +131,9 @@ const [invSerials, setInvSerials] = useState([]);
   // 🔴 ওপেনিং ও ক্লোজিং স্টক ক্যালকুলেশনের মূল ফাংশন (প্রকৃত ট্রানজেকশন ভিত্তিক ফরোয়ার্ড হিসাব)
   const getLedgerSummary = () => {
     const summaryMap = new Map();
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const shouldReconcileSelectedProduct = Boolean(ledgerSearch) && endDate >= today;
 
     rawProducts.forEach(p => {
       const fullName = `${p.name || ''} - ${p.model || ''}`.trim();
@@ -217,17 +220,26 @@ const [invSerials, setInvSerials] = useState([]);
 
     const list = Array.from(summaryMap.values()).map(item => {
       // Showroom Stock
-      const showOpening = item.pastShowIn - item.pastShowOut;
-      const showClosing = showOpening + item.showIn - item.showOut;
+      const historicalShowOpening = item.pastShowIn - item.pastShowOut;
+      const historicalShowClosing = historicalShowOpening + item.showIn - item.showOut;
 
       // HO Stock
-      const hoOpening = item.pastHoIn - item.pastHoOut;
-      const hoClosing = hoOpening + item.hoIn - item.hoOut;
+      const historicalHoOpening = item.pastHoIn - item.pastHoOut;
+      const historicalHoClosing = historicalHoOpening + item.hoIn - item.hoOut;
 
       // Total Stock
       const currentStock = item.stocks['Head Office'] + item.stocks['Showroom'];
+      const isSelectedProduct = shouldReconcileSelectedProduct && getStandardKey(item.product) === getStandardKey(ledgerSearch);
+      const reconcileShowroom = isSelectedProduct && (ledgerTab === 'showroom' || ledgerTab === 'total');
+      const reconcileHeadOffice = isSelectedProduct && (ledgerTab === 'ho' || ledgerTab === 'total');
+      const showClosing = reconcileShowroom ? item.stocks['Showroom'] : historicalShowClosing;
+      const hoClosing = reconcileHeadOffice ? item.stocks['Head Office'] : historicalHoClosing;
+      const showOpening = reconcileShowroom ? showClosing - item.showIn + item.showOut : historicalShowOpening;
+      const hoOpening = reconcileHeadOffice ? hoClosing - item.hoIn + item.hoOut : historicalHoOpening;
       const openingStock = showOpening + hoOpening;
-      const closingStock = openingStock + item.totalIn - item.totalOut;
+      const closingStock = (reconcileShowroom || reconcileHeadOffice)
+        ? showClosing + hoClosing
+        : openingStock + item.totalIn - item.totalOut;
 
       return { 
         ...item, 
@@ -257,7 +269,7 @@ const [invSerials, setInvSerials] = useState([]);
 
   const ledgerSummaryList = useMemo(() => {
     return getLedgerSummary();
-  }, [rawProducts, allTransactions, startDate, endDate]);
+  }, [rawProducts, allTransactions, startDate, endDate, ledgerSearch, ledgerTab]);
 
   const uniqueBrands = useMemo(() => {
     const brands = rawProducts.map(p => p.name).filter(Boolean);
