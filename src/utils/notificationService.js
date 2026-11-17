@@ -3,7 +3,15 @@
  * Facilitates sending Telegram and WhatsApp notifications from frontend components.
  */
 
+import { supabase } from '../supabaseClient';
+
 const API_BASE = '/api/notify';
+
+async function getAuthHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Please sign in before sending notifications.');
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+}
 
 /**
  * Checks whether Telegram and WhatsApp credentials are configured on the backend.
@@ -38,7 +46,7 @@ export async function sendTelegramNotification(message, options = {}) {
 
   const response = await fetch(`${API_BASE}/telegram`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload)
   });
 
@@ -65,7 +73,7 @@ export async function sendWhatsAppNotification(message, options = {}) {
 
   const response = await fetch(`${API_BASE}/whatsapp`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload)
   });
 
@@ -108,7 +116,7 @@ export async function sendNotification({
 
   const response = await fetch(API_BASE, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
     body: JSON.stringify(payload)
   });
 

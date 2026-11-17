@@ -1,4 +1,6 @@
 import express from 'express';
+import process from 'node:process';
+import { authenticateEmployee } from './auth.js';
 
 export const router = express.Router();
 
@@ -19,12 +21,9 @@ export function sanitizePhoneNumber(phone) {
  * @param {string} [options.parseMode='HTML'] - 'HTML', 'MarkdownV2', 'Markdown', or null
  * @param {boolean} [options.silent=false] - If true, sends without sound notification
  */
-const DEFAULT_TG_TOKEN = '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
-const DEFAULT_TG_CHAT_ID = '8657367736';
-
 export async function sendTelegram({ message, chatId, parseMode = 'HTML', silent = false, replyMarkup = null }) {
-  const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
-  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const targetChatId = chatId || process.env.TELEGRAM_CHAT_ID;
 
   if (!token) {
     throw new Error('TELEGRAM_BOT_TOKEN is not configured in server environment (.env).');
@@ -153,8 +152,8 @@ export async function sendWhatsApp({ message, to, template = null }) {
  * Healthcheck & Configuration status endpoint
  */
 router.get('/status', (req, res) => {
-  const tgToken = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
-  const tgChatId = process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
+  const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+  const tgChatId = process.env.TELEGRAM_CHAT_ID;
 
   res.json({
     telegram: {
@@ -175,7 +174,7 @@ router.get('/status', (req, res) => {
  * POST /api/notify/telegram
  * Directly send to Telegram
  */
-router.post('/telegram', async (req, res) => {
+router.post('/telegram', authenticateEmployee, async (req, res) => {
   try {
     const { message, chatId, parseMode, silent } = req.body;
     if (!message || typeof message !== 'string') {
@@ -194,7 +193,7 @@ router.post('/telegram', async (req, res) => {
  * POST /api/notify/whatsapp
  * Directly send to WhatsApp Cloud API
  */
-router.post('/whatsapp', async (req, res) => {
+router.post('/whatsapp', authenticateEmployee, async (req, res) => {
   try {
     const { message, to, template } = req.body;
     if (!template && (!message || typeof message !== 'string')) {
@@ -213,7 +212,7 @@ router.post('/whatsapp', async (req, res) => {
  * POST /api/notify
  * Unified notification route: broadcast to Telegram, WhatsApp, or both
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticateEmployee, async (req, res) => {
   try {
     const {
       platform = 'all', // 'all' | 'telegram' | 'whatsapp'

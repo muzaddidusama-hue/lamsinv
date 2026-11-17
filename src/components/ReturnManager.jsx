@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { supabase } from '../supabaseClient';
 
 const ReturnManager = () => {
@@ -7,6 +7,7 @@ const ReturnManager = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
 
   // 🔴 নতুন: আংশিক রিটার্নের স্টেট
   const [returnQtys, setReturnQtys] = useState({});
@@ -116,6 +117,10 @@ const ReturnManager = () => {
 
   // ♻️ বিল/চালান বাতিল ও স্টক ফেরত দেওয়ার মেইন লজিক
   const handleConfirmReturn = async (isFullCancellation = false) => {
+    if (processingRef.current) return;
+    if (selectedInvoice?.status === 'cancelled') {
+      return alert('এই বিল/চালানটি আগেই বাতিল হয়েছে।');
+    }
     let qtysToReturn = {};
     let serialsToDelete = [];
 
@@ -167,6 +172,7 @@ const ReturnManager = () => {
 
     if (!window.confirm(msg)) return;
 
+    processingRef.current = true;
     setProcessing(true);
     try {
       const invoiceRef = selectedInvoice.bill_no !== 'N/A' && selectedInvoice.bill_no ? selectedInvoice.bill_no : selectedInvoice.chalan_no;
@@ -184,54 +190,90 @@ const ReturnManager = () => {
         }
       }
 
-      // ১. প্রোডাক্ট স্টক বাড়ানো, লেজার এন্ট্রি এবং chalan_items আপডেট/ডিলিট করা
+      // Modal খোলার পর অন্য অপারেটর return করে থাকলে stale quantity দিয়ে
+      // দ্বিতীয়বার stock যোগ হওয়া ঠেকাতে সর্বশেষ item marker আবার যাচাই করুন।
+      const { data: latestReturns, error: latestReturnsError } = await supabase
+        .from('ledger')
+        .select('quantity, source')
+        .ilike('source', `%Return from Inv: #${invoiceRef}%`);
+      if (latestReturnsError) throw latestReturnsError;
+      const latestReturnedByItem = {};
+      (latestReturns || []).forEach(row => {
+        const itemId = row.source?.match(/\[item:([^\]]+)\]/i)?.[1];
+        if (itemId) latestReturnedByItem[itemId] = (latestReturnedByItem[itemId] || 0) + (Number(row.quantity) || 0);
+      });
+      for (const item of selectedInvoice.chalan_items) {
+        const requestedQty = Number(qtysToReturn[item.id]) || 0;
+        if (requestedQty + (latestReturnedByItem[String(item.id)] || 0) > Number(item.quantity || 0)) {
+          throw new Error('এই বিলের return quantity ইতিমধ্যে বদলেছে। সর্বশেষ হিসাব লোড করে আবার চেষ্টা করুন।');
+        }
+      }
+
+      // ১. Ledger row আগে লিখুন, তারপর stock RPC চালান। RPC ব্যর্থ হলে
+      //    তৈরি হওয়া ledger row সরিয়ে দিন, যাতে retry-তে ভুল return count না হয়।
       for (let item of selectedInvoice.chalan_items) {
         const rq = qtysToReturn[item.id] || 0;
         if (rq > 0) {
           const isInHouse = selectedInvoice.is_in_house === true || String(selectedInvoice.is_in_house).toLowerCase() === 'true';
-
-          // স্টক আপডেট (RPC ব্যবহার করে, যা RLS বাইপাস করে এবং অ্যাটমিক)
-          const { error: rpcErr } = await supabase.rpc('update_product_stock', { 
-            prod_id: item.product_id, 
-            qty_change: rq 
-          });
-          if (rpcErr) {
-            console.error("RPC Error updating product stock:", rpcErr);
-            throw new Error(`স্টক আপডেট করতে সমস্যা হয়েছে: ${rpcErr.message}`);
-          }
-
-          // ইন-হাউস ট্রান্সফারের ক্ষেত্রে গন্তব্য ওয়্যারহাউজ (Destination House) থেকেও স্টক মাইনাস করা
+          let destinationProductId = null;
           if (isInHouse) {
             const destHouse = selectedInvoice.transfer_to || 'Showroom';
-            const { data: destProducts } = await supabase
+            const { data: destProducts, error: destProductsError } = await supabase
               .from('products')
               .select('id')
               .eq('name', item.products?.name)
               .eq('model', item.products?.model)
               .eq('house', destHouse);
-
-            if (destProducts && destProducts.length > 0) {
-              await supabase.rpc('update_product_stock', {
-                prod_id: destProducts[0].id,
-                qty_change: -rq
-              });
-            }
+            if (destProductsError) throw destProductsError;
+            if (!destProducts?.length) throw new Error(`গন্তব্য ওয়্যারহাউজ ${destHouse}-এ প্রোডাক্টটি পাওয়া যায়নি।`);
+            destinationProductId = destProducts[0].id;
           }
 
-          // লেজার এন্ট্রি (যাতে রিটার্ন হওয়া মাল লেজারে Stock In হিসেবে দেখায়)
+          // Ledger schema-তে house/type column নেই। Warehouse source text-এ থাকে।
           const returnHouse = selectedInvoice.house === 'Showroom' ? 'Nawabpur' : 'Head Office';
-          const { error: ledgerErr } = await supabase.from('ledger').insert([{
-            product: `${item.products?.name} - ${item.products?.model}`,
+          const productLabel = `${item.products?.name} - ${item.products?.model}`;
+          const returnSource = `Return from Inv: #${invoiceRef} (To: ${returnHouse}) [item:${item.id}]`;
+          const returnDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit'
+          }).format(new Date());
+          const { data: ledgerRow, error: ledgerErr } = await supabase.from('ledger').insert({
+            product: productLabel,
             quantity: rq,
-            source: `Return from Inv: #${invoiceRef} (To: ${returnHouse}) [item:${item.id}]`,
-            house: selectedInvoice.house,
-            type: 'in',
-            date: new Date().toISOString().split('T')[0],
+            source: returnSource,
+            date: returnDate,
             in: new Date().toISOString()
-          }]);
+          }).select('id').single();
           if (ledgerErr) {
             console.error("Ledger insertion error:", ledgerErr);
             throw new Error(`লেজার এন্ট্রি তৈরি করতে সমস্যা হয়েছে: ${ledgerErr.message}`);
+          }
+
+          // Stock RPC atomically changes a single product row.
+          const { error: rpcErr } = await supabase.rpc('update_product_stock', {
+            prod_id: item.product_id,
+            qty_change: rq
+          });
+          if (rpcErr) {
+            const { error: cleanupError } = await supabase.from('ledger').delete().eq('id', ledgerRow.id);
+            if (cleanupError) console.error('Could not roll back return ledger row:', cleanupError);
+            throw new Error(`স্টক আপডেট করতে সমস্যা হয়েছে: ${rpcErr.message}`);
+          }
+
+          if (destinationProductId) {
+            const { error: destinationStockError } = await supabase.rpc('update_product_stock', {
+              prod_id: destinationProductId,
+              qty_change: -rq
+            });
+            if (destinationStockError) {
+              const { error: sourceRollbackError } = await supabase.rpc('update_product_stock', {
+                prod_id: item.product_id,
+                qty_change: -rq
+              });
+              const { error: ledgerRollbackError } = await supabase.from('ledger').delete().eq('id', ledgerRow.id);
+              if (sourceRollbackError) console.error('Could not roll back source stock:', sourceRollbackError);
+              if (ledgerRollbackError) console.error('Could not roll back return ledger row:', ledgerRollbackError);
+              throw new Error(`গন্তব্য ওয়্যারহাউজের স্টক আপডেট করতে সমস্যা হয়েছে: ${destinationStockError.message}`);
+            }
           }
 
           // Keep the original sale quantity for Ledger Out. Return quantities are tracked
@@ -276,8 +318,11 @@ const ReturnManager = () => {
     } catch (error) {
       console.error(error);
       alert(error.message || 'রিটার্ন প্রসেস করতে সমস্যা হয়েছে! কনসোল চেক করুন।');
+      if (selectedInvoice) await handleSelectInvoice(selectedInvoice);
+    } finally {
+      processingRef.current = false;
+      setProcessing(false);
     }
-    setProcessing(false);
   };
 
   return (

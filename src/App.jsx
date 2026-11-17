@@ -109,15 +109,45 @@ function App() {
   const [updatingPassword, setUpdatingPassword] = useState(false);
 
   useEffect(() => {
-    // কারেন্ট সেশন চেক
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsAdmin(true);
-        setUserRole(session.user.user_metadata?.role || 'Staff');
-        setUserName(session.user.user_metadata?.name || 'Employee');
+    let latestRequest = 0;
+    let mounted = true;
+    const loadEmployeeProfile = async (session) => {
+      const requestId = ++latestRequest;
+      if (!session?.access_token) {
+        if (!mounted) return;
+        setIsAdmin(false);
+        setUserRole('Staff');
+        setUserName('');
+        setLoadingSession(false);
+        return;
       }
-      setLoadingSession(false);
-    });
+
+      setLoadingSession(true);
+      try {
+        const response = await fetch('/api/auth/profile', {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401 || response.status === 403) await supabase.auth.signOut();
+          throw new Error(data.error || 'Employee access could not be verified.');
+        }
+        if (!mounted || requestId !== latestRequest) return;
+        setUserRole(data.profile.role || 'Staff');
+        setUserName(data.profile.name || 'Employee');
+        setIsAdmin(true);
+      } catch (error) {
+        if (!mounted || requestId !== latestRequest) return;
+        console.error('Employee profile validation failed:', error);
+        setIsAdmin(false);
+        setUserRole('Staff');
+        setUserName('');
+      } finally {
+        if (mounted && requestId === latestRequest) setLoadingSession(false);
+      }
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => loadEmployeeProfile(session));
 
     // লাইভ ইভেন্ট ট্র্যাকার
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -126,25 +156,17 @@ function App() {
         setRecoveryMode(true);
       }
 
-      if (session) {
-        setIsAdmin(true);
-        setUserRole(session.user.user_metadata?.role || 'Staff');
-        setUserName(session.user.user_metadata?.name || 'Employee');
-      } else {
-        setIsAdmin(false);
-        setUserRole('Staff');
-        setUserName('');
-      }
-      setLoadingSession(false);
+      void loadEmployeeProfile(session);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const handleLoginSuccess = (user) => {
-    setIsAdmin(true);
-    setUserRole(user.role);
-    setUserName(user.name);
+  const handleLoginSuccess = () => {
+    setLoadingSession(true);
   };
 
   const handleLogout = async () => {

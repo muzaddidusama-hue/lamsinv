@@ -1,62 +1,72 @@
 import express from 'express';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import notificationRouter from '../routes/notifications.js';
 import telegramRouter from '../routes/telegram.js';
 import whatsappRouter from '../routes/whatsapp.js';
 import apiControllerRouter, { apiGatekeeper } from '../routes/apiController.js';
+import authRouter, { authenticateEmployee } from '../routes/auth.js';
+import adminUsersRouter from '../routes/adminUsers.js';
+import aiRouter from '../routes/ai.js';
 
 dotenv.config();
 
-// Ensure Telegram Bot environment defaults
-process.env.TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
-process.env.TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || '8657367736';
-process.env.TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET || 'LAMS_InvBot_15963_UbhMuzaddid17';
-
-// Ensure Supabase server-side credentials are available (fallback from VITE_ prefixed vars)
-process.env.SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || '';
+process.env.SUPABASE_URL ||= process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
+process.env.SUPABASE_ANON_KEY ||= process.env.VITE_SUPABASE_ANON_KEY || '';
 
 const app = express();
 
-app.use(cors());
-app.use(express.json({ verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
+const allowedOrigins = new Set((process.env.CORS_ORIGINS || 'https://lamspower.pro.bd,https://www.lamspower.pro.bd,http://localhost:5173,http://127.0.0.1:5173').split(',').map(origin => origin.trim()).filter(Boolean));
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)), optionsSuccessStatus: 204 }));
+app.use(express.json({ limit: '10mb', verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
 
 // Load Supabase credentials
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhaHl0Y3Jtc3Rsa3ZubXdmeGdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTA5MDYsImV4cCI6MjA5MjE2NjkwNn0.ipaXOyv2mGTZMPJrqqkFVu_qnNhvWlm9-PZJqxu2XUw';
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
 // 1. API Gatekeeper & Route Controller
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminUsersRouter);
+app.use('/api/ai', aiRouter);
 app.use('/api/control', apiControllerRouter);
 app.use(apiGatekeeper);
+
+app.get('/api/query', authenticateEmployee, async (req, res) => {
+  const targetUrl = req.query.url;
+  if (!targetUrl) return res.status(400).json({ error: 'Missing target url parameter' });
+  let parsedTarget;
+  try {
+    parsedTarget = new URL(String(targetUrl));
+    if (parsedTarget.origin !== new URL(supabaseUrl).origin || !parsedTarget.pathname.startsWith('/rest/v1/')) {
+      return res.status(400).json({ error: 'Only Supabase REST URLs for this project are allowed.' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid target URL.' });
+  }
+  try {
+    const response = await fetch(parsedTarget, {
+      method: 'GET',
+      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${req.authToken}`, 'Content-Type': 'application/json' }
+    });
+    const body = await response.text();
+    res.status(response.status).type(response.headers.get('content-type') || 'application/json').send(body);
+  } catch {
+    return res.status(502).json({ error: 'Failed to fetch data from Supabase.' });
+  }
+});
+
+app.post('/api/invalidate', authenticateEmployee, (req, res) => {
+  const tableName = String(req.query.table || '');
+  if (!/^[a-z_][a-z0-9_]*$/i.test(tableName)) return res.status(400).json({ error: 'Invalid table name.' });
+  return res.json({ success: true, keysDeleted: 0 });
+});
 
 // 2. Notification, Telegram & WhatsApp Routes
 app.use('/api/notify', notificationRouter);
 app.use('/api/telegram', telegramRouter);
 app.use('/api/whatsapp', whatsappRouter);
-
-// 3. Fallback Query Proxy (if queried directly)
-app.get('/api/query', async (req, res) => {
-  const targetUrl = req.query.url;
-  if (!targetUrl) return res.status(400).json({ error: 'Missing target url parameter' });
-
-  try {
-    const headers = {
-      'Content-Type': 'application/json',
-      'apikey': supabaseAnonKey,
-      'Authorization': `Bearer ${supabaseAnonKey}`
-    };
-    const response = await fetch(targetUrl, { method: 'GET', headers });
-    if (!response.ok) {
-      const err = await response.text();
-      return res.status(response.status).send(err);
-    }
-    const data = await response.json();
-    return res.json(data);
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
-  }
-});
 
 // Export default app for Vercel Serverless
 export default app;

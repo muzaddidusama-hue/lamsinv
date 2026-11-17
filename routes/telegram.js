@@ -1,13 +1,13 @@
 import express from 'express';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import { sendTelegram } from './notifications.js';
+import crypto from 'crypto';
+import { authenticateEmployee, requireRole } from './auth.js';
 
 export const router = express.Router();
 
-const DEFAULT_TG_TOKEN = '8347291592:AAGmt6yvWyIUCss0KeYoQdzF5ZuWWQbzzoU';
-const DEFAULT_TG_CHAT_ID = '8657367736';
-const DEFAULT_WEBHOOK_SECRET = 'LAMS_InvBot_15963_UbhMuzaddid17';
 const DEFAULT_SUPABASE_URL = 'https://iahytcrmstlkvnmwfxgs.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhaHl0Y3Jtc3Rsa3ZubXdmeGdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1OTA5MDYsImV4cCI6MjA5MjE2NjkwNn0.ipaXOyv2mGTZMPJrqqkFVu_qnNhvWlm9-PZJqxu2XUw';
 
 const MAX_TG_LEN = 3800; // Telegram limit is 4096, using 3800 for safety margin
 
@@ -29,7 +29,7 @@ export const DEFAULT_KEYBOARD = {
  */
 async function fetchProductsFromDb() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-  const apiKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+  const apiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
   if (!apiKey) {
     throw new Error('Supabase API key is missing in environment variables.');
@@ -243,8 +243,8 @@ async function handleStockTelegram(req, res) {
     const params = isPost ? (req.body || {}) : (req.query || {});
 
     const warehouse = (params.warehouse || 'all').toLowerCase();
-    const chatId = params.chatId || process.env.TELEGRAM_CHAT_ID || DEFAULT_TG_CHAT_ID;
-    const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
+    const chatId = params.chatId || process.env.TELEGRAM_CHAT_ID;
+    const token = process.env.TELEGRAM_BOT_TOKEN;
     const shouldSend = params.send !== 'false' && params.send !== false;
 
     const products = await fetchProductsFromDb();
@@ -360,13 +360,13 @@ async function handleTelegramWebhook(req, res) {
       return res.status(200).json({ ok: true, notice: 'No update payload' });
     }
 
-    // Optional Secret Token verification
-    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
-    const incomingSecret = req.headers['x-telegram-bot-api-secret-token'] || req.params.secret;
-    if (expectedSecret && incomingSecret && incomingSecret !== expectedSecret) {
-      console.warn('[Telegram Webhook]: Secret token mismatch, ignoring update.');
-      return res.status(200).json({ ok: true, notice: 'Secret mismatch' });
-    }
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+    const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
+    if (!expectedSecret) return res.status(503).json({ ok: false, error: 'Telegram webhook secret is not configured.' });
+    if (!incomingSecret || typeof incomingSecret !== 'string') return res.sendStatus(401);
+    const expected = Buffer.from(expectedSecret);
+    const actual = Buffer.from(incomingSecret);
+    if (actual.length !== expected.length || !crypto.timingSafeEqual(actual, expected)) return res.sendStatus(401);
 
     // Extract message
     const message = update.message || update.edited_message;
@@ -727,11 +727,20 @@ async function handleTelegramWebhook(req, res) {
  * Registers this site's webhook with Telegram Bot API in 1 click
  */
 async function handleSetupWebhook(req, res) {
-  const token = process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TG_TOKEN;
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET || DEFAULT_WEBHOOK_SECRET;
-  const host = req.query.host || req.get('host') || 'lamspower.pro.bd';
-  const protocol = host.includes('localhost') ? 'http' : 'https';
-  const webhookUrl = req.query.url || `${protocol}://${host}/api/telegram/webhook`;
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const publicAppUrl = process.env.PUBLIC_APP_URL;
+  if (!publicAppUrl || !secret) {
+    return res.status(503).json({ success: false, error: 'PUBLIC_APP_URL and TELEGRAM_WEBHOOK_SECRET must be configured.' });
+  }
+  let webhookUrl;
+  try {
+    const baseUrl = new URL(publicAppUrl);
+    if (baseUrl.protocol !== 'https:') throw new Error('PUBLIC_APP_URL must use HTTPS.');
+    webhookUrl = new URL('/api/telegram/webhook', baseUrl).toString();
+  } catch (error) {
+    return res.status(400).json({ success: false, error: error.message });
+  }
 
   if (!token) {
     return res.status(400).json({
@@ -767,17 +776,16 @@ async function handleSetupWebhook(req, res) {
 }
 
 // Route definitions
-router.get('/stock', handleStockTelegram);
-router.post('/stock', handleStockTelegram);
-router.get('/search', handleSearchTelegram);
-router.post('/search', handleSearchTelegram);
+router.get('/stock', authenticateEmployee, handleStockTelegram);
+router.post('/stock', authenticateEmployee, handleStockTelegram);
+router.get('/search', authenticateEmployee, handleSearchTelegram);
+router.post('/search', authenticateEmployee, handleSearchTelegram);
 
 // Webhook endpoints (Telegram calls these)
 router.post('/webhook', handleTelegramWebhook);
-router.post('/webhook/:secret', handleTelegramWebhook);
 
 // Helper endpoint to register webhook with Telegram
-router.get('/setup-webhook', handleSetupWebhook);
-router.post('/setup-webhook', handleSetupWebhook);
+router.get('/setup-webhook', authenticateEmployee, requireRole('Admin', 'CEO'), handleSetupWebhook);
+router.post('/setup-webhook', authenticateEmployee, requireRole('Admin', 'CEO'), handleSetupWebhook);
 
 export default router;

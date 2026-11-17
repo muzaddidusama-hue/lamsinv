@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
+import { supabase } from '../supabaseClient';
+
+async function getApiAuthHeaders(headers = {}) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) throw new Error('Please sign in again.');
+  return { ...headers, Authorization: `Bearer ${session.access_token}` };
+}
 
 // Modern SVG Icons
 const KeyIcon = () => (
@@ -58,7 +65,7 @@ const SYSTEM_APIS = [
     description: 'টেলিগ্রামের ব্যবহারকারী যখন বটকে /stock, /low, বা যেকোনো প্রোডাক্টের নাম লিখে মেসেজ দেয়, এই ওয়েবহুক স্বয়ংক্রিয়ভাবে রিপ্লাই করে।',
     headers: {
       'Content-Type': 'application/json',
-      'X-Telegram-Bot-Api-Secret-Token': 'LAMS_InvBot_15963_UbhMuzaddid17'
+      'X-Telegram-Bot-Api-Secret-Token': 'Configured on the server'
     },
     samplePayload: {
       update_id: 10001,
@@ -245,7 +252,7 @@ export default function ApiManager() {
   const [testEndpoint, setTestEndpoint] = useState('/api/notify/status');
   const [testMethod, setTestMethod] = useState('GET');
   const [testPayload, setTestPayload] = useState('{}');
-  const [testHeaders, setTestHeaders] = useState('{\n  "Content-Type": "application/json"\n}');
+  const [testHeaders] = useState('{\n  "Content-Type": "application/json"\n}');
   const [testResponse, setTestResponse] = useState(null);
   const [testLoading, setTestLoading] = useState(false);
   const [testDuration, setTestDuration] = useState(null);
@@ -257,7 +264,7 @@ export default function ApiManager() {
     fetchControllerStatus();
   }, []);
 
-  const loadStoredApiKeys = () => {
+  function loadStoredApiKeys() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -280,7 +287,7 @@ export default function ApiManager() {
     } catch (err) {
       console.error('Error loading API keys:', err);
     }
-  };
+  }
 
   const saveApiKeys = (keys) => {
     setApiKeys(keys);
@@ -291,7 +298,7 @@ export default function ApiManager() {
     }
   };
 
-  const checkConnectionStatus = async () => {
+  async function checkConnectionStatus() {
     setLoadingStatus(true);
     try {
       const res = await fetch('/api/notify/status');
@@ -306,11 +313,11 @@ export default function ApiManager() {
     } finally {
       setLoadingStatus(false);
     }
-  };
+  }
 
-  const fetchControllerStatus = async () => {
+  async function fetchControllerStatus() {
     try {
-      const res = await fetch('/api/control/status');
+      const res = await fetch('/api/control/status', { headers: await getApiAuthHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data.registry) {
@@ -320,7 +327,7 @@ export default function ApiManager() {
     } catch (err) {
       console.error('Failed to fetch API controller status:', err);
     }
-  };
+  }
 
   // Toggle API on/off through controller
   const handleToggleApiStatus = async (apiId) => {
@@ -331,7 +338,7 @@ export default function ApiManager() {
     try {
       const res = await fetch('/api/control/toggle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getApiAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ apiId, enabled: newStatus })
       });
 
@@ -462,13 +469,13 @@ export default function ApiManager() {
       let parsedHeaders = {};
       try {
         parsedHeaders = JSON.parse(testHeaders || '{}');
-      } catch (e) {
+      } catch {
         parsedHeaders = { 'Content-Type': 'application/json' };
       }
 
       const options = {
         method: testMethod,
-        headers: parsedHeaders
+        headers: await getApiAuthHeaders(parsedHeaders)
       };
 
       if (['POST', 'PUT', 'PATCH'].includes(testMethod.toUpperCase()) && testPayload.trim()) {

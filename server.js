@@ -1,4 +1,6 @@
 import express from 'express';
+import process from 'node:process';
+import { Buffer } from 'node:buffer';
 import cors from 'cors';
 import { createClient } from 'redis';
 import dotenv from 'dotenv';
@@ -8,6 +10,9 @@ import notificationRouter from './routes/notifications.js';
 import telegramRouter from './routes/telegram.js';
 import whatsappRouter from './routes/whatsapp.js';
 import apiControllerRouter, { apiGatekeeper } from './routes/apiController.js';
+import authRouter, { authenticateEmployee } from './routes/auth.js';
+import adminUsersRouter from './routes/adminUsers.js';
+import aiRouter from './routes/ai.js';
 
 dotenv.config();
 
@@ -17,12 +22,13 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-app.use(cors());
-app.use(express.json({ verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
+const allowedOrigins = new Set((process.env.CORS_ORIGINS || 'https://lamspower.pro.bd,https://www.lamspower.pro.bd,http://localhost:5173,http://127.0.0.1:5173').split(',').map(origin => origin.trim()).filter(Boolean));
+app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)), optionsSuccessStatus: 204 }));
+app.use(express.json({ limit: '10mb', verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); } }));
 
 // Load Supabase credentials from server env
-const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://iahytcrmstlkvnmwfxgs.supabase.co';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseAnonKey) {
   console.warn('[Server Warning]: VITE_SUPABASE_ANON_KEY is not defined in environment variables.');
@@ -61,7 +67,7 @@ async function connectRedis() {
     });
 
     redisClient.on('ready', () => {
-      console.log(`[Redis]: Redis Client connected and ready at ${redisUrl}`);
+      console.log('[Redis]: Redis Client connected and ready.');
       isRedisConnected = true;
     });
 
@@ -78,18 +84,32 @@ connectRedis();
 const REDIS_CACHE_TTL = 300;
 
 // 2. API Gatekeeper & Route Controller
+app.use('/api/auth', authRouter);
+app.use('/api/admin', adminUsersRouter);
+app.use('/api/ai', aiRouter);
 app.use('/api/control', apiControllerRouter);
 app.use(apiGatekeeper);
 
 // 3. GET API Query Caching Endpoint
-app.get('/api/query', async (req, res) => {
+app.get('/api/query', authenticateEmployee, async (req, res) => {
   const targetUrl = req.query.url;
 
   if (!targetUrl) {
     return res.status(400).json({ error: 'Missing target url parameter' });
   }
 
-  const cacheKey = `redis-cache:${targetUrl}`;
+  let parsedTarget;
+  try {
+    parsedTarget = new URL(String(targetUrl));
+    const expected = new URL(supabaseUrl);
+    if (parsedTarget.origin !== expected.origin || !parsedTarget.pathname.startsWith('/rest/v1/')) {
+      return res.status(400).json({ error: 'Only Supabase REST URLs for this project are allowed.' });
+    }
+  } catch {
+    return res.status(400).json({ error: 'Invalid target URL.' });
+  }
+
+  const cacheKey = `redis-cache:${req.employee.id}:${targetUrl}`;
 
   // A. Check Redis Cache
   if (isRedisConnected && redisClient) {
@@ -111,7 +131,7 @@ app.get('/api/query', async (req, res) => {
     const headers = {
       'Content-Type': 'application/json',
       'apikey': supabaseAnonKey,
-      'Authorization': `Bearer ${supabaseAnonKey}`
+      'Authorization': `Bearer ${req.authToken}`
     };
 
     const response = await fetch(targetUrl, {
@@ -146,12 +166,13 @@ app.get('/api/query', async (req, res) => {
 });
 
 // 3. POST Cache Invalidation Endpoint
-app.post('/api/invalidate', async (req, res) => {
+app.post('/api/invalidate', authenticateEmployee, async (req, res) => {
   const tableName = req.query.table;
 
   if (!tableName) {
     return res.status(400).json({ error: 'Missing table parameter' });
   }
+  if (!/^[a-z_][a-z0-9_]*$/i.test(String(tableName))) return res.status(400).json({ error: 'Invalid table name.' });
 
   console.log(`[Redis Invalidate Request]: Purging keys for table [${tableName}]`);
 
@@ -201,7 +222,7 @@ const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
 // For React SPA routes, fall back to index.html
-app.get('*', (req, res) => {
+app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
 });
 

@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from '../supabaseClient'; 
 import { saveInvoiceSerialsToInvSl } from '../utils/inverterUtils'; 
-
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(API_KEY);
 
 const SmartUpload = () => {
   const [uploadMode, setUploadMode] = useState('Bill'); 
@@ -44,10 +40,10 @@ const SmartUpload = () => {
     };
   }, []);
 
-  const fetchProducts = async () => {
+  async function fetchProducts() {
     const { data, error } = await supabase.from('products').select('*');
     if (!error && data) setDbProducts(data);
-  };
+  }
 
   // আল্ট্রা-স্মার্ট টাইপো-টলারেন্ট এবং টোকেনাইজড ম্যাচিং অ্যালগরিদম
   const findBestMatch = (aiDesc) => {
@@ -77,7 +73,7 @@ const SmartUpload = () => {
       return 1 - (matrix[len2][len1] / Math.max(len1, len2));
     };
 
-    const aiTokens = aiDesc.toLowerCase().split(/[\s\-,_/\+]+/).filter(t => t.length > 1);
+    const aiTokens = aiDesc.toLowerCase().split(/[\s,/_+-]+/).filter(t => t.length > 1);
     let bestMatch = null;
     let maxScore = 0;
 
@@ -135,7 +131,7 @@ const SmartUpload = () => {
       reader.onloadend = () => resolve(reader.result.split(',')[1]);
       reader.readAsDataURL(file);
     });
-    return { inlineData: { data: await base64EncodedDataPromise, mimeType: file.type } };
+    return { imageBase64: await base64EncodedDataPromise, mimeType: file.type };
   };
 
   const handleScanImage = async () => {
@@ -143,17 +139,17 @@ const SmartUpload = () => {
     setIsLoading(true);
 
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       const imagePart = await fileToGenerativePart(imageFile);
-
-      const prompt = `Analyze this ${uploadMode}. Extract info and return ONLY a valid JSON.
-        JSON structure: { "bill_no": "string", "chalan_no": "string", "customer_name": "string", "customer_phone": "string", "customer_address": "string", 
-        "items": [ { "description": "string", "quantity": number, "unit_price": number, "total_price": number } ] }`;
-
-      const result = await model.generateContent([prompt, imagePart]);
-      const responseText = result.response.text();
-      let cleanedJson = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-      const parsedData = JSON.parse(cleanedJson.substring(cleanedJson.indexOf('{'), cleanedJson.lastIndexOf('}') + 1));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('লগইন সেশন পাওয়া যায়নি। আবার লগইন করুন।');
+      const response = await fetch('/api/ai/parse-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ ...imagePart, uploadMode })
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'স্ক্যান করা যায়নি।');
+      const parsedData = result.data;
       
       setExtractedData({
         ...parsedData,
@@ -163,7 +159,7 @@ const SmartUpload = () => {
 
     } catch (error) {
       console.error(error);
-      alert("স্ক্যানিং এরর! ২-৩ সেকেন্ড পর আবার চেষ্টা করুন।");
+      alert(error.message || "স্ক্যানিং এরর! ২-৩ সেকেন্ড পর আবার চেষ্টা করুন।");
     } finally {
       setIsLoading(false);
     }

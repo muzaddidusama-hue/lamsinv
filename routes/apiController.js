@@ -1,6 +1,10 @@
 import express from 'express';
+import process from 'node:process';
+import { authenticateEmployee, requireRole } from './auth.js';
 
 export const router = express.Router();
+
+router.use(authenticateEmployee, requireRole('Admin', 'CEO'));
 
 /**
  * In-memory API Route Switch Registry
