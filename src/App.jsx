@@ -33,8 +33,20 @@ const ProductBrand = lazy(() => import('./components/ProductBrand'));
 const ApiManager = lazy(() => import('./components/ApiManager'));
 
 // 🌐 Public catalog page wrapper that handles navigation to login
-const PublicCatalogWrapper = () => {
+const PublicCatalogWrapper = ({ isAdmin, loadingSession }) => {
   const navigate = useNavigate();
+  useEffect(() => {
+    if (loadingSession) return;
+    let oauthPending = false;
+    try {
+      oauthPending = sessionStorage.getItem('lams-google-login-pending') === '1';
+      if (oauthPending) sessionStorage.removeItem('lams-google-login-pending');
+    } catch {
+      // Ignore storage restrictions; the catalog remains usable.
+    }
+    if (oauthPending && isAdmin) navigate('/dashboard', { replace: true });
+  }, [isAdmin, loadingSession, navigate]);
+
   return <PublicCatalog onAdminClick={() => navigate('/login')} />;
 };
 
@@ -229,7 +241,7 @@ function App() {
 
         <Routes>
           {/* Public Page Route */}
-          <Route path="/" element={<PublicCatalogWrapper />} />
+          <Route path="/" element={<PublicCatalogWrapper isAdmin={isAdmin} loadingSession={loadingSession} />} />
           <Route path="/reseller-offer" element={<ResellerOfferPublic />} />
           <Route path="/error-codes" element={
             <Suspense fallback={
