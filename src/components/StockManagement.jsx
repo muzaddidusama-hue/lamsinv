@@ -96,18 +96,57 @@ const StockManagement = () => {
       return alert('দয়া করে তারিখ সিলেক্ট করুন!');
     }
     
+    const currentStock = Number(selectedProduct.stock_quantity || 0);
     let updateData = {};
     if (modalType === 'stock') {
-      updateData = { stock_quantity: Number(selectedProduct.stock_quantity || 0) + parseInt(newValue, 10) };
+      updateData = { stock_quantity: currentStock + parseInt(newValue, 10) };
     } else if (modalType === 'reduce_stock') {
-      const reducedStock = Number(selectedProduct.stock_quantity || 0) - parseInt(newValue, 10);
+      const reducedStock = currentStock - parseInt(newValue, 10);
       if (reducedStock < 0) return alert('বর্তমান স্টকের চেয়ে বেশি কমানো যাবে না!');
       updateData = { stock_quantity: reducedStock };
     } else {
       updateData = { unit_price: parseFloat(newValue) };
     }
     
+    let ledgerEntryId = null;
+    let stockOutEntryId = null;
     try {
+      // তারিখ অনুযায়ী timestamp তৈরি
+      const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
+      const finalTimestamp = `${manualDate}T${currentTime}.000Z`;
+      const houseLabel = targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office';
+      if (modalType === 'stock') {
+        const finalSource = purchaseSource === 'Custom' ? customSource.trim() : purchaseSource;
+        const { data: ledgerEntry, error: ledgerError } = await supabase
+          .from('ledger')
+          .insert([{
+            product: `${selectedProduct.name} - ${selectedProduct.model}`,
+            quantity: parseInt(newValue, 10),
+            date: manualDate,
+            in: finalTimestamp,
+            source: `${finalSource} (To: ${houseLabel})`
+          }])
+          .select('id')
+          .single();
+        if (ledgerError) throw ledgerError;
+        ledgerEntryId = ledgerEntry.id;
+      } else if (modalType === 'reduce_stock') {
+        // stock_out টেবিলে এন্ট্রি (ম্যানুয়াল রিমুভাল সরাসরি stock_out থেকে ট্র্যাক হয়)
+        const { data: stockOutEntry, error: stockOutError } = await supabase
+          .from('stock_out')
+          .insert([{
+            type: selectedProduct.name,
+            model: selectedProduct.model,
+            amount: newValue.toString(),
+            reason: `${reduceReason.trim()} (From: ${houseLabel})`,
+            date: manualDate
+          }])
+          .select('id')
+          .single();
+        if (stockOutError) throw stockOutError;
+        stockOutEntryId = stockOutEntry.id;
+      }
+
       const { data: updatedProduct, error } = await supabase
         .from('products')
         .update(updateData)
@@ -118,47 +157,18 @@ const StockManagement = () => {
       if (error) throw error;
       if (!updatedProduct) throw new Error(`${targetHouse} হাউজে প্রোডাক্টটি আর পাওয়া যাচ্ছে না। তালিকা রিফ্রেশ করে আবার চেষ্টা করুন।`);
 
-      // তারিখ অনুযায়ী timestamp তৈরি
-      const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
-      const finalTimestamp = `${manualDate}T${currentTime}.000Z`;
-            if (modalType === 'stock') {
-              const finalSource = purchaseSource === 'Custom' ? customSource.trim() : purchaseSource;
-              const { error: ledgerError } = await supabase.from('ledger').insert([
-                {
-                  product: `${selectedProduct.name} - ${selectedProduct.model}`,
-                  quantity: parseInt(newValue),
-                  date: manualDate,
-                  in: finalTimestamp, 
-                  source: `${finalSource} (To: ${targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
-                }
-              ]);
-              if (ledgerError) {
-                console.error("Ledger Sync Error:", ledgerError);
-                alert("❌ লেজার এন্ট্রি তৈরি করতে ব্যর্থ হয়েছে: " + ledgerError.message);
-                throw ledgerError;
-              }
-            } else if (modalType === 'reduce_stock') {
-              // stock_out টেবিলে এন্ট্রি (ম্যানুয়াল রিমুভাল সরাসরি stock_out থেকে ট্র্যাক হয়)
-              const { error: stockOutError } = await supabase.from('stock_out').insert([
-                {
-                  type: selectedProduct.name,
-                  model: selectedProduct.model,
-                  amount: newValue.toString(),
-                  reason: `${reduceReason.trim()} (From: ${targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
-                  date: manualDate
-                }
-              ]);
-              if (stockOutError) {
-                console.error("Stock Out Sync Error:", stockOutError);
-                alert("❌ স্টক আউট এন্ট্রি তৈরি করতে ব্যর্থ হয়েছে: " + stockOutError.message);
-                throw stockOutError;
-              }
-            }
-
       alert(`✅ ${modalType === 'price' ? 'দাম' : 'স্টক'} সফলভাবে আপডেট হয়েছে!`);
       setProducts(products.map(p => p.id === selectedProduct.id ? { ...p, ...updateData } : p));
       closeModal();
     } catch (error) {
+      if (ledgerEntryId !== null) {
+        const { error: rollbackError } = await supabase.from('ledger').delete().eq('id', ledgerEntryId);
+        if (rollbackError) console.error('Ledger rollback error:', rollbackError);
+      }
+      if (stockOutEntryId !== null) {
+        const { error: rollbackError } = await supabase.from('stock_out').delete().eq('id', stockOutEntryId);
+        if (rollbackError) console.error('Stock out rollback error:', rollbackError);
+      }
       alert('আপডেট করতে সমস্যা হয়েছে: ' + error.message);
     }
   };
