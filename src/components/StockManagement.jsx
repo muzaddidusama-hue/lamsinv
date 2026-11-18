@@ -209,13 +209,13 @@ const StockManagement = () => {
           
           <div className="flex bg-slate-100 p-1 rounded-2xl self-stretch md:self-auto">
             <button 
-              onClick={() => setActiveHouse('Head Office')}
+              onClick={() => { setActiveHouse('Head Office'); closeModal(); }}
               className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-xs transition-all ${activeHouse === 'Head Office' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
               🏢 HEAD OFFICE
             </button>
             <button 
-              onClick={() => setActiveHouse('Showroom')}
+              onClick={() => { setActiveHouse('Showroom'); closeModal(); }}
               className={`flex-1 md:flex-none px-6 py-2.5 rounded-xl font-black text-xs transition-all ${activeHouse === 'Showroom' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
             >
               🏪 SHOWROOM
@@ -232,9 +232,9 @@ const StockManagement = () => {
             className="flex-1 p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" 
           />
           <div className="flex flex-wrap gap-2">
-             <button onClick={() => { setModalType('price'); setUpdateModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">💰 আপডেট প্রাইস</button>
-             <button onClick={() => { setModalType('reduce_stock'); setUpdateModal(true); }} className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➖ স্টক কমানো</button>
-             <button onClick={() => { setModalType('stock'); setUpdateModal(true); }} className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➕ নতুন স্টক</button>
+             <button onClick={() => { setSelectedProduct(null); setModalProductSearchText(''); setModalType('price'); setUpdateModal(true); }} className="bg-blue-600 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">💰 আপডেট প্রাইস</button>
+             <button onClick={() => { setSelectedProduct(null); setModalProductSearchText(''); setModalType('reduce_stock'); setUpdateModal(true); }} className="bg-red-500 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➖ স্টক কমানো</button>
+             <button onClick={() => { setSelectedProduct(null); setModalProductSearchText(''); setModalType('stock'); setUpdateModal(true); }} className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-black text-xs shadow-lg active:scale-95 transition-all">➕ নতুন স্টক</button>
           </div>
         </div>
       </div>
@@ -248,14 +248,15 @@ const StockManagement = () => {
                 <th className="p-5">প্রোডাক্ট ইনফো</th>
                 <th className="p-5 text-right">দাম</th>
                 <th className="p-5 text-center">স্টক ({activeHouse})</th>
+                <th className="p-5 text-center">দ্রুত স্টক পরিবর্তন</th>
                 <th className="p-5 text-center">পাবলিক পেজ স্ট্যাটাস</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {loading ? (
-                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">লোড হচ্ছে...</td></tr>
+                <tr><td colSpan="5" className="p-20 text-center font-bold text-slate-300 italic">লোড হচ্ছে...</td></tr>
               ) : filteredProducts.length === 0 ? (
-                <tr><td colSpan="4" className="p-20 text-center font-bold text-slate-300 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</td></tr>
+                <tr><td colSpan="5" className="p-20 text-center font-bold text-slate-300 italic">কোনো প্রোডাক্ট পাওয়া যায়নি</td></tr>
               ) : filteredProducts.map((p) => (
                 <tr key={p.id} className="hover:bg-slate-50/50">
                   <td className="p-5">
@@ -267,6 +268,34 @@ const StockManagement = () => {
                     <span className={`px-3 py-1 rounded-lg ${p.stock_quantity <= 10 ? 'bg-red-50 text-red-600' : 'bg-slate-100'}`}>
                       {p.stock_quantity} PCS
                     </span>
+                  </td>
+                  <td className="p-5 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button 
+                        onClick={() => {
+                          setSelectedProduct(p);
+                          setModalProductSearchText(`${p.name} - ${p.model}`);
+                          setModalType('stock');
+                          setUpdateModal(true);
+                        }}
+                        title="এই প্রোডাক্টের স্টক বাড়ান"
+                        className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black active:scale-95 transition-all flex items-center gap-1 shadow-sm"
+                      >
+                        ➕ <span className="hidden sm:inline">স্টক যোগ</span>
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSelectedProduct(p);
+                          setModalProductSearchText(`${p.name} - ${p.model}`);
+                          setModalType('reduce_stock');
+                          setUpdateModal(true);
+                        }}
+                        title="এই প্রোডাক্টের স্টক কমান"
+                        className="px-2.5 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-xs font-black active:scale-95 transition-all flex items-center gap-1 shadow-sm"
+                      >
+                        ➖ <span className="hidden sm:inline">কমানো</span>
+                      </button>
+                    </div>
                   </td>
                   <td className="p-5 text-center">
                     <div className="flex flex-col items-center gap-1">
@@ -292,11 +321,18 @@ const StockManagement = () => {
       {updateModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <div className="bg-white rounded-[2.5rem] p-6 md:p-10 w-full max-w-lg shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="mb-6">
+            <div className="mb-6 space-y-1.5">
+              <div className="flex items-center justify-between">
                 <h3 className="text-2xl font-black text-slate-900">
                   {modalType === 'stock' ? '➕ ইনভেন্টরি আপডেট' : modalType === 'reduce_stock' ? '➖ স্টক কমানো' : '💰 প্রাইস আপডেট'}
                 </h3>
-                <p className="text-sm font-bold text-slate-400">প্রোডাক্ট সিলেক্ট করে নতুন ডাটা দিন</p>
+                <span className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider ${activeHouse === 'Showroom' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                  {activeHouse === 'Showroom' ? '🏪 Showroom' : '🏢 Head Office'}
+                </span>
+              </div>
+              <p className="text-sm font-bold text-slate-400">
+                [{activeHouse}] ওয়্যারহাউজের জন্য প্রোডাক্ট সিলেক্ট করে ডাটা দিন
+              </p>
             </div>
             
             <div className="space-y-6">
@@ -404,7 +440,7 @@ const StockManagement = () => {
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">
-                  {modalType === 'stock' ? 'কত পিস নতুন যোগ হবে? (Qty)' : modalType === 'reduce_stock' ? 'কত পিস স্টক থেকে কমানো হবে? (Qty)' : 'নতুন ইউনিট প্রাইস কত হবে? (৳)'}
+                  {modalType === 'stock' ? `কত পিস নতুন যোগ হবে (${activeHouse})? (Qty)` : modalType === 'reduce_stock' ? `কত পিস স্টক থেকে কমানো হবে (${activeHouse})? (Qty)` : 'নতুন ইউনিট প্রাইস কত হবে? (৳)'}
                 </label>
                 <input 
                   type="number" 
