@@ -130,7 +130,6 @@ const StockManagement = () => {
                   date: manualDate,
                   in: finalTimestamp, 
                   source: `${finalSource} (To: ${targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
-                  type: 'in'
                 }
               ]);
               if (ledgerError) {
