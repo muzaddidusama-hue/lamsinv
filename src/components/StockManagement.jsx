@@ -78,6 +78,11 @@ const StockManagement = () => {
 
   const handleDataSave = async () => {
     if (!selectedProduct || !newValue || newValue <= 0) return alert('সঠিক তথ্য দিন (০ এর চেয়ে বড় সংখ্যা দিন)!');
+
+    const targetHouse = activeHouse;
+    if (selectedProduct.house !== targetHouse) {
+      return alert(`নির্বাচিত প্রোডাক্টটি ${targetHouse} হাউজের নয়। হাউজের তালিকা থেকে আবার প্রোডাক্ট নির্বাচন করুন।`);
+    }
     
     if (modalType === 'stock' && purchaseSource === 'Custom' && !customSource.trim()) {
       return alert('দয়া করে কাস্টম সোর্স বা কারণ লিখুন (যেমন: manual counting, adjustment)!');
@@ -93,9 +98,9 @@ const StockManagement = () => {
     
     let updateData = {};
     if (modalType === 'stock') {
-      updateData = { stock_quantity: selectedProduct.stock_quantity + parseInt(newValue) };
+      updateData = { stock_quantity: Number(selectedProduct.stock_quantity || 0) + parseInt(newValue, 10) };
     } else if (modalType === 'reduce_stock') {
-      const reducedStock = selectedProduct.stock_quantity - parseInt(newValue);
+      const reducedStock = Number(selectedProduct.stock_quantity || 0) - parseInt(newValue, 10);
       if (reducedStock < 0) return alert('বর্তমান স্টকের চেয়ে বেশি কমানো যাবে না!');
       updateData = { stock_quantity: reducedStock };
     } else {
@@ -103,8 +108,15 @@ const StockManagement = () => {
     }
     
     try {
-      const { error } = await supabase.from('products').update(updateData).eq('id', selectedProduct.id);
+      const { data: updatedProduct, error } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', selectedProduct.id)
+        .eq('house', targetHouse)
+        .select('id, house')
+        .maybeSingle();
       if (error) throw error;
+      if (!updatedProduct) throw new Error(`${targetHouse} হাউজে প্রোডাক্টটি আর পাওয়া যাচ্ছে না। তালিকা রিফ্রেশ করে আবার চেষ্টা করুন।`);
 
       // তারিখ অনুযায়ী timestamp তৈরি
       const currentTime = new Date().toTimeString().split(' ')[0]; // e.g. "12:34:56"
@@ -117,8 +129,8 @@ const StockManagement = () => {
                   quantity: parseInt(newValue),
                   date: manualDate,
                   in: finalTimestamp, 
-                  source: `${finalSource} (To: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
-                  house: activeHouse,
+                  source: `${finalSource} (To: ${targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
+                  house: targetHouse,
                   type: 'in'
                 }
               ]);
@@ -134,7 +146,7 @@ const StockManagement = () => {
                   type: selectedProduct.name,
                   model: selectedProduct.model,
                   amount: newValue.toString(),
-                  reason: `${reduceReason.trim()} (From: ${activeHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
+                  reason: `${reduceReason.trim()} (From: ${targetHouse === 'Showroom' ? 'Nawabpur' : 'Head Office'})`,
                   date: manualDate
                 }
               ]);
